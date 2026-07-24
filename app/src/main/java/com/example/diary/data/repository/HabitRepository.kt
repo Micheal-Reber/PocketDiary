@@ -17,8 +17,7 @@ class HabitRepository(private val habitDao: HabitDao) {
 
     suspend fun deleteHabit(id: Long) = habitDao.deleteById(id)
 
-    suspend fun getRecordsForDate(date: String): List<HabitRecord> =
-        habitDao.getRecordsForDate(date)
+    suspend fun getRecordsForDate(date: String) = habitDao.getRecordsForDate(date)
 
     suspend fun toggleCheckIn(habitId: Long, date: String) {
         val existing = habitDao.getRecord(habitId, date)
