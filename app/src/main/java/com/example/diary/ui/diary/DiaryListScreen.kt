@@ -124,14 +124,14 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                // Title: date if no title
+                // Title: date if no title, else title
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(entry.title.ifEmpty { entry.date }, style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     if (!entry.mood.isNullOrEmpty()) Text(entry.mood, style = MaterialTheme.typography.titleLarge)
                 }
 
-                // Weather + Location
+                // Weather + Location (always stays here)
                 if (!entry.weather.isNullOrEmpty() || !entry.locationName.isNullOrEmpty()) {
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -148,6 +148,12 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
                 if (entry.content.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     InlineContent(entry.content, photoList) { fullscreenFile = it }
+                }
+
+                // Date at bottom (only when title exists)
+                if (entry.title.isNotEmpty()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(entry.date, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                 }
             }
         }
