@@ -74,7 +74,7 @@ internal fun CheckInDialog(
 @Composable
 internal fun AddHabitDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
     var name by remember { mutableStateOf("") }
-    var emoji by remember { mutableStateOf("✅") }
+    var emoji by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,

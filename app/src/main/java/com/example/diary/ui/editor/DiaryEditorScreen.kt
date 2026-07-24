@@ -16,6 +16,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -43,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
@@ -50,8 +52,6 @@ import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.location.LocationProvider
 import com.example.diary.data.photo.PhotoStore
 import com.example.diary.data.repository.DiaryRepository
-import com.example.diary.data.weather.WeatherProvider
-import com.example.diary.ui.editor.mood.MoodChips
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -59,6 +59,12 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+
+// Mood & weather presets (inspired by MyDiary → localized)
+private val moodPresets = listOf("😊", "😐", "😢", "😡", "😰")
+private val moodLabels = listOf("开心", "一般", "难过", "生气", "焦虑")
+private val weatherPresets = listOf("☀️", "🌤️", "☁️", "🌧️", "⛈️", "❄️", "🌫️")
+private val weatherLabels = listOf("晴", "多云", "阴", "雨", "暴雨", "雪", "雾")
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -125,6 +131,7 @@ fun DiaryEditorScreen(
     var locationName by rememberSaveable { mutableStateOf<String?>(null) }
     var weather by rememberSaveable { mutableStateOf<String?>(null) }
     var weatherLoading by rememberSaveable { mutableStateOf(false) }
+    var fullscreenImage by remember { mutableStateOf<File?>(null) }
 
     // Photo selection mode (entered via long-press, exited via toolbar "cancel" or empty selection).
     var isSelectionMode by rememberSaveable { mutableStateOf(false) }
@@ -201,53 +208,36 @@ fun DiaryEditorScreen(
     // async load (fields are non-empty while loadedSnapshot is still the placeholder).
     val isDirty = isLoaded && !loadedSnapshot.matches(title, content, mood, lat, lon, locationName, weather, photos)
 
-    // Shared location+weather fetch, used by both the permission launcher callback
-    // (after the user grants) and the toolbar button (when permission is already
-    // granted — RequestMultiplePermissions would no-op otherwise).
+    // Location fetch — GPS only (weather is now manual via preset chips)
     val fetchLocationAndWeather: () -> Unit = {
-        // Best-effort: read last known and fetch weather for the entry date.
-        // Cancel any in-flight request so the previous coroutine can't race
-        // in and overwrite the new request's results.
         locationJob.value?.cancel()
-        @Suppress("MissingPermission") // checked via hasPermission helper
+        @Suppress("MissingPermission")
         locationJob.value = scope.launch {
             val provider = LocationProvider(context)
             val loc = provider.getLastKnown()
             if (loc != null) {
                 lat = loc.latitude
                 lon = loc.longitude
-                locationName = "%.4f, %.4f".format(loc.latitude, loc.longitude)
-                weatherLoading = true
-                // Capture the date at request time so a date change mid-flight
-                // doesn't cause the result to land in the wrong entry.
-                val dateAtRequest = dateStr
-                val parsedDate = try {
-                    LocalDate.parse(dateAtRequest.trim())
-                } catch (e: Exception) { LocalDate.now() }
+                // Reverse geocode to human-readable address
                 try {
-                    val w = WeatherProvider.fetchEmoji(loc.latitude, loc.longitude, parsedDate)
-                    // Only apply the result if the user is still on the same date.
-                    if (dateStr == dateAtRequest) {
-                        weather = w
+                    val geocoder = android.location.Geocoder(context)
+                    val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
+                    if (!addresses.isNullOrEmpty()) {
+                        val addr = addresses[0]
+                        locationName = listOfNotNull(addr.adminArea, addr.locality, addr.subLocality)
+                            .distinct().joinToString(" ")
+                            .ifEmpty { addr.getAddressLine(0) ?: "" }
                     }
-                } finally {
-                    // Always release the spinner — even if the coroutine was
-                    // cancelled mid-flight (e.g., a new tap cancelled this one,
-                    // or the screen disposed). Without this, weatherLoading stays
-                    // true forever and the spinner spins indefinitely.
-                    if (dateStr == dateAtRequest) {
-                        weatherLoading = false
-                    }
+                } catch (e: Exception) {
+                    locationName = "%.4f, %.4f".format(loc.latitude, loc.longitude)
                 }
             } else {
-                // No fix yet — system might be cold, permission just granted, or
-                // the device has no GPS/NETWORK/PASSIVE providers. Surface to the
-                // user instead of silently no-oping, so the button doesn't feel
-                // broken on first launch.
-                snackbarHostState.showSnackbar(
-                    message = "暂未获取到位置,请稍后再试或检查定位权限",
-                    duration = SnackbarDuration.Short
-                )
+                scope.launch {
+                    snackbarHostState.showSnackbar(
+                        message = "暂未获取到位置,请稍后再试或检查定位权限",
+                        duration = SnackbarDuration.Short
+                    )
+                }
             }
         }
     }
@@ -549,8 +539,36 @@ fun DiaryEditorScreen(
             }
             Spacer(Modifier.height(8.dp))
 
-            // Mood chips
-            MoodChips(selected = mood, onSelect = { mood = it })
+            // Mood selector (scrollable like weather)
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 4.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                moodPresets.forEachIndexed { index, icon ->
+                    val selected = mood == icon
+                    FilterChip(
+                        selected = selected,
+                        onClick = { mood = if (selected) null else icon },
+                        label = { Text("$icon ${moodLabels[index]}", style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+
+            // Weather selector
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 2.dp).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                weatherPresets.forEachIndexed { index, icon ->
+                    val selected = weather == icon
+                    FilterChip(
+                        selected = selected,
+                        onClick = { weather = if (selected) null else icon },
+                        label = { Text("$icon ${weatherLabels[index]}", style = MaterialTheme.typography.labelSmall) }
+                    )
+                }
+            }
             Spacer(Modifier.height(4.dp))
 
             // Location / weather row (only shown when we have a fix)
@@ -613,19 +631,18 @@ fun DiaryEditorScreen(
                                 .combinedClickable(
                                     onClick = {
                                         if (isSelectionMode) {
-                                            // Tap = toggle. If unchecking the last selected photo,
-                                            // exit selection mode (matches Photos / Gallery convention).
                                             if (isSelected) {
                                                 val next = selectedFiles - file
+                                                selectedFiles = next
                                                 if (next.isEmpty()) {
                                                     isSelectionMode = false
                                                     selectedFiles = emptySet()
-                                                } else {
-                                                    selectedFiles = next
                                                 }
                                             } else {
                                                 selectedFiles = selectedFiles + file
                                             }
+                                        } else {
+                                            fullscreenImage = file
                                         }
                                     },
                                     onLongClick = {
@@ -813,6 +830,23 @@ fun DiaryEditorScreen(
                 }
             }
         )
+    }
+
+    // Fullscreen image viewer
+    if (fullscreenImage != null) {
+        val file = fullscreenImage!!
+        Dialog(onDismissRequest = { fullscreenImage = null }) {
+            Box(
+                Modifier.fillMaxSize().clickable { fullscreenImage = null },
+                contentAlignment = Alignment.Center
+            ) {
+                coil.compose.AsyncImage(
+                    model = file,
+                    contentDescription = "查看图片",
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
+                )
+            }
+        }
     }
 }
 

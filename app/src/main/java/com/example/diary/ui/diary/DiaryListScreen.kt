@@ -100,7 +100,7 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    entry.title.ifEmpty { "无标题" },
+                    entry.title.ifEmpty { entry.content.take(30).ifEmpty { "（空）" } },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
