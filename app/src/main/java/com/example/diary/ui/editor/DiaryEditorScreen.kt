@@ -697,6 +697,20 @@ fun DiaryEditorScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
+            // Insert photo tags into content
+            if (photos.isNotEmpty()) {
+                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = {
+                        val tags = photos.indices.joinToString("") { "[img:$it]" }
+                        content += tags
+                    }) {
+                        Text("📷 插入图片到正文", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = content,
                 onValueChange = { content = it },
