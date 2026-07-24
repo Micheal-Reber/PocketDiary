@@ -9,6 +9,8 @@ import com.example.diary.data.local.YearlyStat
 import com.example.diary.data.repository.HabitRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -64,8 +66,28 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
     private val _yearlyStats = MutableStateFlow<List<YearlyStat>>(emptyList())
     val yearlyStats: StateFlow<List<YearlyStat>> = _yearlyStats.asStateFlow()
 
+    // Serializes loadStats/loadCalendarCheckIns/loadTodayCount so a slow
+    // first call can't have its result clobbered by a faster second call.
+    // Without this, viewModelScope.launch { block() } kicks off every call
+    // in parallel and the order of StateFlow writes is whatever the IO
+    // scheduler picks — not whatever order the user invoked them in.
+    private val loadMutex = Mutex()
+
     init {
         loadAllData()
+        // habits is a StateFlow seeded with emptyList() — without this watcher,
+        // the first emission of the underlying Room flow lands after init()'s
+        // loadCalendarCheckIns() runs, so the calendar dots never paint even
+        // though the user has habits. Drop the empty seed and refresh whenever
+        // the list goes from empty to non-empty (or any time the first habit
+        // changes identity).
+        viewModelScope.launch {
+            habits.collect { list ->
+                if (list.isNotEmpty()) {
+                    loadCalendarCheckIns()
+                }
+            }
+        }
     }
 
     fun toggleStats() { _showStats.value = !_showStats.value }
@@ -102,11 +124,19 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
     fun toggleHabitOnDate(habitId: Long, date: String) {
         viewModelScope.launch {
             habitRepository.toggleCheckIn(habitId, date)
+            // Reflect the new state in the dialog's local map. toggleCheckIn has
+            // no return value, so we infer the next state by reading the DB.
+            val nowChecked = habitRepository.getRecordsForDate(date).any { it.habitId == habitId }
             val current = _dateCheckIns.value.toMutableMap()
-            current[habitId] = !(current[habitId] ?: false)
-            if (current[habitId] == false) current.remove(habitId)
+            if (nowChecked) current[habitId] = true else current.remove(habitId)
             _dateCheckIns.value = current
-            loadAllData() // Refresh stats + calendar dots
+            // Only refresh the derived views that actually depend on records —
+            // calendar dots and chart stats. loadTodayCount() reads the same DB
+            // row we just touched, so refresh it too. Avoiding loadAllData() keeps
+            // the dialog from re-rendering on every checkbox tap.
+            loadCalendarCheckIns()
+            loadStats()
+            loadTodayCount()
         }
     }
 
@@ -115,8 +145,16 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
 
     fun addHabit(name: String, emoji: String) {
         viewModelScope.launch {
-            val colorIndex = (habits.value.maxOfOrNull { it.colorIndex } ?: -1) + 1
+            // Reuse colors modulo the palette size so adding more than 10 habits
+            // doesn't silently collide on the same color (the old "max + 1"
+            // approach did because habitColor() does modulo at render time).
+            val colorIndex = habits.value.size % HabitColorPalette.size
             habitRepository.addHabit(name, emoji, colorIndex)
+            // Stats: a brand-new habit has zero records, so monthlyStats doesn't
+            // actually need to re-read — but refreshing here keeps the line on
+            // the chart immediately visible (otherwise it appears only on the
+            // next toggle/month switch).
+            loadStats()
             _showAddHabitDialog.value = false
         }
     }
@@ -137,32 +175,29 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
         loadTodayCount()
     }
 
-    private fun loadStats() {
-        viewModelScope.launch {
-            _monthlyStats.value = habitRepository.getMonthlyStats(_selectedYear.value)
-            _yearlyStats.value = habitRepository.getYearlyStats()
+    private fun loadStats() = launchSerialized {
+        _monthlyStats.value = habitRepository.getMonthlyStats(_selectedYear.value)
+        _yearlyStats.value = habitRepository.getYearlyStats()
+    }
+
+    private fun loadCalendarCheckIns() = launchSerialized {
+        val firstHabit = habits.value.firstOrNull()
+        if (firstHabit != null) {
+            val prefix = _currentMonth.value.toString() // yyyy-MM
+            val dates = habitRepository.getCheckInDates(firstHabit.id, prefix)
+            _calendarCheckInDates.value = dates.map { LocalDate.parse(it) }.toSet()
+        } else {
+            _calendarCheckInDates.value = emptySet()
         }
     }
 
-    private fun loadCalendarCheckIns() {
-        viewModelScope.launch {
-            val firstHabit = habits.value.firstOrNull()
-            if (firstHabit != null) {
-                val prefix = _currentMonth.value.toString() // yyyy-MM
-                val dates = habitRepository.getCheckInDates(firstHabit.id, prefix)
-                _calendarCheckInDates.value = dates.map { LocalDate.parse(it) }.toSet()
-            } else {
-                _calendarCheckInDates.value = emptySet()
-            }
-        }
+    private fun loadTodayCount() = launchSerialized {
+        val records = habitRepository.getRecordsForDate(LocalDate.now().toString())
+        _todayCheckInCount.value = records.size
     }
 
-    private fun loadTodayCount() {
-        viewModelScope.launch {
-            val records = habitRepository.getRecordsForDate(LocalDate.now().toString())
-            _todayCheckInCount.value = records.size
-        }
-    }
+    private fun launchSerialized(block: suspend () -> Unit) =
+        viewModelScope.launch { loadMutex.withLock { block() } }
 
     fun isFutureDate(date: LocalDate): Boolean = date.isAfter(LocalDate.now())
 }
