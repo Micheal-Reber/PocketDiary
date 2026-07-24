@@ -8,6 +8,15 @@ android {
     namespace = "com.example.diary"
     compileSdk = 35
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file("pocketdiary.jks")
+            storePassword = "android"
+            keyAlias = "pocketdiary"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.example.diary"
         minSdk = 26
@@ -20,6 +29,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
