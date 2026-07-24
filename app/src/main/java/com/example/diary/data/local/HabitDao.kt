@@ -8,25 +8,13 @@ interface HabitDao {
     @Query("SELECT * FROM habits WHERE isArchived = 0 ORDER BY sortOrder ASC")
     fun getActiveHabits(): Flow<List<Habit>>
 
-    @Query("SELECT * FROM habits ORDER BY sortOrder ASC")
-    fun getAllHabits(): Flow<List<Habit>>
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(habit: Habit): Long
-
-    @Update
-    suspend fun update(habit: Habit)
-
-    @Query("UPDATE habits SET isArchived = 1 WHERE id = :id")
-    suspend fun archiveHabit(id: Long)
 
     @Query("DELETE FROM habits WHERE id = :id")
     suspend fun deleteById(id: Long)
 
     // Habit records
-    @Query("SELECT * FROM habit_records WHERE habitId = :habitId AND date LIKE :yearMonth || '%'")
-    fun getRecordsForMonth(habitId: Long, yearMonth: String): Flow<List<HabitRecord>>
-
     @Query("SELECT * FROM habit_records WHERE date = :date")
     suspend fun getRecordsForDate(date: String): List<HabitRecord>
 

@@ -1,22 +1,29 @@
 package com.example.diary.ui.diary
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.example.diary.data.local.DiaryEntry
+import com.example.diary.data.photo.PhotoStore
 import com.example.diary.data.repository.DiaryRepository
-import java.time.format.DateTimeFormatter
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,7 +33,7 @@ fun DiaryListScreen(
     onEditDiary: (String) -> Unit
 ) {
     val entries by diaryRepository.getAllEntries()
-        .collectAsState(initial = emptyList())
+        .collectAsStateWithLifecycle(initialValue = emptyList())
 
     Scaffold(
         topBar = {
@@ -73,6 +80,13 @@ fun DiaryListScreen(
 
 @Composable
 private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit) {
+    val photoList = remember(entry.photoPaths) {
+        // Use PhotoStore.parsePaths for consistent CSV handling and drop files
+        // that no longer exist (e.g., cleared by OS or user manually deleted).
+        PhotoStore.parsePaths(entry.photoPaths)
+            .map { File(it) }
+            .filter { it.exists() }
+    }
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
@@ -93,6 +107,9 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
+                if (!entry.mood.isNullOrEmpty()) {
+                    Text(entry.mood, style = MaterialTheme.typography.titleLarge)
+                }
             }
             if (entry.content.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
@@ -104,13 +121,39 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit) {
                     overflow = TextOverflow.Ellipsis
                 )
             }
+            if (photoList.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(photoList, key = { it.absolutePath }) { f ->
+                        AsyncImage(
+                            model = f,
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp).clip(RoundedCornerShape(6.dp)).background(MaterialTheme.colorScheme.surface)
+                        )
+                    }
+                }
+            }
             Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     entry.date,
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.outline
                 )
+                if (!entry.weather.isNullOrEmpty()) {
+                    Text("  ${entry.weather}", style = MaterialTheme.typography.labelSmall)
+                }
+                if (!entry.locationName.isNullOrEmpty()) {
+                    Spacer(Modifier.width(6.dp))
+                    Icon(Icons.Default.LocationOn, null, modifier = Modifier.size(12.dp), tint = MaterialTheme.colorScheme.outline)
+                    Text(
+                        "  ${entry.locationName}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.outline,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }

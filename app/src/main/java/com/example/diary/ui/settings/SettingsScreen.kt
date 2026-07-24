@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.diary.data.preferences.ThemePreferences
 import kotlinx.coroutines.launch
 
@@ -19,7 +20,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(themePreferences: ThemePreferences) {
     val scope = rememberCoroutineScope()
-    val isDarkMode by themePreferences.isDarkMode.collectAsState(initial = false)
+    val isDarkMode by themePreferences.isDarkMode.collectAsStateWithLifecycle(initialValue = false)
 
     Scaffold(
         topBar = {

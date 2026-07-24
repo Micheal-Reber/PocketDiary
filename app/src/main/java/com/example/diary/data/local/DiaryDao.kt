@@ -11,8 +11,8 @@ interface DiaryDao {
     @Query("SELECT * FROM diary_entries WHERE date = :date")
     suspend fun getEntryByDate(date: String): DiaryEntry?
 
-    @Query("SELECT date FROM diary_entries WHERE date LIKE :yearMonth || '%'")
-    suspend fun getDatesWithEntries(yearMonth: String): List<String>
+    @Query("SELECT * FROM diary_entries WHERE id = :id")
+    suspend fun getEntryById(id: Long): DiaryEntry?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(entry: DiaryEntry): Long

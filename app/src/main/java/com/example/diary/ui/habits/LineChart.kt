@@ -13,6 +13,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -29,7 +30,13 @@ val HabitColorPalette = listOf(
     Color(0xFF3F51B5), // Indigo
 )
 
-fun habitColor(index: Int): Color = HabitColorPalette[index % HabitColorPalette.size]
+fun habitColor(index: Int): Color {
+    // Guard against negative indices (Kotlin's % preserves sign, so -1 % 10 == -1,
+    // which would throw IndexOutOfBoundsException at render time). Old data with
+    // a corrupted colorIndex could otherwise crash the chart.
+    val size = HabitColorPalette.size
+    return HabitColorPalette[((index % size) + size) % size]
+}
 
 data class ChartLine(
     val label: String,
@@ -44,6 +51,12 @@ fun LineChart(
     modifier: Modifier = Modifier,
     maxY: Float? = null
 ) {
+    // Contract: every line must have one value per x label; otherwise drawing math
+    // (index * stepX) silently misaligns or crashes. Fail loudly at the boundary
+    // so the bug surfaces here instead of in obscure UI glitches.
+    require(lines.all { it.values.size == xLabels.size }) {
+        "Every ChartLine must have values.size == xLabels.size (got ${lines.map { it.values.size }} vs ${xLabels.size})"
+    }
     if (lines.isEmpty() || xLabels.isEmpty()) {
         Box(modifier.height(160.dp).fillMaxWidth()) {
             Text("暂无数据", color = MaterialTheme.colorScheme.outline)
@@ -51,7 +64,11 @@ fun LineChart(
         return
     }
 
-    val computedMax = maxY ?: (lines.flatMap { it.values }.maxOrNull()?.let { it * 1.2f } ?: 1f).coerceAtLeast(1f)
+    // `require` above already guarantees lines and xLabels are non-empty, so
+    // `flatMap { it.values }.maxOrNull()` is always Some. The `?: 1f` and
+    // `coerceAtLeast(1f)` are belt-and-suspenders dead code — left out so the
+    // expression reads as "20% headroom over the data peak".
+    val computedMax = maxY ?: (lines.flatMap { it.values }.max() * 1.2f)
     val textColor = MaterialTheme.colorScheme.onSurface
     val gridColor = MaterialTheme.colorScheme.outlineVariant
 
@@ -68,19 +85,17 @@ fun LineChart(
             val stepX = if (xLabels.size > 1) chartWidth / (xLabels.size - 1) else chartWidth
 
             // Draw grid lines
+            val yAxisPaint = android.graphics.Paint().apply {
+                color = textColor.toArgb()
+                textSize = 24f
+                textAlign = android.graphics.Paint.Align.LEFT
+            }
             for (i in 0..4) {
                 val y = chartHeight * i / 4
                 drawLine(gridColor.copy(alpha = 0.3f), Offset(0f, y), Offset(chartWidth, y), strokeWidth = 1f)
                 // Y labels
                 val label = "${(computedMax * (4 - i) / 4).toInt()}"
-                drawContext.canvas.nativeCanvas.drawText(
-                    label, -28f, y + 5f,
-                    android.graphics.Paint().apply {
-                        color = textColor.hashCode()
-                        textSize = 24f
-                        textAlign = android.graphics.Paint.Align.LEFT
-                    }
-                )
+                drawContext.canvas.nativeCanvas.drawText(label, -28f, y + 5f, yAxisPaint)
             }
 
             // Draw lines
@@ -88,7 +103,9 @@ fun LineChart(
                 if (line.values.isEmpty()) return@forEach
                 val path = Path()
                 line.values.forEachIndexed { index, value ->
-                    val x = index * stepX
+                    // With a single data point the chart would degenerate to a
+                    // line stuck at the left edge; center it horizontally instead.
+                    val x = if (xLabels.size == 1) chartWidth / 2 else index * stepX
                     val y = chartHeight - (value / computedMax * chartHeight)
                     if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
@@ -96,7 +113,7 @@ fun LineChart(
 
                 // Draw dots
                 line.values.forEachIndexed { index, value ->
-                    val x = index * stepX
+                    val x = if (xLabels.size == 1) chartWidth / 2 else index * stepX
                     val y = chartHeight - (value / computedMax * chartHeight)
                     drawCircle(line.color, radius = 5f, center = Offset(x, y))
                 }
@@ -124,8 +141,9 @@ fun LineChart(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(top = 8.dp),
-            horizontalArrangement = Arrangement.Center
+                // Match the Canvas's start padding (32.dp) so legend lines up with the chart left edge.
+                .padding(start = 32.dp, end = 8.dp, top = 8.dp),
+            horizontalArrangement = Arrangement.Start
         ) {
             lines.forEach { line ->
                 Row(
