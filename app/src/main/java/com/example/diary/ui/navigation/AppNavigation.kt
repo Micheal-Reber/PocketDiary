@@ -90,6 +90,7 @@ fun AppNavigation(
             composable(Screen.Diary.route) {
                 DiaryListScreen(
                     diaryRepository = diaryRepository,
+                    themePreferences = themePreferences,
                     onWriteDiary = { date ->
                         val route = if (date != null) "editor?date=$date" else "editor"
                         navController.navigate(route)

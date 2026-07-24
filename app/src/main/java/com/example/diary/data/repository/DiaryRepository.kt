@@ -42,4 +42,8 @@ class DiaryRepository(private val diaryDao: DiaryDao) {
         diaryDao.deleteById(id)
         return entry?.let { PhotoStore.parsePaths(it.photoPaths) } ?: emptyList()
     }
+
+    suspend fun deleteEntry(id: Long) {
+        diaryDao.deleteById(id)
+    }
 }

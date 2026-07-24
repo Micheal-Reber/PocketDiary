@@ -22,10 +22,15 @@ class ThemePreferences(context: Context) {
 
     companion object {
         val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
+        val IMAGE_BELOW_TITLE_KEY = booleanPreferencesKey("image_below_title")
     }
 
     val isDarkMode: Flow<Boolean> = appContext.dataStore.data.map { preferences ->
         preferences[DARK_MODE_KEY] ?: false
+    }
+
+    val imageBelowTitle: Flow<Boolean> = appContext.dataStore.data.map { preferences ->
+        preferences[IMAGE_BELOW_TITLE_KEY] ?: true
     }
 
     suspend fun setDarkMode(enabled: Boolean) {
@@ -39,6 +44,16 @@ class ThemePreferences(context: Context) {
             }
         } catch (e: Exception) {
             Log.w("ThemePreferences", "Failed to persist dark mode", e)
+        }
+    }
+
+    suspend fun setImageBelowTitle(enabled: Boolean) {
+        try {
+            appContext.dataStore.edit { preferences ->
+                preferences[IMAGE_BELOW_TITLE_KEY] = enabled
+            }
+        } catch (e: Exception) {
+            Log.w("ThemePreferences", "Failed to persist image mode", e)
         }
     }
 }
