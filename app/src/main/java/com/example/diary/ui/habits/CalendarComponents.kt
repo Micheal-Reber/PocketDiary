@@ -129,5 +129,6 @@ internal fun CalendarGrid(
     }
 }
 
+@Composable
 private fun habitColorOrPrimary(firstHabit: Habit?): Color =
     if (firstHabit != null) habitColor(firstHabit.colorIndex) else MaterialTheme.colorScheme.primary

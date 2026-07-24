@@ -28,7 +28,7 @@ class LocationProvider(private val context: Context) {
         // Prefer GPS, then NETWORK, then PASSIVE.
         val ordered = listOf(LocationManager.GPS_PROVIDER, LocationManager.NETWORK_PROVIDER, LocationManager.PASSIVE_PROVIDER)
             .filter { it in providers }
-        return ordered.firstNotNullOrNull { p ->
+        return ordered.firstNotNullOfOrNull { p ->
             try {
                 lm.getLastKnownLocation(p)
             } catch (e: SecurityException) {

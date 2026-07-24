@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -59,7 +60,7 @@ import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DiaryEditorScreen(
     initialDate: String?,
@@ -109,6 +110,7 @@ fun DiaryEditorScreen(
     // Tracks the in-flight location/weather request so a new tap can cancel
     // the previous one before it overwrites state with stale data.
     val locationJob = remember { mutableStateOf<Job?>(null) }
+    val snackbarHostState = remember { SnackbarHostState() }
 
     // New metadata fields
     var mood by rememberSaveable { mutableStateOf<String?>(null) }
@@ -310,18 +312,15 @@ fun DiaryEditorScreen(
         if (result.values.any { it }) {
             fetchLocationAndWeather()
         } else {
-            // User denied (or only granted background/foreground subset that
-            // doesn't include fine or coarse). Without this feedback, the
-            // toolbar button looks like a no-op and the user has no way to
-            // know whether to retry, go to settings, or give up.
-            snackbarHostState.showSnackbar(
-                message = "需要位置权限才能获取位置和天气",
-                duration = SnackbarDuration.Short
-            )
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    message = "需要位置权限才能获取位置和天气",
+                    duration = SnackbarDuration.Short
+                )
+            }
         }
     }
 
-    val snackbarHostState = remember { SnackbarHostState() }
     LaunchedEffect(cameraPermanentlyDenied) {
         if (cameraPermanentlyDenied) {
             val result = snackbarHostState.showSnackbar(
