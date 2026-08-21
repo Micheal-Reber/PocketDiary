@@ -1,38 +1,21 @@
 package com.example.diary.ui.editor
 
 import android.Manifest
-import android.app.Activity
-import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -41,22 +24,14 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.location.LocationProvider
-import com.example.diary.data.photo.PhotoStore
 import com.example.diary.data.repository.DiaryRepository
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -66,7 +41,7 @@ private val moodLabels = listOf("开心", "一般", "难过", "生气", "焦虑"
 private val weatherPresets = listOf("☀️", "🌤️", "☁️", "🌧️", "⛈️", "❄️", "🌫️")
 private val weatherLabels = listOf("晴", "多云", "阴", "雨", "暴雨", "雪", "雾")
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiaryEditorScreen(
     initialDate: String?,
@@ -75,14 +50,12 @@ fun DiaryEditorScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val photoStore = remember { PhotoStore(context) }
     val today = LocalDate.now().format(DateTimeFormatter.ISO_LOCAL_DATE)
 
     // All form fields use rememberSaveable so a config change (rotation, dark
     // mode toggle from another surface, etc.) preserves the user's in-flight
     // edits. Without this, rotating mid-edit would wipe title/content/mood.
     var dateStr by rememberSaveable { mutableStateOf(initialDate ?: today) }
-    var title by rememberSaveable { mutableStateOf("") }
     var content by rememberSaveable { mutableStateOf("") }
     var existingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
@@ -90,7 +63,7 @@ fun DiaryEditorScreen(
     // Tracks the entry as it was last loaded/saved, so we can detect unsaved
     // edits when the user switches dates or backs out without saving.
     var loadedSnapshot by rememberSaveable(stateSaver = SnapshotSaver) {
-        mutableStateOf(Snapshot("", "", null, null, null, null, null, emptyList()))
+        mutableStateOf(Snapshot("", null, null, null, null, null))
     }
     // True only after the initial load completes. Without this, the first frame
     // would compare fresh fields against the empty initial Snapshot and falsely
@@ -104,43 +77,19 @@ fun DiaryEditorScreen(
     var loadedForDate by rememberSaveable { mutableStateOf<String?>(null) }
     var pendingDate by rememberSaveable { mutableStateOf<String?>(null) }
     var showDiscardChangesDialog by rememberSaveable { mutableStateOf(false) }
-    // True when the camera permission has been permanently denied — drives the
-    // Snackbar that points users to system settings.
-    //
-    // Intentionally `remember`, NOT `rememberSaveable`: a recreated Composable
-    // would otherwise re-display the snackbar on every rotation while the
-    // permission is still permanently denied. The next "take photo" tap will
-    // re-trigger the launcher callback and re-set this flag if still denied.
-    var cameraPermanentlyDenied by remember { mutableStateOf(false) }
 
-    // Tracks the in-flight location/weather request so a new tap can cancel
+    // Tracks the in-flight location request so a new tap can cancel
     // the previous one before it overwrites state with stale data.
     val locationJob = remember { mutableStateOf<Job?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // New metadata fields
     var mood by rememberSaveable { mutableStateOf<String?>(null) }
-    // Photos are saved as absolutePath strings — File itself isn't Parcelable.
-    // On restore we re-File() each path and filter to .exists() so the user
-    // doesn't see ghost thumbnails for files the OS has cleaned up.
-    var photos by rememberSaveable(stateSaver = PhotosSaver) {
-        mutableStateOf<List<File>>(emptyList())
-    }
     var lat by rememberSaveable { mutableStateOf<Double?>(null) }
     var lon by rememberSaveable { mutableStateOf<Double?>(null) }
     var locationName by rememberSaveable { mutableStateOf<String?>(null) }
     var weather by rememberSaveable { mutableStateOf<String?>(null) }
     var weatherLoading by rememberSaveable { mutableStateOf(false) }
-    var fullscreenImage by remember { mutableStateOf<File?>(null) }
-
-    // Photo selection mode (entered via long-press, exited via toolbar "cancel" or empty selection).
-    var isSelectionMode by rememberSaveable { mutableStateOf(false) }
-    var selectedFiles by rememberSaveable(stateSaver = SelectedFilesSaver) {
-        mutableStateOf<Set<File>>(emptySet())
-    }
-
-    // Auto-exit selection mode if we just deleted the last selected photo
-    // (handled inline at the delete action).
 
     // Re-load entry every time the user picks a different date, so the editor
     // reflects the contents of the new date rather than stale data.
@@ -161,11 +110,7 @@ fun DiaryEditorScreen(
         // spurious discard-changes dialog.
         isLoaded = false
         val entry = diaryRepository.getEntryByDate(dateStr)
-        // Always clear transient photo-selection state when navigating dates
-        isSelectionMode = false
-        selectedFiles = emptySet()
         if (entry != null) {
-            title = entry.title
             content = entry.content
             existingId = entry.id
             mood = entry.mood
@@ -173,14 +118,8 @@ fun DiaryEditorScreen(
             lon = entry.longitude
             locationName = entry.locationName
             weather = entry.weather
-            // Filter out paths that point to no-longer-existing files (e.g. cleaned up
-            // by OS or manually deleted). Only keep live files.
-            photos = PhotoStore.parsePaths(entry.photoPaths)
-                .map { File(it) }
-                .filter { it.exists() }
         } else {
             // Date has no entry yet — reset to empty so user can start fresh.
-            title = ""
             content = ""
             existingId = null
             mood = null
@@ -188,25 +127,20 @@ fun DiaryEditorScreen(
             lon = null
             locationName = null
             weather = null
-            photos = emptyList()
         }
         // After loading, record this as the clean baseline so subsequent edits
         // can be detected as dirty and protected from accidental overwrite.
         loadedSnapshot = Snapshot(
-            title, content, mood, lat, lon, locationName, weather, photos
+            content, mood, lat, lon, locationName, weather
         )
         loadedForDate = dateStr
         isLoaded = true
     }
 
-    val pendingCameraFile = rememberSaveable(stateSaver = PendingFileSaver) {
-        mutableStateOf<File?>(null)
-    }
-
     // True when the editor has changes that differ from the last loaded/saved snapshot.
     // Gate on isLoaded so we don't pop a discard-changes dialog during the initial
     // async load (fields are non-empty while loadedSnapshot is still the placeholder).
-    val isDirty = isLoaded && !loadedSnapshot.matches(title, content, mood, lat, lon, locationName, weather, photos)
+    val isDirty = isLoaded && !loadedSnapshot.matches(content, mood, lat, lon, locationName, weather)
 
     // Location fetch — GPS only (weather is now manual via preset chips)
     val fetchLocationAndWeather: () -> Unit = {
@@ -242,60 +176,11 @@ fun DiaryEditorScreen(
         }
     }
 
-    // Hardware Back in selection mode → exit selection. Otherwise, if there are
-    // unsaved changes, prompt before discarding.
-    BackHandler(enabled = isSelectionMode || isDirty) {
-        if (isSelectionMode) {
-            isSelectionMode = false
-            selectedFiles = emptySet()
-        } else if (isDirty) {
-            showDiscardChangesDialog = true
-        }
+    // Hardware back with unsaved changes → prompt before discarding.
+    BackHandler(enabled = isDirty) {
+        showDiscardChangesDialog = true
     }
 
-    val pickPhotoLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
-            // Copying a photo from the picker is real I/O; do it off the main thread.
-            scope.launch {
-                val file = withContext(Dispatchers.IO) { photoStore.importPicked(uri) }
-                if (file != null) photos = photos + file
-            }
-        }
-    }
-    val takePhotoLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.TakePicture()
-    ) { success ->
-        val file = pendingCameraFile.value
-        if (success && file != null && file.exists()) {
-            photos = photos + file
-        } else if (file != null) {
-            // Either the user cancelled, the camera app refused, or the camera
-            // reported success but never wrote to the placeholder (vendor bug).
-            // In all three cases the file is no longer going into `photos` —
-            // delete the empty stub so filesDir/photos/ doesn't accumulate
-            // 0-byte artifacts.
-            runCatching { file.delete() }
-        }
-        pendingCameraFile.value = null
-    }
-    val cameraPermissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        if (granted) {
-            val (file, uri) = photoStore.newCameraOutputUri()
-            pendingCameraFile.value = file
-            takePhotoLauncher.launch(uri)
-        } else {
-            // User denied. If we can't show the rationale, the user picked "Don't
-            // ask again" — surface a Snackbar pointing to system settings.
-            cameraPermanentlyDenied = !ActivityCompat.shouldShowRequestPermissionRationale(
-                context as Activity,
-                Manifest.permission.CAMERA
-            )
-        }
-    }
     val locationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { result ->
@@ -311,44 +196,13 @@ fun DiaryEditorScreen(
         }
     }
 
-    LaunchedEffect(cameraPermanentlyDenied) {
-        if (cameraPermanentlyDenied) {
-            val result = snackbarHostState.showSnackbar(
-                message = "相机权限已被禁用,请前往系统设置开启",
-                actionLabel = "去设置",
-                withDismissAction = true,
-                duration = SnackbarDuration.Long
-            )
-            if (result == SnackbarResult.ActionPerformed) {
-                val intent = Intent(
-                    android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-                    Uri.fromParts("package", context.packageName, null)
-                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(intent)
-            }
-            // Reset so a re-launch (e.g. user denies a second time) triggers
-            // a fresh effect. Without this, the second denial would re-set
-            // the same true value, which is a no-op for `LaunchedEffect`'s
-            // key, and the snackbar would never show again.
-            cameraPermanentlyDenied = false
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        if (isSelectionMode) "已选 ${selectedFiles.size} 张" else "日记",
-                        fontWeight = FontWeight.Bold
-                    )
-                },
+                title = { Text("日记", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (isSelectionMode) {
-                            isSelectionMode = false
-                            selectedFiles = emptySet()
-                        } else if (isDirty) {
+                        if (isDirty) {
                             // No pending date — popBackStack via the discard dialog.
                             pendingDate = null
                             showDiscardChangesDialog = true
@@ -356,65 +210,11 @@ fun DiaryEditorScreen(
                             onBack()
                         }
                     }) {
-                        Icon(
-                            if (isSelectionMode) Icons.Default.Close else Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = if (isSelectionMode) "取消选择" else "返回"
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
                     }
                 },
                 actions = {
-                    if (isSelectionMode) {
-                        TextButton(
-                            onClick = {
-                                // Order matters here: persist the new photoPaths CSV
-                                // BEFORE physically deleting the on-disk files. If we
-                                // delete first and the save throws, the on-disk file
-                                // is gone but photoPaths still points to it — a
-                                // dangling reference. With save-then-delete, a save
-                                // failure leaves the files in place (the user can
-                                // retry) and a delete failure just leaves orphan
-                                // bytes (the next load filters them via .exists()).
-                                val toDelete = selectedFiles
-                                val kept = photos.filterNot { it in toDelete }
-                                scope.launch {
-                                    val csv = kept.joinToString(";") { it.absolutePath }
-                                    val savedId = diaryRepository.saveEntry(
-                                        DiaryEntry(
-                                            id = existingId ?: 0,
-                                            title = title.trim(),
-                                            content = content.trim(),
-                                            date = dateStr,
-                                            mood = mood,
-                                            latitude = lat,
-                                            longitude = lon,
-                                            locationName = locationName,
-                                            weather = weather,
-                                            photoPaths = csv
-                                        )
-                                    )
-                                    // Disk delete only after the DB row no longer
-                                    // references these paths.
-                                    withContext(Dispatchers.IO) {
-                                        toDelete.forEach { runCatching { it.delete() } }
-                                    }
-                                    existingId = savedId
-                                    photos = kept
-                                    selectedFiles = emptySet()
-                                    isSelectionMode = false
-                                    // Reset the dirty baseline so a subsequent back-press
-                                    // doesn't re-prompt for changes that are now persisted.
-                                    loadedSnapshot = Snapshot(
-                                        title, content, mood, lat, lon,
-                                        locationName, weather, photos
-                                    )
-                                }
-                            },
-                            enabled = selectedFiles.isNotEmpty(),
-                            colors = ButtonDefaults.textButtonColors(
-                                contentColor = MaterialTheme.colorScheme.error
-                            )
-                        ) { Text("删除") }
-                    } else if (existingId != null) {
+                    if (existingId != null) {
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Default.Delete, "删除整篇", tint = MaterialTheme.colorScheme.error)
                         }
@@ -427,99 +227,74 @@ fun DiaryEditorScreen(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
         bottomBar = {
-            // Hide toolbar during photo-selection mode so user can't accidentally tap
-            // "save" before committing/exiting the photo delete flow.
-            if (!isSelectionMode) {
-                EditorToolbar(
-                    hasPhotos = photos.isNotEmpty(),
-                    onPickPhoto = {
-                        pickPhotoLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    },
-                    onTakePhoto = {
-                        val granted = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.CAMERA
+            EditorToolbar(
+                onLocation = {
+                    // If permission is already granted, RequestMultiplePermissions
+                    // is a no-op (no callback fires) so we must trigger directly.
+                    val granted = ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.ACCESS_FINE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED ||
+                        ContextCompat.checkSelfPermission(
+                            context, Manifest.permission.ACCESS_COARSE_LOCATION
                         ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) {
-                            val (file, uri) = photoStore.newCameraOutputUri()
-                            pendingCameraFile.value = file
-                            takePhotoLauncher.launch(uri)
-                        } else {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    },
-                    onLocation = {
-                        // If permission is already granted, RequestMultiplePermissions
-                        // is a no-op (no callback fires) so we must trigger directly.
-                        val granted = ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.ACCESS_FINE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED ||
-                            ContextCompat.checkSelfPermission(
-                                context, Manifest.permission.ACCESS_COARSE_LOCATION
-                            ) == PackageManager.PERMISSION_GRANTED
-                        if (granted) {
-                            fetchLocationAndWeather()
-                        } else {
-                            locationPermissionLauncher.launch(
-                                arrayOf(
-                                    Manifest.permission.ACCESS_FINE_LOCATION,
-                                    Manifest.permission.ACCESS_COARSE_LOCATION
-                                )
+                    if (granted) {
+                        fetchLocationAndWeather()
+                    } else {
+                        locationPermissionLauncher.launch(
+                            arrayOf(
+                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                Manifest.permission.ACCESS_COARSE_LOCATION
                             )
-                        }
-                    },
-                    onSave = {
-                        scope.launch {
-                            val csv = photos.joinToString(";") { it.absolutePath }
-                            val entry = DiaryEntry(
-                                id = existingId ?: 0,
-                                title = title.trim(),
-                                content = content.trim(),
-                                date = dateStr,
-                                mood = mood,
-                                latitude = lat,
-                                longitude = lon,
-                                locationName = locationName,
-                                weather = weather,
-                                photoPaths = csv
+                        )
+                    }
+                },
+                onSave = {
+                    scope.launch {
+                        val entry = DiaryEntry(
+                            id = existingId ?: 0,
+                            content = content.trim(),
+                            date = dateStr,
+                            mood = mood,
+                            latitude = lat,
+                            longitude = lon,
+                            locationName = locationName,
+                            weather = weather
+                        )
+                        try {
+                            // Capture the row id so subsequent operations (e.g. "delete
+                            // entire entry" after a first save) can target the right row.
+                            val savedId = diaryRepository.saveEntry(entry)
+                            existingId = savedId
+                            // After save, sync snapshot so subsequent "unsaved?" checks are clean.
+                            // Use the raw state values (not trimmed) so isDirty comparison
+                            // remains consistent — the trim only happens at save time.
+                            loadedSnapshot = Snapshot(
+                                content, mood, lat, lon,
+                                locationName, weather
                             )
-                            try {
-                                // Capture the row id so subsequent operations (e.g. "delete
-                                // entire entry" after a first save) can target the right row.
-                                val savedId = diaryRepository.saveEntry(entry)
-                                existingId = savedId
-                                // After save, sync snapshot so subsequent "unsaved?" checks are clean.
-                                // Use the raw state values (not trimmed) so isDirty comparison
-                                // remains consistent — the trim only happens at save time.
-                                loadedSnapshot = Snapshot(
-                                    title, content, mood, lat, lon,
-                                    locationName, weather, photos
-                                )
-                                onBack()
-                            } catch (e: kotlinx.coroutines.CancellationException) {
-                                // Composable was disposed while we were saving —
-                                // structured concurrency requires us to propagate
-                                // cancellation, not swallow it. The DB write either
-                                // completed (in which case the entry is saved) or
-                                // didn't (the in-flight suspend was cancelled), but
-                                // either way there's no user-facing error to show.
-                                throw e
-                            } catch (e: Exception) {
-                                // Don't leave the user stuck in the editor if the DB
-                                // write fails (disk full, db locked, etc.). Surface
-                                // the error and let them retry — their input is still
-                                // in the form state, so nothing is lost. Long duration
-                                // so the user has time to read it before it dismisses.
-                                snackbarHostState.showSnackbar(
-                                    message = "保存失败,请重试",
-                                    duration = SnackbarDuration.Long
-                                )
-                            }
+                            onBack()
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            // Composable was disposed while we were saving —
+                            // structured concurrency requires us to propagate
+                            // cancellation, not swallow it. The DB write either
+                            // completed (in which case the entry is saved) or
+                            // didn't (the in-flight suspend was cancelled), but
+                            // either way there's no user-facing error to show.
+                            throw e
+                        } catch (e: Exception) {
+                            // Don't leave the user stuck in the editor if the DB
+                            // write fails (disk full, db locked, etc.). Surface
+                            // the error and let them retry — their input is still
+                            // in the form state, so nothing is lost. Long duration
+                            // so the user has time to read it before it dismisses.
+                            snackbarHostState.showSnackbar(
+                                message = "保存失败,请重试",
+                                duration = SnackbarDuration.Long
+                            )
                         }
                     }
-                )
-            }
+                }
+            )
         }
     ) { padding ->
         Column(
@@ -593,125 +368,6 @@ fun DiaryEditorScreen(
             }
 
             OutlinedTextField(
-                value = title,
-                onValueChange = { title = it },
-                placeholder = { Text("标题") },
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
-                )
-            )
-            Spacer(Modifier.height(12.dp))
-
-            // Photo strip (when any photos attached)
-            if (photos.isNotEmpty()) {
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(photos, key = { it.absolutePath }) { file ->
-                        val isSelected = file in selectedFiles
-                        val borderColor = if (isSelected)
-                            MaterialTheme.colorScheme.error
-                        else
-                            Color.Transparent
-                        Box(
-                            modifier = Modifier
-                                .size(88.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant)
-                                .border(
-                                    width = 2.dp,
-                                    color = borderColor,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .combinedClickable(
-                                    onClick = {
-                                        if (isSelectionMode) {
-                                            if (isSelected) {
-                                                val next = selectedFiles - file
-                                                selectedFiles = next
-                                                if (next.isEmpty()) {
-                                                    isSelectionMode = false
-                                                    selectedFiles = emptySet()
-                                                }
-                                            } else {
-                                                selectedFiles = selectedFiles + file
-                                            }
-                                        } else {
-                                            fullscreenImage = file
-                                        }
-                                    },
-                                    onLongClick = {
-                                        if (!isSelectionMode) {
-                                            isSelectionMode = true
-                                            selectedFiles = setOf(file)
-                                        } else {
-                                            // Long-press any photo = make it the lone selection
-                                            // (handy for picking a different photo without tapping).
-                                            selectedFiles = setOf(file)
-                                        }
-                                    }
-                                )
-                        ) {
-                            AsyncImage(
-                                model = file,
-                                contentDescription = null,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                            // Selection-mode-only check overlay (subtle: top-left small circle).
-                            if (isSelectionMode) {
-                                val ringColor = if (isSelected) Color.Transparent
-                                else Color.Black.copy(alpha = 0.5f)
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopStart)
-                                        .padding(4.dp)
-                                        .size(20.dp)
-                                        .border(1.5.dp, ringColor, CircleShape)
-                                        .clip(CircleShape)
-                                        .background(
-                                            if (isSelected)
-                                                MaterialTheme.colorScheme.error
-                                            else
-                                                Color.Transparent
-                                        ),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (isSelected) {
-                                        Icon(
-                                            Icons.Default.Check,
-                                            contentDescription = "已选",
-                                            tint = MaterialTheme.colorScheme.onError,
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-
-            // Insert photo tags into content
-            if (photos.isNotEmpty()) {
-                Row(Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = {
-                        val tags = photos.indices.joinToString("") { "[img:$it]" }
-                        content += tags
-                    }) {
-                        Text("📷 插入图片到正文", style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary)
-                    }
-                }
-            }
-
-            OutlinedTextField(
                 value = content,
                 onValueChange = { content = it },
                 placeholder = { Text("写下今天的心情...") },
@@ -772,16 +428,7 @@ fun DiaryEditorScreen(
                 TextButton(
                     onClick = {
                         scope.launch {
-                            // Read photoPaths from the DB before deleting so we
-                            // delete exactly what the row referenced — not what
-                            // the UI happens to render. This catches the case
-                            // where the UI's `photos` state is stale.
-                            val photoPaths = existingId
-                                ?.let { diaryRepository.deleteEntryAndReturnPhotoPaths(it) }
-                                ?: emptyList()
-                            withContext(Dispatchers.IO) {
-                                photoPaths.map(::File).forEach { runCatching { it.delete() } }
-                            }
+                            existingId?.let { diaryRepository.deleteEntry(it) }
                             showDeleteDialog = false
                             onBack()
                         }
@@ -813,20 +460,6 @@ fun DiaryEditorScreen(
                         showDiscardChangesDialog = false
                         val target = pendingDate
                         pendingDate = null
-                        // Files the user added or selected during this session
-                        // that aren't in the persisted snapshot will never be
-                        // referenced again once we throw the edits away. Clean
-                        // them up so filesDir/photos/ doesn't accumulate
-                        // orphans every time someone bails out of the editor.
-                        val snapshotPaths = loadedSnapshot.photos.toSet()
-                        val orphans = photos.filterNot { it in snapshotPaths }
-                        if (orphans.isNotEmpty()) {
-                            scope.launch {
-                                withContext(Dispatchers.IO) {
-                                    orphans.forEach { runCatching { it.delete() } }
-                                }
-                            }
-                        }
                         if (target != null) {
                             // Apply the pending date change.
                             dateStr = target
@@ -845,30 +478,10 @@ fun DiaryEditorScreen(
             }
         )
     }
-
-    // Fullscreen image viewer
-    if (fullscreenImage != null) {
-        val file = fullscreenImage!!
-        Dialog(onDismissRequest = { fullscreenImage = null }) {
-            Box(
-                Modifier.fillMaxSize().clickable { fullscreenImage = null },
-                contentAlignment = Alignment.Center
-            ) {
-                coil.compose.AsyncImage(
-                    model = file,
-                    contentDescription = "查看图片",
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                )
-            }
-        }
-    }
 }
 
 @Composable
 private fun EditorToolbar(
-    hasPhotos: Boolean,
-    onPickPhoto: () -> Unit,
-    onTakePhoto: () -> Unit,
     onLocation: () -> Unit,
     onSave: () -> Unit
 ) {
@@ -881,12 +494,6 @@ private fun EditorToolbar(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onPickPhoto) {
-                Icon(Icons.Default.PhotoLibrary, contentDescription = "从相册选图")
-            }
-            IconButton(onClick = onTakePhoto) {
-                Icon(Icons.Default.PhotoCamera, contentDescription = "拍照")
-            }
             IconButton(onClick = onLocation) {
                 Icon(Icons.Default.LocationOn, contentDescription = "获取位置和天气")
             }
@@ -902,82 +509,43 @@ private fun EditorToolbar(
  * navigates away (date picker, back press).
  */
 private data class Snapshot(
-    val title: String,
     val content: String,
     val mood: String?,
     val lat: Double?,
     val lon: Double?,
     val locationName: String?,
-    val weather: String?,
-    val photos: List<File>
+    val weather: String?
 ) {
     fun matches(
-        title: String, content: String, mood: String?, lat: Double?, lon: Double?,
-        locationName: String?, weather: String?, photos: List<File>
+        content: String, mood: String?, lat: Double?, lon: Double?,
+        locationName: String?, weather: String?
     ): Boolean =
-        this.title == title &&
         this.content == content &&
         this.mood == mood &&
         this.lat == lat &&
         this.lon == lon &&
         this.locationName == locationName &&
-        this.weather == weather &&
-        // Order-insensitive photo comparison (UI may reorder; only set equality matters).
-        this.photos.toSet() == photos.toSet()
+        this.weather == weather
 }
-
-// File is not Parcelable, so all three list/set states below go through
-// savers that round-trip via absolutePath. On restore, files that no longer
-// exist are dropped (parallels the live .exists() filter applied during
-// normal loads — see LaunchedEffect(dateStr) in DiaryEditorScreen).
-
-private val PhotosSaver: Saver<List<File>, *> = listSaver(
-    save = { it.map { f -> f.absolutePath } },
-    restore = { paths ->
-        paths.map(::File).filter { it.exists() }
-    }
-)
-
-private val PendingFileSaver: Saver<File?, *> = Saver(
-    save = { it?.absolutePath ?: "" },
-    restore = { raw ->
-        val path = raw as String
-        if (path.isEmpty() || !File(path).exists()) null else File(path)
-    }
-)
-
-private val SelectedFilesSaver: Saver<Set<File>, *> = Saver(
-    save = { it.map { f -> f.absolutePath } },
-    restore = { paths ->
-        (paths as List<String>).map(::File).filter { it.exists() }.toSet()
-    }
-)
 
 private val SnapshotSaver: Saver<Snapshot, *> = listSaver(
     save = { snap ->
         listOf(
-            snap.title,
             snap.content,
             snap.mood,
             snap.lat,
             snap.lon,
             snap.locationName,
-            snap.weather,
-            snap.photos.map { it.absolutePath }
+            snap.weather
         )
     },
     restore = { raw ->
-        @Suppress("UNCHECKED_CAST")
-        val title = raw[0] as String
-        @Suppress("UNCHECKED_CAST")
-        val content = raw[1] as String
-        val mood = raw[2] as String?
-        val lat = raw[3] as Double?
-        val lon = raw[4] as Double?
-        val locationName = raw[5] as String?
-        val weather = raw[6] as String?
-        @Suppress("UNCHECKED_CAST")
-        val photoPaths = (raw[7] as List<String>).map(::File).filter { it.exists() }
-        Snapshot(title, content, mood, lat, lon, locationName, weather, photoPaths)
+        val content = raw[0] as String
+        val mood = raw[1] as String?
+        val lat = raw[2] as Double?
+        val lon = raw[3] as Double?
+        val locationName = raw[4] as String?
+        val weather = raw[5] as String?
+        Snapshot(content, mood, lat, lon, locationName, weather)
     }
 )

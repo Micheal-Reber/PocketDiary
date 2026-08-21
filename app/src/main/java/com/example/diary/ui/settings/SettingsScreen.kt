@@ -5,7 +5,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,7 +21,6 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(themePreferences: ThemePreferences) {
     val scope = rememberCoroutineScope()
     val isDarkMode by themePreferences.isDarkMode.collectAsStateWithLifecycle(initialValue = false)
-    val imageBelowTitle by themePreferences.imageBelowTitle.collectAsStateWithLifecycle(initialValue = true)
 
     Scaffold(
         topBar = {
@@ -60,22 +58,6 @@ fun SettingsScreen(themePreferences: ThemePreferences) {
                         checked = isDarkMode,
                         onCheckedChange = { checked ->
                             scope.launch { themePreferences.setDarkMode(checked) }
-                        }
-                    )
-                }
-            )
-
-            ListItem(
-                headlineContent = { Text("照片显示") },
-                supportingContent = { Text(if (imageBelowTitle) "显示在标题下方" else "显示在正文末尾") },
-                leadingContent = {
-                    Icon(Icons.Default.Image, contentDescription = null)
-                },
-                trailingContent = {
-                    Switch(
-                        checked = imageBelowTitle,
-                        onCheckedChange = { checked ->
-                            scope.launch { themePreferences.setImageBelowTitle(checked) }
                         }
                     )
                 }

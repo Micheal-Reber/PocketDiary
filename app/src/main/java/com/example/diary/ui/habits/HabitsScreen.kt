@@ -1,10 +1,9 @@
 package com.example.diary.ui.habits
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -42,23 +41,18 @@ import com.example.diary.data.repository.HabitRepository
 @Composable
 fun HabitsScreen(
     habitRepository: HabitRepository,
+    onOpenStatistics: () -> Unit,
     viewModel: HabitsViewModel = viewModel(factory = HabitsViewModelFactory(habitRepository))
 ) {
     val habits by viewModel.habits.collectAsState()
-    val statView by viewModel.statView.collectAsState()
-    val selectedYear by viewModel.selectedYear.collectAsState()
     val currentMonth by viewModel.currentMonth.collectAsState()
     val showCheckInDialog by viewModel.showCheckInDialog.collectAsState()
     val showAddHabitDialog by viewModel.showAddHabitDialog.collectAsState()
     val showManageHabits by viewModel.showManageHabits.collectAsState()
-    val showStats by viewModel.showStats.collectAsState()
     val dateCheckIns by viewModel.dateCheckIns.collectAsState()
     val selectedDate by viewModel.selectedDate.collectAsState()
-    val monthlyStats by viewModel.monthlyStats.collectAsState()
-    val yearlyStats by viewModel.yearlyStats.collectAsState()
     val calendarCheckInDates by viewModel.calendarCheckInDates.collectAsState()
     val todayCheckInCount by viewModel.todayCheckInCount.collectAsState()
-    val firstHabit = habits.firstOrNull()
 
     Scaffold(
         topBar = {
@@ -88,28 +82,8 @@ fun HabitsScreen(
                 StatsSummaryRow(
                     todayCount = todayCheckInCount,
                     habitCount = habits.size,
-                    showStats = showStats,
-                    onToggle = { viewModel.toggleStats() }
+                    onOpenStatistics = onOpenStatistics
                 )
-            }
-
-            item {
-                AnimatedVisibility(
-                    visible = showStats,
-                    enter = expandVertically(),
-                    exit = shrinkVertically()
-                ) {
-                    StatisticsSection(
-                        statView = statView,
-                        selectedYear = selectedYear,
-                        habits = habits,
-                        monthlyStats = monthlyStats,
-                        yearlyStats = yearlyStats,
-                        onToggleView = { viewModel.toggleStatView() },
-                        onPreviousYear = { viewModel.previousYear() },
-                        onNextYear = { viewModel.nextYear() }
-                    )
-                }
             }
 
             item {
@@ -129,8 +103,8 @@ fun HabitsScreen(
             item {
                 CalendarGrid(
                     month = currentMonth,
-                    firstHabit = firstHabit,
-                    checkInDates = calendarCheckInDates,
+                    habits = habits,
+                    checkInsByHabit = calendarCheckInDates,
                     onDateClick = { date ->
                         if (!viewModel.isFutureDate(date)) {
                             viewModel.onDateClick(date)
@@ -139,27 +113,28 @@ fun HabitsScreen(
                     isFutureDate = { viewModel.isFutureDate(it) }
                 )
                 Spacer(Modifier.height(8.dp))
-                if (firstHabit != null) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                // Legend: every habit with its color dot and this month's
+                // check-in day count, stacked vertically.
+                if (habits.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Box(
-                            Modifier.size(8.dp).clip(CircleShape)
-                                .background(habitColor(firstHabit.colorIndex))
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "= ${firstHabit.emoji} ${firstHabit.name}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            "${calendarCheckInDates.size}天",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        habits.forEach { habit ->
+                            val days = calendarCheckInDates[habit.id]?.size ?: 0
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    Modifier.size(8.dp).clip(CircleShape)
+                                        .background(habitColor(habit.colorIndex))
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "${habit.emoji} ${habit.name} ${days}天",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
                     }
                 }
                 Spacer(Modifier.height(8.dp))

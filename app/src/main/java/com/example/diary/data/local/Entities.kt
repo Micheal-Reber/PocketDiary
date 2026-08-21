@@ -14,7 +14,6 @@ import androidx.room.PrimaryKey
 )
 data class DiaryEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
-    val title: String,
     val content: String,
     val date: String,  // yyyy-MM-dd
     val mood: String? = null,           // e.g. "❤️", "🌙", null = 未选
@@ -22,7 +21,6 @@ data class DiaryEntry(
     val longitude: Double? = null,
     val locationName: String? = null,   // reverse-geocoded or manually entered
     val weather: String? = null,        // e.g. "☀️", "🌧", null = 未取
-    val photoPaths: String = "",        // CSV of internal file paths
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )
@@ -65,6 +63,20 @@ data class MonthlyStat(
 
 data class YearlyStat(
     val year: Int,
+    val habitId: Long,
+    val count: Int
+)
+
+// Rolling-window weekly stats: weekIndex 1..10 counts backwards from the
+// current week (10 = 本周). Buckets are Monday-based calendar weeks.
+data class RecentWeeklyStat(
+    val weekIndex: Int,
+    val habitId: Long,
+    val count: Int
+)
+
+data class DailyStat(
+    val day: Int,
     val habitId: Long,
     val count: Int
 )

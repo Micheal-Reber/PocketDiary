@@ -23,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,11 +69,15 @@ internal fun WeekdayHeader() {
     }
 }
 
+/** Max habit dots rendered inside a single calendar day cell; the rest are
+ *  only visible in the per-day check-in dialog. */
+private const val MAX_DOTS_PER_DAY = 3
+
 @Composable
 internal fun CalendarGrid(
     month: YearMonth,
-    firstHabit: Habit?,
-    checkInDates: Set<LocalDate>,
+    habits: List<Habit>,
+    checkInsByHabit: Map<Long, Set<LocalDate>>,
     onDateClick: (LocalDate) -> Unit,
     isFutureDate: (LocalDate) -> Boolean
 ) {
@@ -81,6 +86,18 @@ internal fun CalendarGrid(
     val start = (first.dayOfWeek.value - 1)
     val rows = (start + days + 6) / 7
     val today = LocalDate.now()
+
+    // Reverse index: date -> habits checked that day, in the habits list's
+    // sort order so dot colors are stable regardless of map iteration order.
+    val checkedByDate = remember(habits, checkInsByHabit) {
+        val map = mutableMapOf<LocalDate, MutableList<Habit>>()
+        habits.forEach { habit ->
+            checkInsByHabit[habit.id]?.forEach { date ->
+                map.getOrPut(date) { mutableListOf() }.add(habit)
+            }
+        }
+        map
+    }
 
     Column(Modifier.padding(horizontal = 4.dp)) {
         for (row in 0 until rows) {
@@ -91,8 +108,7 @@ internal fun CalendarGrid(
                         val date = month.atDay(day)
                         val isToday = date == today
                         val isFuture = isFutureDate(date)
-                        val isChecked = date in checkInDates
-                        val dotColor = habitColorOrPrimary(firstHabit)
+                        val visibleDots = checkedByDate[date].orEmpty().take(MAX_DOTS_PER_DAY)
 
                         Box(
                             Modifier.weight(1f).aspectRatio(1f).padding(2.dp)
@@ -113,10 +129,16 @@ internal fun CalendarGrid(
                                         MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                                     else MaterialTheme.colorScheme.onSurface
                                 )
-                                if (isChecked && !isFuture) {
-                                    Box(
-                                        Modifier.size(6.dp).clip(CircleShape).background(dotColor)
-                                    )
+                                if (!isFuture && visibleDots.isNotEmpty()) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        visibleDots.forEach { habit ->
+                                            Box(
+                                                Modifier.size(5.dp)
+                                                    .clip(CircleShape)
+                                                    .background(habitColor(habit.colorIndex))
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -128,7 +150,3 @@ internal fun CalendarGrid(
         }
     }
 }
-
-@Composable
-private fun habitColorOrPrimary(firstHabit: Habit?): Color =
-    if (firstHabit != null) habitColor(firstHabit.colorIndex) else MaterialTheme.colorScheme.primary

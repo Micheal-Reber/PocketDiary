@@ -18,6 +18,11 @@ bin/
 gen/
 out/
 
+# Signing secrets — never publish
+*.jks
+*.keystore
+keystore.properties
+
 # OS
 .DS_Store
 Thumbs.db

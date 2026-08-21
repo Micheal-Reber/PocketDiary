@@ -47,4 +47,19 @@ interface HabitDao {
         ORDER BY year
     """)
     suspend fun getYearlyStats(): List<YearlyStat>
+
+    @Query("""
+        SELECT CAST(substr(date, 9, 2) AS INTEGER) AS day, habitId, COUNT(*) AS count
+        FROM habit_records
+        WHERE date LIKE :yearMonth || '%'
+        GROUP BY day, habitId
+        ORDER BY day
+    """)
+    suspend fun getDailyStats(yearMonth: String): List<DailyStat>
+
+    // Raw records from a start date onward — used for the rolling "last 10
+    // weeks" window, which is bucketed in Kotlin (SQLite %W weeks don't align
+    // with a backwards window ending at the current week).
+    @Query("SELECT * FROM habit_records WHERE date >= :startDate")
+    suspend fun getRecordsSince(startDate: String): List<HabitRecord>
 }

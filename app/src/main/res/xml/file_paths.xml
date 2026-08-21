@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<paths>
-    <!-- Photos saved by both the camera flow and the photo picker (PhotoStore
-         copies picked photos into the same filesDir/photos so the URI is durable). -->
-    <files-path name="photos" path="photos/" />
-</paths>

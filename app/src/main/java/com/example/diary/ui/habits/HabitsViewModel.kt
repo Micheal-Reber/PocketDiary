@@ -3,8 +3,10 @@ package com.example.diary.ui.habits
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.diary.data.local.DailyStat
 import com.example.diary.data.local.Habit
 import com.example.diary.data.local.MonthlyStat
+import com.example.diary.data.local.RecentWeeklyStat
 import com.example.diary.data.local.YearlyStat
 import com.example.diary.data.repository.HabitRepository
 import kotlinx.coroutines.flow.*
@@ -14,22 +16,29 @@ import kotlinx.coroutines.sync.withLock
 import java.time.LocalDate
 import java.time.YearMonth
 
-enum class StatView { MONTHLY, YEARLY }
+enum class StatView { WEEKLY, MONTHLY, YEARLY }
 
 class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel() {
 
     val habits: StateFlow<List<Habit>> = habitRepository.getActiveHabits()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Statistics (collapsible)
-    private val _showStats = MutableStateFlow(false)
-    val showStats: StateFlow<Boolean> = _showStats.asStateFlow()
-
-    private val _statView = MutableStateFlow(StatView.MONTHLY)
+    // Statistics
+    private val _statView = MutableStateFlow(StatView.WEEKLY)
     val statView: StateFlow<StatView> = _statView.asStateFlow()
 
     private val _selectedYear = MutableStateFlow(LocalDate.now().year)
     val selectedYear: StateFlow<Int> = _selectedYear.asStateFlow()
+
+    private val _selectedStatMonth = MutableStateFlow(YearMonth.now())
+    val selectedStatMonth: StateFlow<YearMonth> = _selectedStatMonth.asStateFlow()
+
+    // Which habits' lines are drawn on the statistics chart. Seeded to "all"
+    // once the first non-empty habit list arrives; new habits auto-select.
+    private val _selectedHabitIds = MutableStateFlow<Set<Long>>(emptySet())
+    val selectedHabitIds: StateFlow<Set<Long>> = _selectedHabitIds.asStateFlow()
+
+    private var selectionSeeded = false
 
     // Calendar
     private val _currentMonth = MutableStateFlow(YearMonth.now())
@@ -38,9 +47,9 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
     private val _selectedDate = MutableStateFlow(LocalDate.now())
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
 
-    // First habit's check-in dates (shown on calendar)
-    private val _calendarCheckInDates = MutableStateFlow<Set<LocalDate>>(emptySet())
-    val calendarCheckInDates: StateFlow<Set<LocalDate>> = _calendarCheckInDates.asStateFlow()
+    // Per-habit check-in dates (shown as colored dots on calendar, max 3 per day)
+    private val _calendarCheckInDates = MutableStateFlow<Map<Long, Set<LocalDate>>>(emptyMap())
+    val calendarCheckInDates: StateFlow<Map<Long, Set<LocalDate>>> = _calendarCheckInDates.asStateFlow()
 
     // Today's check-in summary for the stats summary row
     private val _todayCheckInCount = MutableStateFlow(0)
@@ -66,6 +75,12 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
     private val _yearlyStats = MutableStateFlow<List<YearlyStat>>(emptyList())
     val yearlyStats: StateFlow<List<YearlyStat>> = _yearlyStats.asStateFlow()
 
+    private val _recentWeeklyStats = MutableStateFlow<List<RecentWeeklyStat>>(emptyList())
+    val recentWeeklyStats: StateFlow<List<RecentWeeklyStat>> = _recentWeeklyStats.asStateFlow()
+
+    private val _dailyStats = MutableStateFlow<List<DailyStat>>(emptyList())
+    val dailyStats: StateFlow<List<DailyStat>> = _dailyStats.asStateFlow()
+
     // Serializes loadStats/loadCalendarCheckIns/loadTodayCount so a slow
     // first call can't have its result clobbered by a faster second call.
     // Without this, viewModelScope.launch { block() } kicks off every call
@@ -83,6 +98,10 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
         // changes identity).
         viewModelScope.launch {
             habits.collect { list ->
+                if (!selectionSeeded && list.isNotEmpty()) {
+                    _selectedHabitIds.value = list.map { it.id }.toSet()
+                    selectionSeeded = true
+                }
                 if (list.isNotEmpty()) {
                     loadCalendarCheckIns()
                 }
@@ -90,13 +109,21 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
         }
     }
 
-    fun toggleStats() { _showStats.value = !_showStats.value }
-    fun toggleStatView() {
-        _statView.value = if (_statView.value == StatView.MONTHLY) StatView.YEARLY else StatView.MONTHLY
-    }
+    fun setStatView(view: StatView) { _statView.value = view }
 
     fun previousYear() { _selectedYear.value = _selectedYear.value - 1; loadStats() }
     fun nextYear() { _selectedYear.value = _selectedYear.value + 1; loadStats() }
+
+    fun previousStatMonth() { _selectedStatMonth.value = _selectedStatMonth.value.minusMonths(1); loadStats() }
+    fun nextStatMonth() { _selectedStatMonth.value = _selectedStatMonth.value.plusMonths(1); loadStats() }
+
+    fun toggleHabitSelected(habitId: Long) {
+        _selectedHabitIds.value = if (habitId in _selectedHabitIds.value) {
+            _selectedHabitIds.value - habitId
+        } else {
+            _selectedHabitIds.value + habitId
+        }
+    }
 
     fun previousMonth() {
         _currentMonth.value = _currentMonth.value.minusMonths(1)
@@ -149,7 +176,9 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
             // doesn't silently collide on the same color (the old "max + 1"
             // approach did because habitColor() does modulo at render time).
             val colorIndex = habits.value.size % HabitColorPalette.size
-            habitRepository.addHabit(name, emoji, colorIndex)
+            val newId = habitRepository.addHabit(name, emoji, colorIndex)
+            // New habits appear on the chart immediately.
+            _selectedHabitIds.value = _selectedHabitIds.value + newId
             // Stats: a brand-new habit has zero records, so monthlyStats doesn't
             // actually need to re-read — but refreshing here keeps the line on
             // the chart immediately visible (otherwise it appears only on the
@@ -165,6 +194,7 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
     fun deleteHabit(habit: Habit) {
         viewModelScope.launch {
             habitRepository.deleteHabit(habit.id)
+            _selectedHabitIds.value = _selectedHabitIds.value - habit.id
             loadAllData()
         }
     }
@@ -178,16 +208,22 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
     private fun loadStats() = launchSerialized {
         _monthlyStats.value = habitRepository.getMonthlyStats(_selectedYear.value)
         _yearlyStats.value = habitRepository.getYearlyStats()
+        _recentWeeklyStats.value = habitRepository.getRecentWeeklyStats()
+        _dailyStats.value = habitRepository.getDailyStats(_selectedStatMonth.value.toString())
     }
 
     private fun loadCalendarCheckIns() = launchSerialized {
-        val firstHabit = habits.value.firstOrNull()
-        if (firstHabit != null) {
-            val prefix = _currentMonth.value.toString() // yyyy-MM
-            val dates = habitRepository.getCheckInDates(firstHabit.id, prefix)
-            _calendarCheckInDates.value = dates.map { LocalDate.parse(it) }.toSet()
+        val prefix = _currentMonth.value.toString() // yyyy-MM
+        val allHabits = habits.value
+        if (allHabits.isNotEmpty()) {
+            val map = mutableMapOf<Long, Set<LocalDate>>()
+            for (habit in allHabits) {
+                val dates = habitRepository.getCheckInDates(habit.id, prefix)
+                map[habit.id] = dates.map { LocalDate.parse(it) }.toSet()
+            }
+            _calendarCheckInDates.value = map
         } else {
-            _calendarCheckInDates.value = emptySet()
+            _calendarCheckInDates.value = emptyMap()
         }
     }
 

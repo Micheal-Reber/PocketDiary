@@ -5,7 +5,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,21 +21,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import coil.compose.AsyncImage
 import com.example.diary.data.local.DiaryEntry
-import com.example.diary.data.photo.PhotoStore
-import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.DiaryRepository
 import kotlinx.coroutines.launch
-import java.io.File
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiaryListScreen(
     diaryRepository: DiaryRepository,
-    themePreferences: ThemePreferences,
     onWriteDiary: (String?) -> Unit,
     onEditDiary: (String) -> Unit
 ) {
@@ -83,19 +76,17 @@ fun DiaryListScreen(
 
 @Composable
 private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Unit) {
-    val photoList = remember(entry.photoPaths) {
-        PhotoStore.parsePaths(entry.photoPaths).map { File(it) }.filter { it.exists() }
-    }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    var fullscreenFile by remember { mutableStateOf<File?>(null) }
     var offsetX by remember { mutableStateOf(0f) }
     val deleteThreshold = -150f
 
     Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
-        // Red swipe-delete background — use BoxWithConstraints or padding trick for full width
+        // Red swipe-delete background — matchParentSize sizes it to the Box's
+        // final dimensions (dictated by the Card below), so the red always
+        // covers the entire card, edge to edge.
         Box(
             Modifier
-                .fillMaxSize()
+                .matchParentSize()
                 .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(16.dp))
                 .padding(end = 20.dp),
             contentAlignment = Alignment.CenterEnd
@@ -124,36 +115,36 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
-                // Title: date if no title, else title
+                // Heading is always the entry's date; mood rides on the right.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(entry.title.ifEmpty { entry.date }, style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(entry.date, style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (!entry.mood.isNullOrEmpty()) Text(entry.mood, style = MaterialTheme.typography.titleLarge)
                 }
 
-                // Weather + Location (always stays here)
-                if (!entry.weather.isNullOrEmpty() || !entry.locationName.isNullOrEmpty()) {
-                    Spacer(Modifier.height(4.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!entry.weather.isNullOrEmpty()) Text(entry.weather, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (!entry.locationName.isNullOrEmpty()) {
-                            if (!entry.weather.isNullOrEmpty()) Spacer(Modifier.width(8.dp))
-                            Icon(Icons.Default.LocationOn, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.outline)
-                            Text(entry.locationName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
+                Spacer(Modifier.height(8.dp))
+
+                // Fixed-size content preview: exactly two lines, ellipsized.
+                Text(entry.content, style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+
+                Spacer(Modifier.height(10.dp))
+
+                // Weather + location pinned to the card's bottom-left; the row
+                // keeps its height even when both are empty so every card is
+                // the same size.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.heightIn(min = 18.dp)
+                ) {
+                    Text(entry.weather ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (!entry.locationName.isNullOrEmpty()) {
+                        if (!entry.weather.isNullOrEmpty()) Spacer(Modifier.width(8.dp))
+                        Icon(Icons.Default.LocationOn, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.outline)
+                        Spacer(Modifier.width(2.dp))
+                        Text(entry.locationName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                }
-
-                // Inline content with images
-                if (entry.content.isNotEmpty()) {
-                    Spacer(Modifier.height(8.dp))
-                    InlineContent(entry.content, photoList) { fullscreenFile = it }
-                }
-
-                // Date at bottom (only when title exists)
-                if (entry.title.isNotEmpty()) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(entry.date, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
                 }
             }
         }
@@ -171,50 +162,5 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") } }
         )
-    }
-
-    if (fullscreenFile != null) {
-        Dialog(onDismissRequest = { fullscreenFile = null }) {
-            Box(Modifier.fillMaxSize().clickable { fullscreenFile = null }, contentAlignment = Alignment.Center) {
-                AsyncImage(model = fullscreenFile, contentDescription = "查看图片", modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)))
-            }
-        }
-    }
-}
-
-// ── Inline content renderer: text + images mixed ──
-
-private val imgTagRegex = Regex("""\[img:(\d+)\]""")
-
-@Composable
-private fun InlineContent(content: String, photoList: List<File>, onFullscreen: (File) -> Unit) {
-    val parts = imgTagRegex.split(content)
-    val matches = imgTagRegex.findAll(content).toList()
-
-    Column {
-        parts.forEachIndexed { index, text ->
-            if (text.isNotBlank()) {
-                Text(text, style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = if (index == parts.lastIndex) Int.MAX_VALUE else 5,
-                    overflow = TextOverflow.Ellipsis)
-            }
-            if (index < matches.size) {
-                val imgIdx = matches[index].groupValues[1].toIntOrNull() ?: -1
-                if (imgIdx in photoList.indices) {
-                    Spacer(Modifier.height(4.dp))
-                    AsyncImage(
-                        model = photoList[imgIdx], contentDescription = null,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 200.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(MaterialTheme.colorScheme.surface)
-                            .clickable { onFullscreen(photoList[imgIdx]) }
-                    )
-                    Spacer(Modifier.height(4.dp))
-                }
-            }
-        }
     }
 }

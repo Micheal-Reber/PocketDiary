@@ -21,6 +21,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.DiaryRepository
@@ -28,6 +29,9 @@ import com.example.diary.data.repository.HabitRepository
 import com.example.diary.ui.diary.DiaryListScreen
 import com.example.diary.ui.editor.DiaryEditorScreen
 import com.example.diary.ui.habits.HabitsScreen
+import com.example.diary.ui.habits.HabitsViewModel
+import com.example.diary.ui.habits.HabitsViewModelFactory
+import com.example.diary.ui.habits.StatisticsScreen
 import com.example.diary.ui.settings.SettingsScreen
 
 sealed class Screen(val route: String, val title: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
@@ -47,6 +51,9 @@ fun AppNavigation(
     val navController = rememberNavController()
     val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
     val habitRepository = remember { HabitRepository(database.habitDao()) }
+    // Shared between the calendar tab and the statistics screen so both see the
+    // same stats state (selected year/month, loaded chart data) without refetch.
+    val habitsViewModel: HabitsViewModel = viewModel(factory = HabitsViewModelFactory(habitRepository))
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
@@ -90,7 +97,6 @@ fun AppNavigation(
             composable(Screen.Diary.route) {
                 DiaryListScreen(
                     diaryRepository = diaryRepository,
-                    themePreferences = themePreferences,
                     onWriteDiary = { date ->
                         val route = if (date != null) "editor?date=$date" else "editor"
                         navController.navigate(route)
@@ -99,7 +105,17 @@ fun AppNavigation(
                 )
             }
             composable(Screen.Calendar.route) {
-                HabitsScreen(habitRepository = habitRepository)
+                HabitsScreen(
+                    habitRepository = habitRepository,
+                    onOpenStatistics = { navController.navigate("statistics") },
+                    viewModel = habitsViewModel
+                )
+            }
+            composable("statistics") {
+                StatisticsScreen(
+                    habitsViewModel = habitsViewModel,
+                    onBack = { navController.popBackStack() }
+                )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(themePreferences = themePreferences)
