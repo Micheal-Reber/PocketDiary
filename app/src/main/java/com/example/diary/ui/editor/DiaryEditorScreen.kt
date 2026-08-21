@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.location.LocationProvider
 import com.example.diary.data.repository.DiaryRepository
+import com.example.diary.data.repository.SaveResult
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -61,21 +62,19 @@ fun DiaryEditorScreen(
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     // Tracks the entry as it was last loaded/saved, so we can detect unsaved
-    // edits when the user switches dates or backs out without saving.
+    // edits when the user backs out without saving.
     var loadedSnapshot by rememberSaveable(stateSaver = SnapshotSaver) {
-        mutableStateOf(Snapshot("", null, null, null, null, null))
+        mutableStateOf(Snapshot(dateStr, "", null, null, null, null, null))
     }
     // True only after the initial load completes. Without this, the first frame
     // would compare fresh fields against the empty initial Snapshot and falsely
     // flag the editor as dirty — popping a "discard changes?" dialog the moment
     // the user opens an existing entry.
     var isLoaded by rememberSaveable { mutableStateOf(false) }
-    // Which date the current fields were loaded from. Saved across config
-    // changes so the LaunchedEffect below can tell "this is a fresh load
-    // because dateStr changed" from "this is a reload because Activity
-    // recreated" — the latter must NOT clobber the user's unsaved edits.
+    // Which date's DB row these fields were loaded from / last saved under.
+    // Non-null after the first load; used to skip reload on recreation and to
+    // revert the shown date when a move collides with an existing entry.
     var loadedForDate by rememberSaveable { mutableStateOf<String?>(null) }
-    var pendingDate by rememberSaveable { mutableStateOf<String?>(null) }
     var showDiscardChangesDialog by rememberSaveable { mutableStateOf(false) }
 
     // Tracks the in-flight location request so a new tap can cancel
@@ -83,31 +82,22 @@ fun DiaryEditorScreen(
     val locationJob = remember { mutableStateOf<Job?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
 
-    // New metadata fields
+    // Metadata fields
     var mood by rememberSaveable { mutableStateOf<String?>(null) }
     var lat by rememberSaveable { mutableStateOf<Double?>(null) }
     var lon by rememberSaveable { mutableStateOf<Double?>(null) }
     var locationName by rememberSaveable { mutableStateOf<String?>(null) }
     var weather by rememberSaveable { mutableStateOf<String?>(null) }
+    // Kept for a future auto-fetch flow; currently only gates the spinner row.
     var weatherLoading by rememberSaveable { mutableStateOf(false) }
 
-    // Re-load entry every time the user picks a different date, so the editor
-    // reflects the contents of the new date rather than stale data.
-    //
-    // Skip-on-equal: if `loadedForDate` already equals `dateStr`, this effect
-    // is restarting because the Activity was recreated (e.g. rotation), not
-    // because the user picked a new date. In that case the form fields were
-    // already restored from rememberSaveable — re-running the DB load would
-    // clobber any in-flight edits with the old persisted values. Without
-    // this guard, rotating mid-edit silently reverts the user's changes.
-    LaunchedEffect(dateStr) {
-        if (loadedForDate == dateStr) {
-            // Recreated Activity / composition restart — keep current state.
-            return@LaunchedEffect
-        }
-        // Reset loaded flag for the duration of the (potentially async) reload,
-        // so isDirty stays false during the in-between frame and we don't pop a
-        // spurious discard-changes dialog.
+    // Initial load — exactly once per screen entry. Changing the date later is
+    // NOT a reload trigger anymore: the date field is a property of THIS entry,
+    // so picking another day simply re-dates what's on screen and takes effect
+    // on save (move semantics). A non-null [loadedForDate] after process
+    // restore means fields were already restored from rememberSaveable.
+    LaunchedEffect(Unit) {
+        if (loadedForDate != null) return@LaunchedEffect
         isLoaded = false
         val entry = diaryRepository.getEntryByDate(dateStr)
         if (entry != null) {
@@ -119,7 +109,6 @@ fun DiaryEditorScreen(
             locationName = entry.locationName
             weather = entry.weather
         } else {
-            // Date has no entry yet — reset to empty so user can start fresh.
             content = ""
             existingId = null
             mood = null
@@ -128,21 +117,17 @@ fun DiaryEditorScreen(
             locationName = null
             weather = null
         }
-        // After loading, record this as the clean baseline so subsequent edits
-        // can be detected as dirty and protected from accidental overwrite.
-        loadedSnapshot = Snapshot(
-            content, mood, lat, lon, locationName, weather
-        )
+        loadedSnapshot = Snapshot(dateStr, content, mood, lat, lon, locationName, weather)
         loadedForDate = dateStr
         isLoaded = true
     }
 
-    // True when the editor has changes that differ from the last loaded/saved snapshot.
-    // Gate on isLoaded so we don't pop a discard-changes dialog during the initial
-    // async load (fields are non-empty while loadedSnapshot is still the placeholder).
-    val isDirty = isLoaded && !loadedSnapshot.matches(content, mood, lat, lon, locationName, weather)
+    // True when the editor has changes that differ from the last loaded/saved
+    // snapshot. Date counts too: re-dating without saving IS an unsaved change,
+    // so backing out still prompts instead of silently dropping the move.
+    val isDirty = isLoaded && !loadedSnapshot.matches(dateStr, content, mood, lat, lon, locationName, weather)
 
-    // Location fetch — GPS only (weather is now manual via preset chips)
+    // Location fetch — GPS only (weather is manual via preset chips)
     val fetchLocationAndWeather: () -> Unit = {
         locationJob.value?.cancel()
         @Suppress("MissingPermission")
@@ -203,8 +188,6 @@ fun DiaryEditorScreen(
                 navigationIcon = {
                     IconButton(onClick = {
                         if (isDirty) {
-                            // No pending date — popBackStack via the discard dialog.
-                            pendingDate = null
                             showDiscardChangesDialog = true
                         } else {
                             onBack()
@@ -261,32 +244,37 @@ fun DiaryEditorScreen(
                             weather = weather
                         )
                         try {
-                            // Capture the row id so subsequent operations (e.g. "delete
-                            // entire entry" after a first save) can target the right row.
-                            val savedId = diaryRepository.saveEntry(entry)
-                            existingId = savedId
-                            // After save, sync snapshot so subsequent "unsaved?" checks are clean.
-                            // Use the raw state values (not trimmed) so isDirty comparison
-                            // remains consistent — the trim only happens at save time.
-                            loadedSnapshot = Snapshot(
-                                content, mood, lat, lon,
-                                locationName, weather
-                            )
-                            onBack()
+                            when (val result = diaryRepository.saveEntry(entry)) {
+                                is SaveResult.Success -> {
+                                    existingId = result.id
+                                    loadedForDate = dateStr
+                                    // Sync snapshot (raw values, not trimmed) so
+                                    // isDirty stays consistent with save-time trim.
+                                    loadedSnapshot = Snapshot(
+                                        dateStr, content, mood, lat, lon,
+                                        locationName, weather
+                                    )
+                                    onBack()
+                                }
+                                // Unique index on `date`: target day already has an
+                                // entry. Keep every edit, roll the shown date back
+                                // to the row's real date, tell the user.
+                                SaveResult.DateConflict -> {
+                                    dateStr = loadedForDate ?: dateStr
+                                    snackbarHostState.showSnackbar(
+                                        message = "该日期已有一篇日记",
+                                        duration = SnackbarDuration.Long
+                                    )
+                                }
+                            }
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             // Composable was disposed while we were saving —
                             // structured concurrency requires us to propagate
-                            // cancellation, not swallow it. The DB write either
-                            // completed (in which case the entry is saved) or
-                            // didn't (the in-flight suspend was cancelled), but
-                            // either way there's no user-facing error to show.
+                            // cancellation, not swallow it.
                             throw e
                         } catch (e: Exception) {
-                            // Don't leave the user stuck in the editor if the DB
-                            // write fails (disk full, db locked, etc.). Surface
-                            // the error and let them retry — their input is still
-                            // in the form state, so nothing is lost. Long duration
-                            // so the user has time to read it before it dismisses.
+                            // DB write failed (disk full, db locked...): keep the
+                            // user in the editor with their input intact.
                             snackbarHostState.showSnackbar(
                                 message = "保存失败,请重试",
                                 duration = SnackbarDuration.Long
@@ -403,13 +391,9 @@ fun DiaryEditorScreen(
                     }
                     showDatePicker = false
                     if (newDate != null && newDate != dateStr) {
-                        if (isDirty) {
-                            // Defer the date change until the user confirms discarding.
-                            pendingDate = newDate
-                            showDiscardChangesDialog = true
-                        } else {
-                            dateStr = newDate
-                        }
+                        // Re-date this entry. Takes effect on save; collision is
+                        // surfaced by the repository at that point.
+                        dateStr = newDate
                     }
                 }) { Text("确定") }
             },
@@ -448,25 +432,14 @@ fun DiaryEditorScreen(
 
     if (showDiscardChangesDialog) {
         AlertDialog(
-            // Dismissal paths (back press, scrim tap) intentionally preserve
-            // pendingDate so the user's date choice survives a "dismiss then
-            // re-decide" loop. Only the "放弃" (confirm) path consumes it.
             onDismissRequest = { showDiscardChangesDialog = false },
             title = { Text("放弃编辑？") },
-            text = { Text("当前修改尚未保存,是否放弃并继续？") },
+            text = { Text("当前修改尚未保存,是否放弃并退出？") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showDiscardChangesDialog = false
-                        val target = pendingDate
-                        pendingDate = null
-                        if (target != null) {
-                            // Apply the pending date change.
-                            dateStr = target
-                        } else {
-                            // No pending date → user came from Back; leave the screen.
-                            onBack()
-                        }
+                        onBack()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text("放弃") }
@@ -506,9 +479,11 @@ private fun EditorToolbar(
 
 /**
  * Snapshot of the editor fields used to detect unsaved changes when the user
- * navigates away (date picker, back press).
+ * navigates away (back press). Includes the date: re-dating an entry without
+ * saving is itself an unsaved change worth protecting.
  */
 private data class Snapshot(
+    val date: String,
     val content: String,
     val mood: String?,
     val lat: Double?,
@@ -517,9 +492,10 @@ private data class Snapshot(
     val weather: String?
 ) {
     fun matches(
-        content: String, mood: String?, lat: Double?, lon: Double?,
+        date: String, content: String, mood: String?, lat: Double?, lon: Double?,
         locationName: String?, weather: String?
     ): Boolean =
+        this.date == date &&
         this.content == content &&
         this.mood == mood &&
         this.lat == lat &&
@@ -531,6 +507,7 @@ private data class Snapshot(
 private val SnapshotSaver: Saver<Snapshot, *> = listSaver(
     save = { snap ->
         listOf(
+            snap.date,
             snap.content,
             snap.mood,
             snap.lat,
@@ -540,12 +517,14 @@ private val SnapshotSaver: Saver<Snapshot, *> = listSaver(
         )
     },
     restore = { raw ->
-        val content = raw[0] as String
-        val mood = raw[1] as String?
-        val lat = raw[2] as Double?
-        val lon = raw[3] as Double?
-        val locationName = raw[4] as String?
-        val weather = raw[5] as String?
-        Snapshot(content, mood, lat, lon, locationName, weather)
+        Snapshot(
+            raw[0] as String,
+            raw[1] as String,
+            raw[2] as String?,
+            raw[3] as Double?,
+            raw[4] as Double?,
+            raw[5] as String?,
+            raw[6] as String?
+        )
     }
 )

@@ -1,3 +1,6 @@
 <resources>
     <color name="ic_launcher_background">#000000</color>
+    <!-- Light mode: white splash + light window background -->
+    <color name="splash_background">#FFFFFF</color>
+    <color name="window_background">#FFFBFDF9</color>
 </resources>

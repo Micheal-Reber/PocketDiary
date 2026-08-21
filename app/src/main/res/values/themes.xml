@@ -1,16 +1,16 @@
 <resources>
-    <!-- windowBackground pinned to black: the splash is black, so any frame
-         exposed between splash dismissal and Compose's first draw stays
-         seamless. Without this, the Light parent theme's near-white
-         windowBackground flashes at the top band in dark mode. -->
+    <!-- windowBackground follows light/dark via -night color qualifier: any
+         frame exposed between splash dismissal and Compose's first draw stays
+         seamless with both the splash and the incoming UI. -->
     <style name="Theme.PocketDiary" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:windowBackground">@color/window_background</item>
     </style>
 
-    <!-- System splash: black background + centered logo, dismisses on first frame.
-         Covers the cold-start flash; kept >=400ms via keepOnScreenCondition. -->
+    <!-- System splash: background + logo auto-switch via resource qualifiers
+        (drawable-night/splash_logo = white version, splash_background = black).
+        Dismisses on first frame; kept >=400ms via keepOnScreenCondition. -->
     <style name="Theme.PocketDiary.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@android:color/black</item>
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
         <item name="postSplashScreenTheme">@style/Theme.PocketDiary</item>
     </style>
