@@ -1,55 +1,96 @@
-# PocketDiary
+<div align="center">
 
-简洁好用的 Android 日记 App，Material 3 原生风格。
+# 📖 PocketDiary
 
-## 功能
+**简洁好用的 Android 日记 App · Material 3 原生风格 · 数据纯本地**
 
-- 📖 **日记** — 按日期记录，一天一篇，支持心情、天气、位置；列表卡片固定尺寸预览
-- 📅 **日历 + 打卡** — 月历视图 + 习惯打卡系统
-  - 点击日期弹窗，逐个勾选习惯完成情况
-  - 日历格子显示当天已打卡习惯的彩色圆点（最多 3 个）
-  - 支持自定义习惯名称和 emoji 图标
-  - 可补打卡（不限过去），不能打未来日期
-- 📊 **统计** — 全屏统计页，三种视图
-  - 周频率（最近十周滚动窗口）/ 月视图 / 年视图折线图
-  - 每个数据点带数值标签，当前周期红色高亮
-  - 底部勾选习惯控制曲线显隐，并汇总该周期打卡天数
-- ⚙️ **设置** — 暗色/亮色模式切换
+![Platform](https://img.shields.io/badge/platform-Android_8.0%2B-3DDC84?logo=android&logoColor=white)
+![Kotlin](https://img.shields.io/badge/Kotlin-1.9-7F52FF?logo=kotlin&logoColor=white)
+![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-4285F4?logo=jetpackcompose&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-## 技术栈
+</div>
 
-- **UI**: Jetpack Compose + Material 3（支持动态取色）
-- **数据库**: Room（DiaryEntry、Habit、HabitRecord 三表）
-- **设置**: DataStore Preferences
-- **导航**: Navigation Compose（底部三 Tab）
-- **架构**: ViewModel + Repository + Flow
-- **最低 SDK**: Android 8.0 (API 26)
+---
 
-## 项目结构
+## ✨ 功能一览
+
+### 📖 日记
+- **一天一篇**，按日期自动归档，月份大数字分割，翻找一目了然
+- 记录**心情、天气、位置**——一键定位并反向解析地址，天气手动点选
+- 卡片固定尺寸、正文两行预览，长文不撑爆列表
+- **左滑删除**，误删有确认弹窗兜底
+- 支持**自定义列表背景**：在设置里导入一张照片，整个日记页焕然一新
+
+### 📅 日历打卡
+- 月历视图 + 习惯打卡系统
+- 每个日期格子显示当天已打卡习惯的**彩色圆点**（最多 3 个，颜色与习惯一一对应）
+- 点击任意日期弹窗逐项勾选；**可补打卡**，未来日期锁定
+- 习惯名称与 emoji 图标完全自定义
+
+### 📊 统计
+- 全屏统计页，三种视图自由切换：**周频率**（最近十周滚动窗口）/ **月视图** / **年视图**
+- 折线图每个数据点带**数值标签**，Y 轴 ∞ 刻度设计
+- 当前周期（本周 / 本月）**红色高亮**
+- 底部勾选习惯即可控制曲线显隐，同时汇总该周期打卡天数
+
+### ⚙️ 设置
+- 暗色 / 亮色模式切换
+- 日记背景自定义与恢复默认
+
+## 📥 下载安装
+
+前往 [**Releases 页面**](https://github.com/Micheal-Reber/PocketDiary/releases) 下载最新的 `app-release.apk`，传输到手机直接安装（需允许安装未知来源应用）。
+
+> 要求 Android 8.0（API 26）及以上。
+
+## 🛠️ 技术栈
+
+| 分类 | 方案 |
+|------|------|
+| 语言 | Kotlin |
+| UI | Jetpack Compose + Material 3（动态取色） |
+| 数据库 | Room（DiaryEntry / Habit / HabitRecord 三表） |
+| 偏好 | DataStore Preferences |
+| 导航 | Navigation Compose（底部三 Tab + 编辑器 + 统计页） |
+| 架构 | ViewModel + Repository + Flow 单向数据流 |
+| 天气 | Open-Meteo API（免 Key） |
+| 定位 | 系统 LocationManager（无 Play Services 依赖） |
+| 开屏 | androidx core-splashscreen |
+
+## 🚀 构建
+
+1. 安装 JDK 17 与 Android SDK（platform 35）
+2. 配置环境变量 `JAVA_HOME`、`ANDROID_HOME`
+3. 执行：
+
+```bash
+./gradlew assembleDebug      # 调试包
+./gradlew assembleRelease    # 签名发布包（需配置签名密钥）
+```
+
+## 📂 项目结构
 
 ```
 app/src/main/java/com/example/diary/
-├── MainActivity.kt
+├── MainActivity.kt            # 入口：开屏接管 + 主题 Flow
 ├── DiaryApplication.kt
 ├── data/
-│   ├── local/           # Room 数据库、DAO、实体
-│   ├── preferences/     # DataStore 主题偏好
-│   └── repository/      # 数据仓库层
+│   ├── local/                 # Room 数据库、DAO、实体
+│   ├── image/                 # 背景图导入与降采样解码
+│   ├── location/              # 定位封装（无 GMS）
+│   ├── preferences/           # DataStore 主题/背景偏好
+│   ├── repository/            # 数据仓库层
+│   └── weather/               # Open-Meteo 天气查询
 └── ui/
-    ├── diary/           # 日记列表
-    ├── editor/          # 日记编辑器
-    ├── habits/          # 日历 + 打卡 + 折线统计图
-    ├── navigation/      # 底部导航 + 路由
-    ├── settings/        # 设置页
-    └── theme/           # Material 3 主题
+    ├── diary/                 # 日历列表：卡片、月份分割、滑动删除、背景
+    ├── editor/                # 日记编辑器：心情/天气/定位
+    ├── habits/                # 打卡日历 + 统计图表 + ViewModel
+    ├── navigation/            # 底部导航 + 路由
+    ├── settings/              # 设置页
+    └── theme/                 # Material 3 主题
 ```
 
-## 构建
+## 📄 License
 
-1. 安装 JDK 17 + Android SDK (platform 35)
-2. 设置环境变量 `ANDROID_HOME` 和 `JAVA_HOME`
-3. 运行 `./gradlew assembleDebug` 或 `gradlew.bat installDebug`
-
-## License
-
-MIT
+[MIT](LICENSE) © Micheal-Reber
