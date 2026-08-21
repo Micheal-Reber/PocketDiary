@@ -1,5 +1,6 @@
 package com.example.diary.ui.diary
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -16,12 +17,21 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.local.DiaryEntry
+import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.DiaryRepository
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -30,44 +40,92 @@ import kotlin.math.roundToInt
 @Composable
 fun DiaryListScreen(
     diaryRepository: DiaryRepository,
+    themePreferences: ThemePreferences,
     onWriteDiary: (String?) -> Unit,
     onEditDiary: (String) -> Unit
 ) {
     val entries by diaryRepository.getAllEntries().collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val bgPath by themePreferences.diaryBackgroundPath.collectAsStateWithLifecycle(initialValue = null)
+    // Decode once per path change, downscaled — raw camera photos are far too
+    // large to decode at full resolution just to crop-fill a phone screen.
+    val bgBitmap by produceState<ImageBitmap?>(initialValue = null, bgPath) {
+        value = BackgroundImageStore.decode(bgPath, maxDim = 1600)
+    }
+    val hasCustomBg = bgBitmap != null
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("日记", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
+    Box(Modifier.fillMaxSize()) {
+        if (bgBitmap != null) {
+            Image(
+                bitmap = bgBitmap!!,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
             )
-        },
-        floatingActionButton = {
-            FloatingActionButton(onClick = { onWriteDiary(null) },
-                containerColor = MaterialTheme.colorScheme.primary) {
-                Icon(Icons.Default.Add, "写日记", tint = MaterialTheme.colorScheme.onPrimary)
-            }
+            // Scrim so cards/text keep their contrast on bright photos.
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.30f)))
         }
-    ) { padding ->
-        if (entries.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📝", style = MaterialTheme.typography.displayMedium)
-                    Spacer(Modifier.height(16.dp))
-                    Text("还没有日记", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.outline)
-                    Text("点击右下角 + 开始写第一篇", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+        Scaffold(
+            containerColor = if (hasCustomBg) Color.Transparent else MaterialTheme.colorScheme.background,
+            topBar = {
+                TopAppBar(
+                    title = { Text("日记", fontWeight = FontWeight.Bold) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = if (hasCustomBg) Color.Transparent else MaterialTheme.colorScheme.surface
+                    )
+                )
+            },
+            floatingActionButton = {
+                FloatingActionButton(onClick = { onWriteDiary(null) },
+                    containerColor = MaterialTheme.colorScheme.primary) {
+                    Icon(Icons.Default.Add, "写日记", tint = MaterialTheme.colorScheme.onPrimary)
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(entries, key = { it.id }) { entry ->
-                    DiaryCard(entry = entry, onClick = { onEditDiary(entry.date) },
-                        onDelete = { scope.launch { diaryRepository.deleteEntry(entry.id) } })
+        ) { padding ->
+            if (entries.isEmpty()) {
+                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("📝", style = MaterialTheme.typography.displayMedium)
+                        Spacer(Modifier.height(16.dp))
+                        Text("还没有日记", style = MaterialTheme.typography.titleMedium,
+                            color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline)
+                        Text("点击右下角 + 开始写第一篇", style = MaterialTheme.typography.bodySmall,
+                            color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline)
+                    }
+                }
+            } else {
+                // Group by calendar month (yyyy-MM); each new month gets a
+                // big-number divider, like the reference design. groupBy keeps
+                // encounter order, so groups run newest → oldest.
+                val displayItems = entries.groupBy { it.date.take(7) }
+                    .flatMap { (_, monthEntries) ->
+                        listOf<DisplayItem>(DisplayItem.Header(monthEntries.first().date.take(7))) +
+                            monthEntries.map { DisplayItem.Entry(it) }
+                    }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(padding),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(
+                        displayItems,
+                        key = { item ->
+                            when (item) {
+                                is DisplayItem.Header -> "h_${item.month}"
+                                is DisplayItem.Entry -> item.entry.id
+                            }
+                        }
+                    ) { item ->
+                        when (item) {
+                            is DisplayItem.Header -> MonthDivider(item.month.drop(5).toInt(), hasCustomBg)
+                            is DisplayItem.Entry -> DiaryCard(
+                                entry = item.entry,
+                                onClick = { onEditDiary(item.entry.date) },
+                                onDelete = { scope.launch { diaryRepository.deleteEntry(item.entry.id) } }
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -161,6 +219,31 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
                 ) { Text("删除") }
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") } }
+        )
+    }
+}
+
+/** LazyColumn row model: a month divider or a diary card. */
+private sealed interface DisplayItem {
+    data class Header(val month: String) : DisplayItem
+    data class Entry(val entry: DiaryEntry) : DisplayItem
+}
+
+@Composable
+private fun MonthDivider(month: Int, hasCustomBg: Boolean) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        Text(
+            month.toString(),
+            fontSize = 44.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (hasCustomBg) Color.White else MaterialTheme.colorScheme.primary,
+            style = TextStyle(
+                shadow = if (hasCustomBg) {
+                    Shadow(Color.Black.copy(alpha = 0.4f), blurRadius = 8f)
+                } else {
+                    Shadow.None
+                }
+            )
         )
     }
 }

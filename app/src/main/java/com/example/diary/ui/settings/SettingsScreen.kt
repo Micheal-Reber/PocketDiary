@@ -1,18 +1,25 @@
 package com.example.diary.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.preferences.ThemePreferences
 import kotlinx.coroutines.launch
 
@@ -20,7 +27,23 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(themePreferences: ThemePreferences) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val isDarkMode by themePreferences.isDarkMode.collectAsStateWithLifecycle(initialValue = false)
+    // Diary list background: picked photo copied into private storage; the
+    // stored value is its absolute path (null = default color background).
+    val bgPath by themePreferences.diaryBackgroundPath.collectAsStateWithLifecycle(initialValue = null)
+    val pickBackground = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val file = BackgroundImageStore.importFromUri(context, uri)
+                if (file != null) {
+                    themePreferences.setDiaryBackgroundPath(file.absolutePath)
+                }
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -59,6 +82,34 @@ fun SettingsScreen(themePreferences: ThemePreferences) {
                         onCheckedChange = { checked ->
                             scope.launch { themePreferences.setDarkMode(checked) }
                         }
+                    )
+                }
+            )
+
+            ListItem(
+                headlineContent = { Text("日记背景") },
+                supportingContent = {
+                    Text(
+                        if (bgPath != null) "已自定义，点击更换照片"
+                        else "使用默认背景，点击选择照片"
+                    )
+                },
+                leadingContent = {
+                    Icon(Icons.Default.Wallpaper, contentDescription = null)
+                },
+                trailingContent = {
+                    if (bgPath != null) {
+                        TextButton(onClick = {
+                            scope.launch {
+                                BackgroundImageStore.clear(context)
+                                themePreferences.setDiaryBackgroundPath(null)
+                            }
+                        }) { Text("恢复默认") }
+                    }
+                },
+                modifier = Modifier.clickable {
+                    pickBackground.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                     )
                 }
             )

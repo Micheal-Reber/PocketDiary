@@ -6,6 +6,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -22,10 +23,16 @@ class ThemePreferences(context: Context) {
 
     companion object {
         val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
+        val DIARY_BACKGROUND_KEY = stringPreferencesKey("diary_background_path")
     }
 
     val isDarkMode: Flow<Boolean> = appContext.dataStore.data.map { preferences ->
         preferences[DARK_MODE_KEY] ?: false
+    }
+
+    /** Absolute path of the user-chosen diary list background image, or null. */
+    val diaryBackgroundPath: Flow<String?> = appContext.dataStore.data.map { preferences ->
+        preferences[DIARY_BACKGROUND_KEY]
     }
 
     suspend fun setDarkMode(enabled: Boolean) {
@@ -39,6 +46,17 @@ class ThemePreferences(context: Context) {
             }
         } catch (e: Exception) {
             Log.w("ThemePreferences", "Failed to persist dark mode", e)
+        }
+    }
+
+    suspend fun setDiaryBackgroundPath(path: String?) {
+        try {
+            appContext.dataStore.edit { preferences ->
+                if (path == null) preferences.remove(DIARY_BACKGROUND_KEY)
+                else preferences[DIARY_BACKGROUND_KEY] = path
+            }
+        } catch (e: Exception) {
+            Log.w("ThemePreferences", "Failed to persist diary background", e)
         }
     }
 }
