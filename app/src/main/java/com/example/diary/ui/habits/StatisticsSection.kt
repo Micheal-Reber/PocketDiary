@@ -1,5 +1,10 @@
 package com.example.diary.ui.habits
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,20 +54,29 @@ internal fun StatsSummaryRow(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            .clip(MaterialTheme.shapes.medium)
             .clickable { onOpenStatistics() },
-        color = Color.Transparent
+        color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Row(
             Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.AutoMirrored.Filled.ShowChart,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(24.dp)
-            )
+            // Tonal icon badge — Google Settings pattern.
+            Box(
+                Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.ShowChart,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text("统计", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
@@ -92,7 +107,7 @@ internal fun StatisticsSection(
     selectedStatMonth: YearMonth,
     habits: List<Habit>,
     selectedHabitIds: Set<Long>,
-    weeklyStats: List<RecentWeeklyStat>,
+    recentWeeklyStats: List<RecentWeeklyStat>,
     monthlyStats: List<MonthlyStat>,
     dailyStats: List<DailyStat>,
     onToggleHabit: (Long) -> Unit,
@@ -115,11 +130,17 @@ internal fun StatisticsSection(
                 Text("添加习惯后开始统计", color = MaterialTheme.colorScheme.outline)
             }
         } else {
-            when (statView) {
+            // Crossfade between weekly/monthly/yearly instead of a hard jump.
+            AnimatedContent(
+                targetState = statView,
+                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+                label = "statViewSwitch"
+            ) { sv ->
+            when (sv) {
                 StatView.WEEKLY -> {
                     // Fixed rolling window: the last 10 Monday-based weeks,
                     // bucket 10 being the current week — no navigation.
-                    val byHabit = weeklyStats.groupBy { it.habitId }
+                    val byHabit = recentWeeklyStats.groupBy { it.habitId }
                     val lines = habits.filter { it.id in selectedHabitIds }.map { habit ->
                         val group = byHabit[habit.id].orEmpty()
                         val values = (1..10).map { week ->
@@ -185,11 +206,12 @@ internal fun StatisticsSection(
                     YearNavigationRow(selectedYear, onPreviousYear, onNextYear)
                 }
             }
+            }
         }
 
         // Period totals per habit + selection checkboxes driving the chart.
         val totalsByHabit: Map<Long, Int> = when (statView) {
-            StatView.WEEKLY -> weeklyStats.groupBy { it.habitId }
+            StatView.WEEKLY -> recentWeeklyStats.groupBy { it.habitId }
                 .mapValues { (_, list) -> list.sumOf { it.count } }
             StatView.MONTHLY -> dailyStats.groupBy { it.habitId }
                 .mapValues { (_, list) -> list.sumOf { it.count } }
@@ -238,7 +260,11 @@ private fun HabitChecklist(
                         )
                         Text(
                             "$countPrefix${totals[habit.id] ?: 0}天",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                // Tabular figures keep the counts column-aligned
+                                // across rows in the checklist grid.
+                                fontFeatureSettings = "tnum"
+                            ),
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }

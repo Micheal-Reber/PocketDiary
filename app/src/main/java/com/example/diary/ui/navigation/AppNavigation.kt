@@ -1,5 +1,10 @@
 package com.example.diary.ui.navigation
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -89,10 +94,15 @@ fun AppNavigation(
             }
         }
     ) { innerPadding ->
+        // Subtle fade-through between tabs; the editor slides up gently.
         NavHost(
             navController = navController,
             startDestination = Screen.Diary.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { fadeIn(tween(220)) },
+            exitTransition = { fadeOut(tween(150)) },
+            popEnterTransition = { fadeIn(tween(220)) },
+            popExitTransition = { fadeOut(tween(150)) }
         ) {
             composable(Screen.Diary.route) {
                 DiaryListScreen(
@@ -123,7 +133,9 @@ fun AppNavigation(
             }
             composable(
                 route = "editor?date={date}",
-                arguments = listOf(navArgument("date") { type = NavType.StringType; defaultValue = "" })
+                arguments = listOf(navArgument("date") { type = NavType.StringType; defaultValue = "" }),
+                enterTransition = { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) },
+                popExitTransition = { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
             ) { backStackEntry ->
                 val dateStr = backStackEntry.arguments?.getString("date")?.ifEmpty { null }
                 DiaryEditorScreen(
@@ -132,7 +144,11 @@ fun AppNavigation(
                     onBack = { navController.popBackStack() }
                 )
             }
-            composable("editor") {
+            composable(
+                route = "editor",
+                enterTransition = { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) },
+                popExitTransition = { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
+            ) {
                 DiaryEditorScreen(
                     initialDate = null,
                     diaryRepository = diaryRepository,

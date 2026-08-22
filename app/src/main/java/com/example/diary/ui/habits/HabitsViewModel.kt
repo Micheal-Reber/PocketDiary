@@ -111,11 +111,17 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
 
     fun setStatView(view: StatView) { _statView.value = view }
 
-    fun previousYear() { _selectedYear.value = _selectedYear.value - 1; loadStats() }
-    fun nextYear() { _selectedYear.value = _selectedYear.value + 1; loadStats() }
+    // Each stats query only depends on specific inputs — reload just what
+    // changed instead of all four datasets on every interaction:
+    //   monthlyStats  ← selectedYear      (year navigation)
+    //   dailyStats    ← selectedStatMonth (month navigation)
+    //   recentWeekly  ← "now"             (record changes)
+    //   yearlyStats   ← record changes
+    fun previousYear() { _selectedYear.value = _selectedYear.value - 1; loadMonthlyStats() }
+    fun nextYear() { _selectedYear.value = _selectedYear.value + 1; loadMonthlyStats() }
 
-    fun previousStatMonth() { _selectedStatMonth.value = _selectedStatMonth.value.minusMonths(1); loadStats() }
-    fun nextStatMonth() { _selectedStatMonth.value = _selectedStatMonth.value.plusMonths(1); loadStats() }
+    fun previousStatMonth() { _selectedStatMonth.value = _selectedStatMonth.value.minusMonths(1); loadDailyStats() }
+    fun nextStatMonth() { _selectedStatMonth.value = _selectedStatMonth.value.plusMonths(1); loadDailyStats() }
 
     fun toggleHabitSelected(habitId: Long) {
         _selectedHabitIds.value = if (habitId in _selectedHabitIds.value) {
@@ -158,11 +164,11 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
             if (nowChecked) current[habitId] = true else current.remove(habitId)
             _dateCheckIns.value = current
             // Only refresh the derived views that actually depend on records —
-            // calendar dots and chart stats. loadTodayCount() reads the same DB
-            // row we just touched, so refresh it too. Avoiding loadAllData() keeps
-            // the dialog from re-rendering on every checkbox tap.
+            // calendar dots, all four chart datasets (counts changed), and
+            // today's summary. Avoiding the calendar reload keeps the check-in
+            // dialog from re-rendering on every checkbox tap.
             loadCalendarCheckIns()
-            loadStats()
+            loadAllStats()
             loadTodayCount()
         }
     }
@@ -179,11 +185,7 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
             val newId = habitRepository.addHabit(name, emoji, colorIndex)
             // New habits appear on the chart immediately.
             _selectedHabitIds.value = _selectedHabitIds.value + newId
-            // Stats: a brand-new habit has zero records, so monthlyStats doesn't
-            // actually need to re-read — but refreshing here keeps the line on
-            // the chart immediately visible (otherwise it appears only on the
-            // next toggle/month switch).
-            loadStats()
+            loadAllStats()
             _showAddHabitDialog.value = false
         }
     }
@@ -200,15 +202,24 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
     }
 
     private fun loadAllData() {
-        loadStats()
+        loadAllStats()
         loadCalendarCheckIns()
         loadTodayCount()
     }
 
-    private fun loadStats() = launchSerialized {
+    /** Re-reads every chart dataset — used when record data itself changed. */
+    private fun loadAllStats() = launchSerialized {
         _monthlyStats.value = habitRepository.getMonthlyStats(_selectedYear.value)
         _yearlyStats.value = habitRepository.getYearlyStats()
         _recentWeeklyStats.value = habitRepository.getRecentWeeklyStats()
+        _dailyStats.value = habitRepository.getDailyStats(_selectedStatMonth.value.toString())
+    }
+
+    private fun loadMonthlyStats() = launchSerialized {
+        _monthlyStats.value = habitRepository.getMonthlyStats(_selectedYear.value)
+    }
+
+    private fun loadDailyStats() = launchSerialized {
         _dailyStats.value = habitRepository.getDailyStats(_selectedStatMonth.value.toString())
     }
 

@@ -17,7 +17,7 @@
         android:theme="@style/Theme.PocketDiary">
         <activity
             android:name=".MainActivity"
-            android:theme="@style/Theme.PocketDiary.Starting"
+            android:theme="@style/Theme.PocketDiary.Starting.Dark"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -1,5 +1,0 @@
-<resources>
-    <!-- Dark mode: black splash + black window background (seamless from splash) -->
-    <color name="splash_background">#000000</color>
-    <color name="window_background">#000000</color>
-</resources>

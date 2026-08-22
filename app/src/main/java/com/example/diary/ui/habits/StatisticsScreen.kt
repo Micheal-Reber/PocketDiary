@@ -30,7 +30,7 @@ fun StatisticsScreen(
     val selectedYear by habitsViewModel.selectedYear.collectAsState()
     val selectedStatMonth by habitsViewModel.selectedStatMonth.collectAsState()
     val selectedHabitIds by habitsViewModel.selectedHabitIds.collectAsState()
-    val weeklyStats by habitsViewModel.recentWeeklyStats.collectAsState()
+    val recentWeeklyStats by habitsViewModel.recentWeeklyStats.collectAsState()
     val monthlyStats by habitsViewModel.monthlyStats.collectAsState()
     val dailyStats by habitsViewModel.dailyStats.collectAsState()
 
@@ -70,7 +70,7 @@ fun StatisticsScreen(
                 selectedStatMonth = selectedStatMonth,
                 habits = habits,
                 selectedHabitIds = selectedHabitIds,
-                weeklyStats = weeklyStats,
+                recentWeeklyStats = recentWeeklyStats,
                 monthlyStats = monthlyStats,
                 dailyStats = dailyStats,
                 onToggleHabit = { habitsViewModel.toggleHabitSelected(it) },
@@ -91,32 +91,18 @@ private fun SegmentedStatTabs(current: StatView, onSelect: (StatView) -> Unit) {
         StatView.MONTHLY to "月视图",
         StatView.YEARLY to "年视图"
     )
-    Surface(
-        shape = RoundedCornerShape(50),
-        border = androidx.compose.foundation.BorderStroke(
-            1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-        )
+    // Official M3 segmented control — selected segment gets the expressive
+    // shape-morph animation for free.
+    SingleChoiceSegmentedButtonRow(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Row {
-            entries.forEach { (view, label) ->
-                val selected = view == current
-                Box(
-                    Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(
-                            if (selected) MaterialTheme.colorScheme.secondaryContainer
-                            else Color.Transparent
-                        )
-                        .clickable { onSelect(view) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        label,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = if (selected) MaterialTheme.colorScheme.onSecondaryContainer
-                        else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+        entries.forEachIndexed { index, (view, label) ->
+            SegmentedButton(
+                selected = view == current,
+                onClick = { onSelect(view) },
+                shape = SegmentedButtonDefaults.itemShape(index, entries.size)
+            ) {
+                Text(label)
             }
         }
     }

@@ -24,15 +24,19 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.location.LocationProvider
 import com.example.diary.data.repository.DiaryRepository
+import com.example.diary.ui.theme.Spacing
 import com.example.diary.data.repository.SaveResult
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -88,8 +92,6 @@ fun DiaryEditorScreen(
     var lon by rememberSaveable { mutableStateOf<Double?>(null) }
     var locationName by rememberSaveable { mutableStateOf<String?>(null) }
     var weather by rememberSaveable { mutableStateOf<String?>(null) }
-    // Kept for a future auto-fetch flow; currently only gates the spinner row.
-    var weatherLoading by rememberSaveable { mutableStateOf(false) }
 
     // Initial load — exactly once per screen entry. Changing the date later is
     // NOT a reload trigger anymore: the date field is a property of THIS entry,
@@ -127,20 +129,26 @@ fun DiaryEditorScreen(
     // so backing out still prompts instead of silently dropping the move.
     val isDirty = isLoaded && !loadedSnapshot.matches(dateStr, content, mood, lat, lon, locationName, weather)
 
-    // Location fetch — GPS only (weather is manual via preset chips)
+    // Location fetch — GPS only (weather is manual via preset chips).
+    // GPS fix + reverse geocoding are blocking I/O (Geocoder does a network
+    // round-trip) — run on Dispatchers.IO so the UI never freezes, then apply
+    // results on the main thread.
     val fetchLocationAndWeather: () -> Unit = {
         locationJob.value?.cancel()
         @Suppress("MissingPermission")
         locationJob.value = scope.launch {
             val provider = LocationProvider(context)
-            val loc = provider.getLastKnown()
+            val loc = withContext(Dispatchers.IO) { provider.getLastKnown() }
             if (loc != null) {
                 lat = loc.latitude
                 lon = loc.longitude
                 // Reverse geocode to human-readable address
                 try {
-                    val geocoder = android.location.Geocoder(context)
-                    val addresses = geocoder.getFromLocation(loc.latitude, loc.longitude, 1)
+                    val addresses = withContext(Dispatchers.IO) {
+                        @Suppress("DEPRECATION")
+                        android.location.Geocoder(context)
+                            .getFromLocation(loc.latitude, loc.longitude, 1)
+                    }
                     if (!addresses.isNullOrEmpty()) {
                         val addr = addresses[0]
                         locationName = listOfNotNull(addr.adminArea, addr.locality, addr.subLocality)
@@ -151,12 +159,10 @@ fun DiaryEditorScreen(
                     locationName = "%.4f, %.4f".format(loc.latitude, loc.longitude)
                 }
             } else {
-                scope.launch {
-                    snackbarHostState.showSnackbar(
-                        message = "暂未获取到位置,请稍后再试或检查定位权限",
-                        duration = SnackbarDuration.Short
-                    )
-                }
+                snackbarHostState.showSnackbar(
+                    message = "暂未获取到位置,请稍后再试或检查定位权限",
+                    duration = SnackbarDuration.Short
+                )
             }
         }
     }
@@ -176,6 +182,72 @@ fun DiaryEditorScreen(
                 snackbarHostState.showSnackbar(
                     message = "需要位置权限才能获取位置和天气",
                     duration = SnackbarDuration.Short
+                )
+            }
+        }
+    }
+
+    // Location: fetch directly when already permitted; otherwise ask first.
+    val requestLocationIfNeeded: () -> Unit = {
+        val granted = ContextCompat.checkSelfPermission(
+            context, Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.ACCESS_COARSE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            fetchLocationAndWeather()
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    // Save → move/insert per repository semantics. On date conflict keep every
+    // edit, roll the shown date back to the row's real date, and tell the user.
+    val saveEntryAction: () -> Unit = {
+        scope.launch {
+            val entry = DiaryEntry(
+                id = existingId ?: 0,
+                content = content.trim(),
+                date = dateStr,
+                mood = mood,
+                latitude = lat,
+                longitude = lon,
+                locationName = locationName,
+                weather = weather
+            )
+            try {
+                when (val result = diaryRepository.saveEntry(entry)) {
+                    is SaveResult.Success -> {
+                        existingId = result.id
+                        loadedForDate = dateStr
+                        // Sync snapshot (raw values, not trimmed) so isDirty
+                        // stays consistent with save-time trim.
+                        loadedSnapshot = Snapshot(
+                            dateStr, content, mood, lat, lon,
+                            locationName, weather
+                        )
+                        onBack()
+                    }
+                    SaveResult.DateConflict -> {
+                        dateStr = loadedForDate ?: dateStr
+                        snackbarHostState.showSnackbar(
+                            message = "该日期已有一篇日记",
+                            duration = SnackbarDuration.Long
+                        )
+                    }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar(
+                    message = "保存失败,请重试",
+                    duration = SnackbarDuration.Long
                 )
             }
         }
@@ -209,81 +281,6 @@ fun DiaryEditorScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        bottomBar = {
-            EditorToolbar(
-                onLocation = {
-                    // If permission is already granted, RequestMultiplePermissions
-                    // is a no-op (no callback fires) so we must trigger directly.
-                    val granted = ContextCompat.checkSelfPermission(
-                        context, Manifest.permission.ACCESS_FINE_LOCATION
-                    ) == PackageManager.PERMISSION_GRANTED ||
-                        ContextCompat.checkSelfPermission(
-                            context, Manifest.permission.ACCESS_COARSE_LOCATION
-                        ) == PackageManager.PERMISSION_GRANTED
-                    if (granted) {
-                        fetchLocationAndWeather()
-                    } else {
-                        locationPermissionLauncher.launch(
-                            arrayOf(
-                                Manifest.permission.ACCESS_FINE_LOCATION,
-                                Manifest.permission.ACCESS_COARSE_LOCATION
-                            )
-                        )
-                    }
-                },
-                onSave = {
-                    scope.launch {
-                        val entry = DiaryEntry(
-                            id = existingId ?: 0,
-                            content = content.trim(),
-                            date = dateStr,
-                            mood = mood,
-                            latitude = lat,
-                            longitude = lon,
-                            locationName = locationName,
-                            weather = weather
-                        )
-                        try {
-                            when (val result = diaryRepository.saveEntry(entry)) {
-                                is SaveResult.Success -> {
-                                    existingId = result.id
-                                    loadedForDate = dateStr
-                                    // Sync snapshot (raw values, not trimmed) so
-                                    // isDirty stays consistent with save-time trim.
-                                    loadedSnapshot = Snapshot(
-                                        dateStr, content, mood, lat, lon,
-                                        locationName, weather
-                                    )
-                                    onBack()
-                                }
-                                // Unique index on `date`: target day already has an
-                                // entry. Keep every edit, roll the shown date back
-                                // to the row's real date, tell the user.
-                                SaveResult.DateConflict -> {
-                                    dateStr = loadedForDate ?: dateStr
-                                    snackbarHostState.showSnackbar(
-                                        message = "该日期已有一篇日记",
-                                        duration = SnackbarDuration.Long
-                                    )
-                                }
-                            }
-                        } catch (e: kotlinx.coroutines.CancellationException) {
-                            // Composable was disposed while we were saving —
-                            // structured concurrency requires us to propagate
-                            // cancellation, not swallow it.
-                            throw e
-                        } catch (e: Exception) {
-                            // DB write failed (disk full, db locked...): keep the
-                            // user in the editor with their input intact.
-                            snackbarHostState.showSnackbar(
-                                message = "保存失败,请重试",
-                                duration = SnackbarDuration.Long
-                            )
-                        }
-                    }
-                }
-            )
-        }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -293,19 +290,43 @@ fun DiaryEditorScreen(
                 .verticalScroll(rememberScrollState())
         ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { showDatePicker = true }
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(8.dp))
-                Text(dateStr, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                AssistChip(
+                    onClick = { showDatePicker = true },
+                    label = { Text(dateStr, style = MaterialTheme.typography.labelLarge) },
+                    leadingIcon = {
+                        Icon(
+                            Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                )
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = requestLocationIfNeeded) {
+                    Icon(
+                        Icons.Default.LocationOn,
+                        contentDescription = "获取位置和天气",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                FilledIconButton(onClick = saveEntryAction) {
+                    Icon(
+                        Icons.Default.Save,
+                        contentDescription = "保存",
+                        tint = MaterialTheme.colorScheme.onPrimary
+                    )
+                }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Spacing.s))
 
             // Mood selector (scrollable like weather)
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 4.dp).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                Modifier.fillMaxWidth().padding(vertical = Spacing.xs).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.s)
             ) {
                 moodPresets.forEachIndexed { index, icon ->
                     val selected = mood == icon
@@ -316,12 +337,11 @@ fun DiaryEditorScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(4.dp))
 
             // Weather selector
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 2.dp).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                Modifier.fillMaxWidth().padding(vertical = Spacing.xs).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.s)
             ) {
                 weatherPresets.forEachIndexed { index, icon ->
                     val selected = weather == icon
@@ -332,7 +352,6 @@ fun DiaryEditorScreen(
                     )
                 }
             }
-            Spacer(Modifier.height(4.dp))
 
             // Location / weather row (only shown when we have a fix)
             if (lat != null && lon != null) {
@@ -344,10 +363,7 @@ fun DiaryEditorScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    if (weatherLoading) {
-                        Spacer(Modifier.width(8.dp))
-                        CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
-                    } else weather?.let { w ->
+                    weather?.let { w ->
                         Spacer(Modifier.width(6.dp))
                         Text(w, style = MaterialTheme.typography.bodyMedium)
                     }
@@ -355,17 +371,27 @@ fun DiaryEditorScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
-            OutlinedTextField(
+            // Borderless writing canvas — journal apps favor an unobstructed
+            // page over a boxed field.
+            TextField(
                 value = content,
                 onValueChange = { content = it },
-                placeholder = { Text("写下今天的心情...") },
+                placeholder = {
+                    Text("写下今天的心情...", color = MaterialTheme.colorScheme.outline)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 300.dp),
-                textStyle = MaterialTheme.typography.bodyLarge,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+                colors = TextFieldDefaults.colors(
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    cursorColor = MaterialTheme.colorScheme.primary,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent
                 )
             )
         }
@@ -450,30 +476,6 @@ fun DiaryEditorScreen(
                 }
             }
         )
-    }
-}
-
-@Composable
-private fun EditorToolbar(
-    onLocation: () -> Unit,
-    onSave: () -> Unit
-) {
-    Surface(
-        tonalElevation = 3.dp,
-        color = MaterialTheme.colorScheme.surface
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onLocation) {
-                Icon(Icons.Default.LocationOn, contentDescription = "获取位置和天气")
-            }
-            FilledIconButton(onClick = onSave) {
-                Icon(Icons.Default.Save, contentDescription = "保存", tint = MaterialTheme.colorScheme.onPrimary)
-            }
-        }
     }
 }
 

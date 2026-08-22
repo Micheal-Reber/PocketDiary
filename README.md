@@ -54,9 +54,8 @@
 | 偏好 | DataStore Preferences |
 | 导航 | Navigation Compose（底部三 Tab + 编辑器 + 统计页） |
 | 架构 | ViewModel + Repository + Flow 单向数据流 |
-| 天气 | Open-Meteo API（免 Key） |
 | 定位 | 系统 LocationManager（无 Play Services 依赖） |
-| 开屏 | androidx core-splashscreen |
+| 开屏 | 系统开屏纯色化（无 logo，随软件内亮暗设置秒进界面） |
 
 ## 🚀 构建
 
@@ -73,15 +72,14 @@
 
 ```
 app/src/main/java/com/example/diary/
-├── MainActivity.kt            # 入口：开屏接管 + 主题 Flow
+├── MainActivity.kt            # 入口：亮暗模式接管（独立于系统）+ 开屏
 ├── DiaryApplication.kt
 ├── data/
+│   ├── image/                 # 背景图导入与降采样解码（带内存缓存）
 │   ├── local/                 # Room 数据库、DAO、实体
-│   ├── image/                 # 背景图导入与降采样解码
 │   ├── location/              # 定位封装（无 GMS）
 │   ├── preferences/           # DataStore 主题/背景偏好
-│   ├── repository/            # 数据仓库层
-│   └── weather/               # Open-Meteo 天气查询
+│   └── repository/            # 数据仓库层
 └── ui/
     ├── diary/                 # 日历列表：卡片、月份分割、滑动删除、背景
     ├── editor/                # 日记编辑器：心情/天气/定位

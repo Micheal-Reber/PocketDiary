@@ -1,6 +1,10 @@
 <resources>
     <color name="ic_launcher_background">#000000</color>
-    <!-- Light mode: white splash + light window background -->
-    <color name="splash_background">#FFFFFF</color>
-    <color name="window_background">#FFFBFDF9</color>
+
+    <!-- App-mode (NOT system) driven splash/window colors, chosen at runtime
+         via Theme.PocketDiary.Starting.Dark / .Light -->
+    <color name="splash_background_light">#FFFFFF</color>
+    <color name="splash_background_dark">#000000</color>
+    <color name="window_background_light">#FFFBFDF9</color>
+    <color name="window_background_dark">#000000</color>
 </resources>

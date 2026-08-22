@@ -7,7 +7,6 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
@@ -33,6 +32,7 @@ import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.DiaryRepository
+import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -83,18 +83,27 @@ fun DiaryListScreen(
                 }
             }
         ) { padding ->
-            if (entries.isEmpty()) {
-                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        if (entries.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        Modifier
+                            .size(96.dp)
+                            .clip(MaterialTheme.shapes.large)
+                            .background(MaterialTheme.colorScheme.primaryContainer),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text("📝", style = MaterialTheme.typography.displayMedium)
-                        Spacer(Modifier.height(16.dp))
-                        Text("还没有日记", style = MaterialTheme.typography.titleMedium,
-                            color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline)
-                        Text("点击右下角 + 开始写第一篇", style = MaterialTheme.typography.bodySmall,
-                            color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline)
                     }
+                    Spacer(Modifier.height(Spacing.l))
+                    Text("还没有日记", style = MaterialTheme.typography.titleMedium,
+                        color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(Spacing.xs))
+                    Text("点击右下角 + 开始写第一篇", style = MaterialTheme.typography.bodySmall,
+                        color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline)
                 }
-            } else {
+            }
+        } else {
                 // Group by calendar month (yyyy-MM); each new month gets a
                 // big-number divider, like the reference design. groupBy keeps
                 // encounter order, so groups run newest → oldest.
@@ -105,8 +114,8 @@ fun DiaryListScreen(
                     }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(padding),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(Spacing.l),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.m)
                 ) {
                     items(
                         displayItems,
@@ -117,13 +126,16 @@ fun DiaryListScreen(
                             }
                         }
                     ) { item ->
-                        when (item) {
-                            is DisplayItem.Header -> MonthDivider(item.month.drop(5).toInt(), hasCustomBg)
-                            is DisplayItem.Entry -> DiaryCard(
-                                entry = item.entry,
-                                onClick = { onEditDiary(item.entry.date) },
-                                onDelete = { scope.launch { diaryRepository.deleteEntry(item.entry.id) } }
-                            )
+                        // Smooth placement/removal when entries are added or deleted.
+                        Box(Modifier.animateItem()) {
+                            when (item) {
+                                is DisplayItem.Header -> MonthDivider(item.month.drop(5).toInt(), hasCustomBg)
+                                is DisplayItem.Entry -> DiaryCard(
+                                    entry = item.entry,
+                                    onClick = { onEditDiary(item.entry.date) },
+                                    onDelete = { scope.launch { diaryRepository.deleteEntry(item.entry.id) } }
+                                )
+                            }
                         }
                     }
                 }
@@ -138,15 +150,15 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
     var offsetX by remember { mutableStateOf(0f) }
     val deleteThreshold = -150f
 
-    Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))) {
+    Box(modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)) {
         // Red swipe-delete background — matchParentSize sizes it to the Box's
         // final dimensions (dictated by the Card below), so the red always
         // covers the entire card, edge to edge.
         Box(
             Modifier
                 .matchParentSize()
-                .background(MaterialTheme.colorScheme.errorContainer, RoundedCornerShape(16.dp))
-                .padding(end = 20.dp),
+                .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.medium)
+                .padding(end = Spacing.xl),
             contentAlignment = Alignment.CenterEnd
         ) {
             Icon(Icons.Default.Delete, "删除", tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(28.dp))
@@ -168,11 +180,13 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
                     )
                 }
                 .clickable { onClick() },
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            shape = MaterialTheme.shapes.medium,
+            // Flat tonal card (ReadYou-style): layering via container color,
+            // not shadows. surfaceContainerLow sits one step above the page.
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(modifier = Modifier.padding(Spacing.xl)) {
                 // Heading is always the entry's date; mood rides on the right.
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Text(entry.date, style = MaterialTheme.typography.titleMedium,
@@ -236,7 +250,7 @@ private fun MonthDivider(month: Int, hasCustomBg: Boolean) {
             month.toString(),
             fontSize = 44.sp,
             fontWeight = FontWeight.Bold,
-            color = if (hasCustomBg) Color.White else MaterialTheme.colorScheme.primary,
+            color = if (hasCustomBg) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
             style = TextStyle(
                 shadow = if (hasCustomBg) {
                     Shadow(Color.Black.copy(alpha = 0.4f), blurRadius = 8f)

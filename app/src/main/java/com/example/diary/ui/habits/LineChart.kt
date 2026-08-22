@@ -38,10 +38,6 @@ fun habitColor(index: Int): Color {
     return HabitColorPalette[((index % size) + size) % size]
 }
 
-// Teal tone used for X-axis labels (per the reference design); the current
-// period's label is rendered in the theme error color instead.
-private val xAxisTeal = Color(0xFF4DB6AC)
-
 data class ChartLine(val label: String, val color: Color, val values: List<Float>)
 
 /**
@@ -92,6 +88,15 @@ fun LineChart(
     val accentColor = MaterialTheme.colorScheme.error
     val textStyle = TextStyle(fontSize = 9.sp)
     val textMeasurer = rememberTextMeasurer()
+
+    // Pre-measure every point's value label once per data change. Measuring
+    // inside the draw scope would re-run for all points on every frame —
+    // noticeable while the month view scrolls horizontally.
+    val measuredLabels = remember(lines, step) {
+        lines.map { line ->
+            line.values.map { v -> textMeasurer.measure("${v.toInt()}", textStyle) }
+        }
+    }
 
     val scrollState = rememberScrollState()
     val minChartWidth = if (minStepDp > 0f && xLabels.size > 1) {
@@ -148,8 +153,8 @@ fun LineChart(
                         val plotHeight = band * 5f
                         val stepX = if (xLabels.size > 1) cw / (xLabels.size - 1) else cw
 
-                        lines.forEach { line ->
-                            if (line.values.isEmpty()) return@forEach
+                        lines.forEachIndexed { lineIdx, line ->
+                            if (line.values.isEmpty()) return@forEachIndexed
                             val path = Path()
                             line.values.forEachIndexed { idx, v ->
                                 val x = if (xLabels.size == 1) cw / 2 else idx * stepX
@@ -165,11 +170,8 @@ fun LineChart(
                                 val x = if (xLabels.size == 1) cw / 2 else idx * stepX
                                 val y = ch - (v / numericMax) * plotHeight
                                 drawCircle(line.color, 5f, Offset(x, y))
-                                // Value label above the point
-                                val text = textMeasurer.measure(
-                                    "${v.toInt()}",
-                                    textStyle
-                                )
+                                // Value label above the point (pre-measured)
+                                val text = measuredLabels[lineIdx][idx]
                                 val lx = (x - text.size.width / 2f)
                                     .coerceIn(0f, (cw - text.size.width).coerceAtLeast(0f))
                                 val ly = (y - text.size.height - 4.dp.toPx()).coerceAtLeast(0f)
@@ -188,7 +190,7 @@ fun LineChart(
                             Text(
                                 label,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isCurrent) accentColor else xAxisTeal,
+                                color = if (isCurrent) accentColor else MaterialTheme.colorScheme.primary,
                                 fontSize = 10.sp,
                                 fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
                                 textAlign = TextAlign.Center

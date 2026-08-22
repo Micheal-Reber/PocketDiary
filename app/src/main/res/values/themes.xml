@@ -1,17 +1,32 @@
 <resources>
-    <!-- windowBackground follows light/dark via -night color qualifier: any
-         frame exposed between splash dismissal and Compose's first draw stays
-         seamless with both the splash and the incoming UI. -->
+    <!-- Fallback/base theme. Real window background comes from the .Dark/.Light
+         variant picked in MainActivity based on the APP's dark-mode setting
+         (independent of system uiMode). -->
     <style name="Theme.PocketDiary" parent="android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@color/window_background</item>
+        <item name="android:windowBackground">@color/window_background_light</item>
     </style>
 
-    <!-- System splash: background + logo auto-switch via resource qualifiers
-        (drawable-night/splash_logo = white version, splash_background = black).
-        Dismisses on first frame; kept >=400ms via keepOnScreenCondition. -->
-    <style name="Theme.PocketDiary.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">@color/splash_background</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_logo</item>
-        <item name="postSplashScreenTheme">@style/Theme.PocketDiary</item>
+    <style name="Theme.PocketDiary.Dark">
+        <item name="android:windowBackground">@color/window_background_dark</item>
+    </style>
+
+    <style name="Theme.PocketDiary.Light">
+        <item name="android:windowBackground">@color/window_background_light</item>
+    </style>
+
+    <!-- No-logo splash: transparent icon turns the mandatory Android 12+ system
+         splash into a bare solid color beat (~first-frame duration). Background
+         color follows the APP's dark-mode setting via runtime theme selection.
+         Dismisses as soon as the first frame draws — no artificial hold. -->
+    <style name="Theme.PocketDiary.Starting.Dark" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background_dark</item>
+        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="postSplashScreenTheme">@style/Theme.PocketDiary.Dark</item>
+    </style>
+
+    <style name="Theme.PocketDiary.Starting.Light" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/splash_background_light</item>
+        <item name="windowSplashScreenAnimatedIcon">@android:color/transparent</item>
+        <item name="postSplashScreenTheme">@style/Theme.PocketDiary.Light</item>
     </style>
 </resources>

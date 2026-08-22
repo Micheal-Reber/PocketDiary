@@ -10,6 +10,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +30,7 @@ fun SettingsScreen(themePreferences: ThemePreferences) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val isDarkMode by themePreferences.isDarkMode.collectAsStateWithLifecycle(initialValue = false)
+    val dynamicColor by themePreferences.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
     // Diary list background: picked photo copied into private storage; the
     // stored value is its absolute path (null = default color background).
     val bgPath by themePreferences.diaryBackgroundPath.collectAsStateWithLifecycle(initialValue = null)
@@ -81,6 +83,27 @@ fun SettingsScreen(themePreferences: ThemePreferences) {
                         checked = isDarkMode,
                         onCheckedChange = { checked ->
                             scope.launch { themePreferences.setDarkMode(checked) }
+                        }
+                    )
+                }
+            )
+
+            ListItem(
+                headlineContent = { Text("壁纸取色") },
+                supportingContent = {
+                    Text(
+                        if (dynamicColor) "跟随系统壁纸配色（Material You）"
+                        else "使用应用默认墨绿配色"
+                    )
+                },
+                leadingContent = {
+                    Icon(Icons.Default.Palette, contentDescription = null)
+                },
+                trailingContent = {
+                    Switch(
+                        checked = dynamicColor,
+                        onCheckedChange = { checked ->
+                            scope.launch { themePreferences.setDynamicColor(checked) }
                         }
                     )
                 }

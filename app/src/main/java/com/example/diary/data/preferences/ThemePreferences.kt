@@ -24,10 +24,26 @@ class ThemePreferences(context: Context) {
     companion object {
         val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
         val DIARY_BACKGROUND_KEY = stringPreferencesKey("diary_background_path")
+        val DYNAMIC_COLOR_KEY = booleanPreferencesKey("dynamic_color")
     }
 
     val isDarkMode: Flow<Boolean> = appContext.dataStore.data.map { preferences ->
         preferences[DARK_MODE_KEY] ?: false
+    }
+
+    /** Material You wallpaper-derived color; default ON, brand green when OFF. */
+    val dynamicColor: Flow<Boolean> = appContext.dataStore.data.map { preferences ->
+        preferences[DYNAMIC_COLOR_KEY] ?: true
+    }
+
+    suspend fun setDynamicColor(enabled: Boolean) {
+        try {
+            appContext.dataStore.edit { preferences ->
+                preferences[DYNAMIC_COLOR_KEY] = enabled
+            }
+        } catch (e: Exception) {
+            Log.w("ThemePreferences", "Failed to persist dynamic color", e)
+        }
     }
 
     /** Absolute path of the user-chosen diary list background image, or null. */
