@@ -32,6 +32,7 @@ import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.DiaryRepository
+import com.example.diary.ui.editor.markdownToPlainText
 import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -197,7 +198,8 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
                 Spacer(Modifier.height(8.dp))
 
                 // Fixed-size content preview: exactly two lines, ellipsized.
-                Text(entry.content, style = MaterialTheme.typography.bodyMedium,
+                // Markdown syntax is stripped so **bold** reads as bold words.
+                Text(markdownToPlainText(entry.content), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
 

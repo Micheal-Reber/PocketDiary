@@ -65,6 +65,8 @@ dependencies {
     kapt("androidx.room:room-compiler:2.6.1")
     implementation("androidx.datastore:datastore-preferences:1.1.1")
     implementation("androidx.core:core-splashscreen:1.0.1")
+    // Markdown parsing (CommonMark spec) — rendering is a local Compose subset
+    implementation("org.commonmark:commonmark:0.24.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

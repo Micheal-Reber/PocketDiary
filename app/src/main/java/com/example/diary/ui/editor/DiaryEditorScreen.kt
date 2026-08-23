@@ -17,6 +17,8 @@ import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.Saver
@@ -26,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.diary.data.local.DiaryEntry
@@ -64,6 +67,9 @@ fun DiaryEditorScreen(
     var content by rememberSaveable { mutableStateOf("") }
     var existingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    // Markdown preview toggle — editing is raw text (markdown IS text);
+    // preview renders the subset renderer. Survives rotation via saveable.
+    var showPreview by rememberSaveable { mutableStateOf(false) }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     // Tracks the entry as it was last loaded/saved, so we can detect unsaved
     // edits when the user backs out without saving.
@@ -269,6 +275,12 @@ fun DiaryEditorScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { showPreview = !showPreview }) {
+                        Icon(
+                            if (showPreview) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (showPreview) "切换到编辑" else "预览"
+                        )
+                    }
                     if (existingId != null) {
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Default.Delete, "删除整篇", tint = MaterialTheme.colorScheme.error)
@@ -371,9 +383,30 @@ fun DiaryEditorScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
-            // Borderless writing canvas — journal apps favor an unobstructed
-            // page over a boxed field.
-            TextField(
+            if (showPreview) {
+                // Rendered markdown view of the same content — chips and date
+                // stay editable above; only the body switches to read mode.
+                if (content.isBlank()) {
+                    Text(
+                        "（暂无内容）",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
+                        color = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 120.dp)
+                    )
+                } else {
+                    MarkdownText(
+                        markdown = content,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 300.dp)
+                    )
+                }
+            } else {
+                // Borderless writing canvas — journal apps favor an unobstructed
+                // page over a boxed field.
+                TextField(
                 value = content,
                 onValueChange = { content = it },
                 placeholder = {
@@ -394,6 +427,7 @@ fun DiaryEditorScreen(
                     disabledIndicatorColor = Color.Transparent
                 )
             )
+            }
         }
     }
 
