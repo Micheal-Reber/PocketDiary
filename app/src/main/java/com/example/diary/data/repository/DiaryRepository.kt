@@ -18,6 +18,9 @@ class DiaryRepository(private val diaryDao: DiaryDao) {
 
     fun getAllEntries(): Flow<List<DiaryEntry>> = diaryDao.getAllEntries()
 
+    /** Live full-text search over entry content; blank query = all entries. */
+    fun searchEntries(query: String): Flow<List<DiaryEntry>> = diaryDao.searchEntries(query)
+
     suspend fun getEntryByDate(date: String): DiaryEntry? = diaryDao.getEntryByDate(date)
 
     /**

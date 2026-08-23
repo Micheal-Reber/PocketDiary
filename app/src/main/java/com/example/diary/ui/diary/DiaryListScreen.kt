@@ -9,13 +9,18 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
@@ -45,7 +50,19 @@ fun DiaryListScreen(
     onWriteDiary: (String?) -> Unit,
     onEditDiary: (String) -> Unit
 ) {
-    val entries by diaryRepository.getAllEntries().collectAsState(initial = emptyList())
+    // Full-text search — state survives rotation; closing the field clears
+    // the query. The observed flow is swapped only when the query changes.
+    var searchActive by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    val searchFocusRequester = remember { FocusRequester() }
+    LaunchedEffect(searchActive) {
+        if (searchActive) searchFocusRequester.requestFocus()
+    }
+    val entriesFlow = remember(searchQuery) {
+        if (searchQuery.isBlank()) diaryRepository.getAllEntries()
+        else diaryRepository.searchEntries(searchQuery.trim())
+    }
+    val entries by entriesFlow.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
     val bgPath by themePreferences.diaryBackgroundPath.collectAsStateWithLifecycle(initialValue = null)
     // Decode once per path change, downscaled — raw camera photos are far too
@@ -72,6 +89,17 @@ fun DiaryListScreen(
             topBar = {
                 TopAppBar(
                     title = { Text("日记", fontWeight = FontWeight.Bold) },
+                    actions = {
+                        IconButton(onClick = {
+                            searchActive = !searchActive
+                            if (!searchActive) searchQuery = ""
+                        }) {
+                            Icon(
+                                if (searchActive) Icons.Default.Close else Icons.Default.Search,
+                                contentDescription = if (searchActive) "关闭搜索" else "搜索日记"
+                            )
+                        }
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = if (hasCustomBg) Color.Transparent else MaterialTheme.colorScheme.surface
                     )
@@ -84,8 +112,49 @@ fun DiaryListScreen(
                 }
             }
         ) { padding ->
+            Column(Modifier.fillMaxSize().padding(padding)) {
+                if (searchActive) {
+                    TextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("搜索日记内容...", color = MaterialTheme.colorScheme.outline) },
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        },
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }) {
+                                    Icon(Icons.Default.Close, "清空", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.small,
+                        colors = TextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            cursorColor = MaterialTheme.colorScheme.primary,
+                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = Spacing.l, vertical = Spacing.xs)
+                            .focusRequester(searchFocusRequester)
+                    )
+                }
+
         if (entries.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+            if (searchQuery.isNotBlank()) {
+                // Search miss — distinct from the no-diaries state.
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("未找到相关日记", style = MaterialTheme.typography.bodyLarge,
+                        color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         Modifier
@@ -104,6 +173,7 @@ fun DiaryListScreen(
                         color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline)
                 }
             }
+            }
         } else {
                 // Group by calendar month (yyyy-MM); each new month gets a
                 // big-number divider, like the reference design. groupBy keeps
@@ -114,7 +184,7 @@ fun DiaryListScreen(
                             monthEntries.map { DisplayItem.Entry(it) }
                     }
                 LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(padding),
+                    modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(Spacing.l),
                     verticalArrangement = Arrangement.spacedBy(Spacing.m)
                 ) {
@@ -140,6 +210,7 @@ fun DiaryListScreen(
                         }
                     }
                 }
+            }
             }
         }
     }
