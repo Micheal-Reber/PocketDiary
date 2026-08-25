@@ -86,9 +86,10 @@ fun DiaryEditorScreen(
     var loadedForDate by rememberSaveable { mutableStateOf<String?>(null) }
     var showDiscardChangesDialog by rememberSaveable { mutableStateOf(false) }
 
-    // Tracks the in-flight location request so a new tap can cancel
-    // the previous one before it overwrites state with stale data.
+    // Tracks the in-flight location request: tap the location button once to
+    // start, tap again while the spinner shows to cancel.
     val locationJob = remember { mutableStateOf<Job?>(null) }
+    var isLocating by rememberSaveable { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Metadata fields
@@ -137,37 +138,43 @@ fun DiaryEditorScreen(
     // Location fetch — GPS only (weather is manual via preset chips).
     // GPS fix + reverse geocoding are blocking I/O (Geocoder does a network
     // round-trip) — run on Dispatchers.IO so the UI never freezes, then apply
-    // results on the main thread.
+    // results on the main thread. finally resets the spinner state on every
+    // exit path (completion, error, cancellation).
     val fetchLocationAndWeather: () -> Unit = {
         locationJob.value?.cancel()
+        isLocating = true
         @Suppress("MissingPermission")
         locationJob.value = scope.launch {
-            val provider = LocationProvider(context)
-            val loc = withContext(Dispatchers.IO) { provider.getLastKnown() }
-            if (loc != null) {
-                lat = loc.latitude
-                lon = loc.longitude
-                // Reverse geocode to human-readable address
-                try {
-                    val addresses = withContext(Dispatchers.IO) {
-                        @Suppress("DEPRECATION")
-                        android.location.Geocoder(context)
-                            .getFromLocation(loc.latitude, loc.longitude, 1)
+            try {
+                val provider = LocationProvider(context)
+                val loc = withContext(Dispatchers.IO) { provider.getLastKnown() }
+                if (loc != null) {
+                    lat = loc.latitude
+                    lon = loc.longitude
+                    // Reverse geocode to human-readable address
+                    try {
+                        val addresses = withContext(Dispatchers.IO) {
+                            @Suppress("DEPRECATION")
+                            android.location.Geocoder(context)
+                                .getFromLocation(loc.latitude, loc.longitude, 1)
+                        }
+                        if (!addresses.isNullOrEmpty()) {
+                            val addr = addresses[0]
+                            locationName = listOfNotNull(addr.adminArea, addr.locality, addr.subLocality)
+                                .distinct().joinToString(" ")
+                                .ifEmpty { addr.getAddressLine(0) ?: "" }
+                        }
+                    } catch (e: Exception) {
+                        locationName = "%.4f, %.4f".format(loc.latitude, loc.longitude)
                     }
-                    if (!addresses.isNullOrEmpty()) {
-                        val addr = addresses[0]
-                        locationName = listOfNotNull(addr.adminArea, addr.locality, addr.subLocality)
-                            .distinct().joinToString(" ")
-                            .ifEmpty { addr.getAddressLine(0) ?: "" }
-                    }
-                } catch (e: Exception) {
-                    locationName = "%.4f, %.4f".format(loc.latitude, loc.longitude)
+                } else {
+                    snackbarHostState.showSnackbar(
+                        message = "暂未获取到位置,请稍后再试或检查定位权限",
+                        duration = SnackbarDuration.Short
+                    )
                 }
-            } else {
-                snackbarHostState.showSnackbar(
-                    message = "暂未获取到位置,请稍后再试或检查定位权限",
-                    duration = SnackbarDuration.Short
-                )
+            } finally {
+                isLocating = false
             }
         }
     }
@@ -192,23 +199,40 @@ fun DiaryEditorScreen(
         }
     }
 
-    // Location: fetch directly when already permitted; otherwise ask first.
-    val requestLocationIfNeeded: () -> Unit = {
-        val granted = ContextCompat.checkSelfPermission(
-            context, Manifest.permission.ACCESS_FINE_LOCATION
-        ) == PackageManager.PERMISSION_GRANTED ||
-            ContextCompat.checkSelfPermission(
-                context, Manifest.permission.ACCESS_COARSE_LOCATION
-            ) == PackageManager.PERMISSION_GRANTED
-        if (granted) {
-            fetchLocationAndWeather()
-        } else {
-            locationPermissionLauncher.launch(
-                arrayOf(
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                    Manifest.permission.ACCESS_COARSE_LOCATION
-                )
-            )
+    // Location button is a three-state TOGGLE:
+    //   1. spinner showing → tap cancels the in-flight request
+    //   2. location already set → tap REMOVES it (lat/lon/address cleared)
+    //   3. nothing set → tap fetches (permission flow first if needed)
+    val toggleLocation: () -> Unit = {
+        when {
+            isLocating -> {
+                locationJob.value?.cancel()
+                locationJob.value = null
+                isLocating = false
+            }
+            lat != null || lon != null || locationName != null -> {
+                lat = null
+                lon = null
+                locationName = null
+            }
+            else -> {
+                val granted = ContextCompat.checkSelfPermission(
+                    context, Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED ||
+                    ContextCompat.checkSelfPermission(
+                        context, Manifest.permission.ACCESS_COARSE_LOCATION
+                    ) == PackageManager.PERMISSION_GRANTED
+                if (granted) {
+                    fetchLocationAndWeather()
+                } else {
+                    locationPermissionLauncher.launch(
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        )
+                    )
+                }
+            }
         }
     }
 
@@ -317,12 +341,21 @@ fun DiaryEditorScreen(
                     }
                 )
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = requestLocationIfNeeded) {
-                    Icon(
-                        Icons.Default.LocationOn,
-                        contentDescription = "获取位置和天气",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                // Spinner while locating — tap the button again to cancel.
+                IconButton(onClick = toggleLocation) {
+                    if (isLocating) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.LocationOn,
+                            contentDescription = "获取位置",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 FilledIconButton(onClick = saveEntryAction) {
                     Icon(

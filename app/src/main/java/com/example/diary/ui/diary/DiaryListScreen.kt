@@ -156,15 +156,7 @@ fun DiaryListScreen(
             } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        Modifier
-                            .size(96.dp)
-                            .clip(MaterialTheme.shapes.large)
-                            .background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("📝", style = MaterialTheme.typography.displayMedium)
-                    }
+                    Text("📝", style = MaterialTheme.typography.displayMedium)
                     Spacer(Modifier.height(Spacing.l))
                     Text("还没有日记", style = MaterialTheme.typography.titleMedium,
                         color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -268,11 +260,11 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
 
                 Spacer(Modifier.height(8.dp))
 
-                // Fixed-size content preview: exactly two lines, ellipsized.
+                // Fixed-size content preview: exactly one line, ellipsized.
                 // Markdown syntax is stripped so **bold** reads as bold words.
                 Text(markdownToPlainText(entry.content), style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    minLines = 2, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
                 Spacer(Modifier.height(10.dp))
 
