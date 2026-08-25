@@ -6,15 +6,24 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -26,13 +35,18 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.location.LocationProvider
+import com.example.diary.data.photo.DiaryPhotoStore
+import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.repository.DiaryRepository
+import com.example.diary.data.repository.SaveResult
 import com.example.diary.ui.theme.Spacing
 import com.example.diary.data.repository.SaveResult
 import kotlinx.coroutines.Dispatchers
@@ -90,6 +104,21 @@ fun DiaryEditorScreen(
     // start, tap again while the spinner shows to cancel.
     val locationJob = remember { mutableStateOf<Job?>(null) }
     var isLocating by rememberSaveable { mutableStateOf(false) }
+
+    // Diary photos: markers in content reference file names; files live in
+    // tmp/ until the entry is saved (then baked into the entry folder).
+    val photoNames = remember(content) { DiaryPhotoStore.photoNamesIn(content) }
+    val pickPhotoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                DiaryPhotoStore.importFromUri(context, uri)?.let { name ->
+                    content = (if (content.endsWith("\n")) content else "$content\n") + DiaryPhotoStore.markerOf(name)
+                }
+            }
+        }
+    }
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Metadata fields
@@ -254,6 +283,11 @@ fun DiaryEditorScreen(
                 when (val result = diaryRepository.saveEntry(entry)) {
                     is SaveResult.Success -> {
                         existingId = result.id
+                        // Two-phase photo lifecycle (MyDiary-style): migrate
+                        // tmp picks into the entry's own folder now that the
+                        // row id exists. Markers reference names only, so the
+                        // move never breaks them.
+                        DiaryPhotoStore.bakeTmp(context, result.id)
                         loadedForDate = dateStr
                         // Sync snapshot (raw values, not trimmed) so isDirty
                         // stays consistent with save-time trim.
@@ -341,6 +375,20 @@ fun DiaryEditorScreen(
                     }
                 )
                 Spacer(Modifier.weight(1f))
+                IconButton(
+                    onClick = {
+                        pickPhotoLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    enabled = photoNames.size < DiaryPhotoStore.MAX_PHOTOS_PER_ENTRY
+                ) {
+                    Icon(
+                        Icons.Default.PhotoCamera,
+                        contentDescription = "插入图片",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 // Spinner while locating — tap the button again to cancel.
                 IconButton(onClick = toggleLocation) {
                     if (isLocating) {
@@ -416,8 +464,9 @@ fun DiaryEditorScreen(
             }
 
             if (showPreview) {
-                // Rendered markdown view of the same content — chips and date
-                // stay editable above; only the body switches to read mode.
+                // Rendered view of the same content — Markdown text segments
+                // interleaved with photo blocks at their [img:…] markers.
+                // Chips and date stay editable above; only the body is read.
                 if (content.isBlank()) {
                     Text(
                         "（暂无内容）",
@@ -428,8 +477,9 @@ fun DiaryEditorScreen(
                             .heightIn(min = 120.dp)
                     )
                 } else {
-                    MarkdownText(
-                        markdown = content,
+                    DiaryContentView(
+                        content = content,
+                        entryId = existingId,
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 300.dp)
@@ -459,6 +509,61 @@ fun DiaryEditorScreen(
                     disabledIndicatorColor = Color.Transparent
                 )
             )
+
+                // Inserted-photo thumbnail strip (edit mode only — preview
+                // renders them inline).
+                if (photoNames.isNotEmpty()) {
+                    Spacer(Modifier.height(Spacing.s))
+                    Text(
+                        "已插入图片 ${photoNames.size}/${DiaryPhotoStore.MAX_PHOTOS_PER_ENTRY}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.s)
+                    ) {
+                        items(photoNames) { name ->
+                            val thumb by produceState<ImageBitmap?>(initialValue = null, name) {
+                                val f = DiaryPhotoStore.resolve(context, existingId, name)
+                                value = f?.let { BackgroundImageStore.decode(it.absolutePath, maxDim = 400) }
+                            }
+                            Box(
+                                Modifier
+                                    .size(88.dp)
+                                    .clip(MaterialTheme.shapes.small)
+                            ) {
+                                thumb?.let {
+                                    Image(
+                                        bitmap = it,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.matchParentSize()
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        scope.launch {
+                                            DiaryPhotoStore.deletePhoto(context, existingId, name)
+                                        }
+                                        content = content.replaceFirst("[img:$name]", "")
+                                    },
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(2.dp)
+                                        .size(22.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "删除图片",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -504,7 +609,11 @@ fun DiaryEditorScreen(
                 TextButton(
                     onClick = {
                         scope.launch {
-                            existingId?.let { diaryRepository.deleteEntry(it) }
+                            existingId?.let { id ->
+                                diaryRepository.deleteEntry(id)
+                                // Cascade: the entry's photo folder goes with it.
+                                DiaryPhotoStore.deleteEntryDir(context, id)
+                            }
                             showDeleteDialog = false
                             onBack()
                         }
@@ -531,6 +640,8 @@ fun DiaryEditorScreen(
                 TextButton(
                     onClick = {
                         showDiscardChangesDialog = false
+                        // Unsaved exit: tmp photo picks are orphans — wipe them.
+                        scope.launch { DiaryPhotoStore.clearTmp(context) }
                         onBack()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)

@@ -220,9 +220,12 @@ private val plainTextSpecials = charArrayOf('*', '#', '`', '>', '~', '_')
  * diaries pass through untouched via the fast path.
  */
 fun markdownToPlainText(markdown: String): String {
-    if (markdown.isEmpty() || markdown.none { it in plainTextSpecials }) return markdown
+    if (markdown.isEmpty() || markdown.none { it in plainTextSpecials } && !markdown.contains("[img:")) {
+        return markdown
+    }
     return markdown
         .replace(Regex("```[\\s\\S]*?(```|$)"), " ")
+        .replace(Regex("\\[img:[^\\]]+\\]"), "")          // 图片标记 → 移除（图片不进文本预览）
         .replace(Regex("(?m)^#{1,6}\\s+"), "")
         .replace(Regex("\\*\\*([^*]+)\\*\\*"), "$1")
         .replace(Regex("__(.+?)__"), "$1")
