@@ -1,5 +1,7 @@
 # AGENTS.md — PocketDiary 开发指引
 
+**Generated:** 2026-08-25 · **Commit:** 5206d57 · **Branch:** main
+
 本文件供 AI 编码代理（及新成员）快速了解本项目的构建方式、架构约定与历史坑点。
 
 ## 项目概览
@@ -47,6 +49,31 @@ app/src/main/java/com/example/diary/
     └── theme/              # Material 3 主题
 ```
 
+## WHERE TO LOOK
+
+| 任务 | 位置 | 备注 |
+|------|------|------|
+| 日记编辑/保存/改期 | `ui/editor/DiaryEditorScreen.kt` + `DiaryRepository.saveEntry` | 改日期=搬移语义 |
+| Markdown 渲染/预览 | `ui/editor/MarkdownText.kt` | commonmark 解析 + 自研子集渲染 |
+| 全文搜索 | `DiaryDao.searchEntries` + `ui/diary/DiaryListScreen.kt` | LIKE 实时 Flow |
+| 统计图表 | `ui/habits/LineChart.kt` + `StatisticsSection.kt` | 数值标签预计算（remember） |
+| 打卡日历 | `ui/habits/CalendarComponents.kt` + `HabitsViewModel.kt` | 多习惯彩点、月份分割 |
+| 亮暗/开屏 | `Theme.kt` + `themes.xml` + `MainActivity.kt` | 独立于系统 |
+| 背景图缓存 | `data/image/BackgroundImageStore.kt` | 覆盖同名文件后必须 `clearCache()` |
+
+## CODE MAP
+
+（中心度未测量——本环境无 Kotlin LSP/codegraph，以下为本会话全量通读结论）
+
+| 符号 | 类型 | 位置 | 角色 |
+|------|------|------|------|
+| `DiaryRepository.saveEntry` | suspend | data/repository | 日记唯一写入口（插入/更新/搬移/冲突判定） |
+| `BackgroundImageStore.decode` | suspend | data/image | 内存缓存解码（path+mtime+maxDim 键） |
+| `markdownToPlainText` | fun | ui/editor/MarkdownText.kt | 列表预览语法剥离 |
+| `HabitsViewModel.loadAllStats` | private | ui/habits/HabitsViewModel.kt | 四数据集全量刷新入口 |
+| `habitColor` / `HabitColorPalette` | fun/val | ui/habits/LineChart.kt | 习惯配色（全局引用） |
+| `AppShapes` / `Spacing` | val | ui/theme | 圆角/间距令牌（禁止字面量） |
+
 ## 关键约定（务必遵守）
 
 ### 数据库
@@ -74,6 +101,7 @@ app/src/main/java/com/example/diary/
 4. **Compose API 位置**：`drawLayer` 在 `androidx.compose.ui.graphics.layer` 包；`DatePicker` 系列需 `@OptIn(ExperimentalMaterial3Api::class)`；`BoxWithConstraints` 在 `androidx.compose.foundation.layout`
 5. **签名**：debug 与 release 签名不互通，切换安装需先 `adb uninstall com.example.diary`（会清数据，需告知）
 6. **kapt**：Room 处理器对 DAO 中引用已删除类型敏感，删实体字段后全局 grep 残留引用
+7. **stash**：`stash@{0}` 保存有已回滚的「倒数日 Days Matter 升级+图片编辑器」完整 WIP——恢复需 `git stash pop`（可能与新代码冲突）；确认不要可 `git stash drop`
 
 ## 工作流约定
 
