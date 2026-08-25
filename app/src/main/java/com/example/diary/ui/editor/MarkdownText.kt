@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
@@ -39,7 +38,6 @@ import org.commonmark.node.HardLineBreak
 import org.commonmark.node.Heading
 import org.commonmark.node.IndentedCodeBlock
 import org.commonmark.node.Link
-import org.commonmark.node.ListItem
 import org.commonmark.node.Node
 import org.commonmark.node.OrderedList
 import org.commonmark.node.Paragraph
@@ -134,29 +132,25 @@ private fun RenderListItems(list: Node, ordered: Boolean, depth: Int) {
     list.forEachChild { item ->
         val prefix = if (ordered) "${number}. " else "• "
         var firstBlock = true
-        item.forEachChild { child ->
-            if (firstBlock && child is Paragraph) {
-                Row(Modifier.padding(start = (depth * 16).dp)) {
-                    Text(
-                        prefix,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = child.toInlineText(),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+            item.forEachChild { child ->
+                if (firstBlock && child is Paragraph) {
+                    Row(Modifier.padding(start = (depth * 16).dp)) {
+                        Text(
+                            prefix,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = child.toInlineText(),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                } else {
+                    RenderBlock(child, depth + 1)
                 }
-            } else if (child is ListItem) {
-                // Nested list item reached directly (loose lists) — keep the
-                // same depth bump the list branch applies.
-                RenderBlock(child, depth = depth + 1)
-            } else {
-                RenderBlock(child, depth + 1)
+                firstBlock = false
             }
-            firstBlock = false
-        }
         if (ordered) number++
     }
 }
@@ -166,8 +160,7 @@ private fun CodeBlock(literal: String, indent: Modifier) {
     Surface(
         modifier = indent
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .heightIn(min = 0.dp),
+            .padding(vertical = 4.dp),
         shape = MaterialTheme.shapes.small,
         color = MaterialTheme.colorScheme.surfaceContainerHigh
     ) {
