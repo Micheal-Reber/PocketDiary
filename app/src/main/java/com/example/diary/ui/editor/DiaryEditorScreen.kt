@@ -4,13 +4,10 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -34,6 +31,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -47,11 +45,13 @@ import com.example.diary.data.photo.DiaryPhotoStore
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.repository.DiaryRepository
 import com.example.diary.data.repository.SaveResult
+import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.ui.theme.Spacing
-import com.example.diary.data.repository.SaveResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -81,8 +81,14 @@ fun DiaryEditorScreen(
     var existingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     // Markdown preview toggle — editing is raw text (markdown IS text);
-    // preview renders the subset renderer. Survives rotation via saveable.
-    var showPreview by rememberSaveable { mutableStateOf(false) }
+    // preview renders the subset renderer. The choice PERSISTS across editor
+    // sessions via DataStore: turn preview off, exit, come back → still off.
+    // Seeded with a one-shot sync read (same pattern as MainActivity's theme
+    // read) so the first frame already shows the remembered state, no flash.
+    val themePreferences = remember { ThemePreferences(context) }
+    var showPreview by remember {
+        mutableStateOf(runBlocking { themePreferences.editorPreview.first() })
+    }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     // Tracks the entry as it was last loaded/saved, so we can detect unsaved
     // edits when the user backs out without saving.
@@ -108,18 +114,26 @@ fun DiaryEditorScreen(
     // Diary photos: markers in content reference file names; files live in
     // tmp/ until the entry is saved (then baked into the entry folder).
     val photoNames = remember(content) { DiaryPhotoStore.photoNamesIn(content) }
+    val snackbarHostState = remember { SnackbarHostState() }
+    var isImportingPhoto by remember { mutableStateOf(false) }
     val pickPhotoLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
+            isImportingPhoto = true
             scope.launch {
-                DiaryPhotoStore.importFromUri(context, uri)?.let { name ->
-                    content = (if (content.endsWith("\n")) content else "$content\n") + DiaryPhotoStore.markerOf(name)
+                try {
+                    DiaryPhotoStore.importFromUri(context, uri)?.let { name ->
+                        content = (if (content.endsWith("\n")) content else "$content\n") + DiaryPhotoStore.markerOf(name)
+                    } ?: run {
+                        snackbarHostState.showSnackbar("图片导入失败", duration = SnackbarDuration.Short)
+                    }
+                } finally {
+                    isImportingPhoto = false
                 }
             }
         }
     }
-    val snackbarHostState = remember { SnackbarHostState() }
 
     // Metadata fields
     var mood by rememberSaveable { mutableStateOf<String?>(null) }
@@ -332,7 +346,10 @@ fun DiaryEditorScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showPreview = !showPreview }) {
+                    IconButton(onClick = {
+                        showPreview = !showPreview
+                        scope.launch { themePreferences.setEditorPreview(showPreview) }
+                    }) {
                         Icon(
                             if (showPreview) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                             contentDescription = if (showPreview) "切换到编辑" else "预览"
@@ -381,13 +398,21 @@ fun DiaryEditorScreen(
                             PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                         )
                     },
-                    enabled = photoNames.size < DiaryPhotoStore.MAX_PHOTOS_PER_ENTRY
+                    enabled = !isImportingPhoto && photoNames.size < DiaryPhotoStore.MAX_PHOTOS_PER_ENTRY
                 ) {
-                    Icon(
-                        Icons.Default.PhotoCamera,
-                        contentDescription = "插入图片",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (isImportingPhoto) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.PhotoCamera,
+                            contentDescription = "插入图片",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
                 // Spinner while locating — tap the button again to cancel.
                 IconButton(onClick = toggleLocation) {
