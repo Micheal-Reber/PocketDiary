@@ -205,7 +205,9 @@ private fun Node.appendInline(
             is Link -> builder.withStyle(
                 SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
             ) { node.appendInline(builder, codeBackground, linkColor) }
-            is SoftLineBreak -> builder.append(' ')
+            // 单回车（软换行）按手机日记直觉直接换行，等同 Typora/GFM breaks 行为；
+            // CommonMark 标准的「渲染成空格」不符合纯文本编辑器的用户预期
+            is SoftLineBreak -> builder.append('\n')
             is HardLineBreak -> builder.append('\n')
             else -> Unit
         }
