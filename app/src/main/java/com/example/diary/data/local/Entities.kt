@@ -75,12 +75,21 @@ data class CountdownEvent(
     val endDate: String? = null,             // 进阶：结束日 yyyy-MM-dd（详情脚注展示）
     val time: String? = null,                // 进阶：精确时间 HH:mm（详情脚注展示）
     /** -1 = 无纹理；>=0 用过程式纹理背景（详情页），照片背景按文件存在与否优先 */
-    val textureIndex: Int = -1
+    val textureIndex: Int = -1,
+    /** 0 = 经典全屏（CLASSIC）；1 = 照片卡片（PHOTO_CARD） */
+    val cardStyle: Int = CARD_STYLE_CLASSIC,
+    /** 照片卡模糊半径 dp（0..25），经典风格不使用 */
+    val blurRadius: Int = 0,
+    /** 照片卡文字色：false = 白字，true = 黑字 */
+    val fontDark: Boolean = false
 ) {
     companion object {
         const val REPEAT_NONE = 0
         const val REPEAT_YEARLY = 1
         const val REPEAT_MONTHLY = 2
+        const val CARD_STYLE_CLASSIC = 0
+        const val CARD_STYLE_PHOTO_CARD = 1
+        const val BLUR_MAX = 25
     }
 }
 

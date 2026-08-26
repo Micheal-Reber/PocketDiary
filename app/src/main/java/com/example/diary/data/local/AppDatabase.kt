@@ -13,6 +13,7 @@ import androidx.room.RoomDatabase
  *  - v3: DiaryEntry dropped photoPaths (photo feature removed).
  *  - v4: DiaryEntry dropped title (diaries are identified by date alone).
  *  - v5: added CountdownEvent（倒数日 Days Matter）。
+ *  - v6: CountdownEvent 新增卡片风格/模糊半径/字色三字段（照片卡片功能）。
  *
  * The app has never shipped publicly, so existing dev installs jump straight
  * to the latest version via destructive migration. If a real release ships,
@@ -20,7 +21,7 @@ import androidx.room.RoomDatabase
  */
 @Database(
     entities = [DiaryEntry::class, Habit::class, HabitRecord::class, CountdownEvent::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
