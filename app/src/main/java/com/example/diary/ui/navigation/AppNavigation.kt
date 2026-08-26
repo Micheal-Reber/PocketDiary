@@ -10,8 +10,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.HourglassTop
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
@@ -29,8 +31,12 @@ import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.preferences.ThemePreferences
+import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.data.repository.DiaryRepository
 import com.example.diary.data.repository.HabitRepository
+import com.example.diary.ui.countdown.CountdownDetailScreen
+import com.example.diary.ui.countdown.CountdownEditScreen
+import com.example.diary.ui.countdown.CountdownListScreen
 import com.example.diary.ui.diary.DiaryListScreen
 import com.example.diary.ui.editor.DiaryEditorScreen
 import com.example.diary.ui.habits.HabitsScreen
@@ -42,10 +48,11 @@ import com.example.diary.ui.settings.SettingsScreen
 sealed class Screen(val route: String, val title: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Diary : Screen("diary", "日记", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook)
     data object Calendar : Screen("calendar", "日历", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth)
+    data object Countdown : Screen("countdown", "倒数日", Icons.Filled.HourglassTop, Icons.Outlined.HourglassTop)
     data object Settings : Screen("settings", "设置", Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
-val bottomNavItems = listOf(Screen.Diary, Screen.Calendar, Screen.Settings)
+val bottomNavItems = listOf(Screen.Diary, Screen.Calendar, Screen.Countdown, Screen.Settings)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +63,7 @@ fun AppNavigation(
     val navController = rememberNavController()
     val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
     val habitRepository = remember { HabitRepository(database.habitDao()) }
+    val countdownRepository = remember { CountdownRepository(database.countdownDao()) }
     // Shared between the calendar tab and the statistics screen so both see the
     // same stats state (selected year/month, loaded chart data) without refetch.
     val habitsViewModel: HabitsViewModel = viewModel(factory = HabitsViewModelFactory(habitRepository))
@@ -126,6 +134,54 @@ fun AppNavigation(
                 StatisticsScreen(
                     habitsViewModel = habitsViewModel,
                     onBack = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.Countdown.route) {
+                CountdownListScreen(
+                    repository = countdownRepository,
+                    onOpenDetail = { id -> navController.navigate("countdown_detail/$id") },
+                    onCreate = { navController.navigate("countdown_edit") }
+                )
+            }
+            composable(
+                route = "countdown_edit?id={id}",
+                arguments = listOf(navArgument("id") {
+                    type = NavType.LongType; defaultValue = 0L
+                }),
+                enterTransition = { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) },
+                popExitTransition = { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
+            ) { backStackEntry ->
+                val id = backStackEntry.arguments?.getLong("id") ?: 0L
+                CountdownEditScreen(
+                    existingId = id.takeIf { it > 0L },
+                    repository = countdownRepository,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "countdown_edit",
+                enterTransition = { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) },
+                popExitTransition = { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
+            ) {
+                CountdownEditScreen(
+                    existingId = null,
+                    repository = countdownRepository,
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(
+                route = "countdown_detail/{id}",
+                arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                enterTransition = { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) },
+                popExitTransition = { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
+            ) { backStackEntry ->
+                val id = backStackEntry.arguments?.getLong("id") ?: 0L
+                CountdownDetailScreen(
+                    eventId = id,
+                    repository = countdownRepository,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { navController.navigate("countdown_edit?id=$id") },
+                    onCreate = { navController.navigate("countdown_edit") }
                 )
             }
             composable(Screen.Settings.route) {

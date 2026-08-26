@@ -36,15 +36,18 @@ $env:GRADLE_USER_HOME = "E:\dev\.gradle"
 app/src/main/java/com/example/diary/
 ├── MainActivity.kt         # 亮暗模式独立于系统（同步读 DataStore → setTheme 变体）
 ├── data/
-│   ├── image/              # BackgroundImageStore：图片导入+解码+缓存
-│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord（version 4）
-│   ├── preferences/        # DataStore: 暗色模式 / 日记背景 / 壁纸取色
+│   ├── countdown/          # DateMath 正倒判定纯函数 + ShareCardRenderer 分享图
+│   ├── image/              # BackgroundImageStore（日记背景）/ EventImageStore（倒数日每事件背景）
+│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent（version 5）
+│   ├── photo/              # DiaryPhotoStore：日记图文混排两阶段生命周期
+│   ├── preferences/        # DataStore: 暗色模式 / 日记背景 / 壁纸取色 / 编辑器预览开关
 │   └── repository/         # 薄仓库层（SaveResult 密封类处理日期冲突）
 └── ui/
-    ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索
-    ├── editor/             # 编辑器：无边框书写、Markdown 预览(MarkdownText.kt)
+    ├── countdown/          # 倒数日：列表(搜索/网格)/编辑/详情(纹理背景/分享) 三屏 + 共享件
+    ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索、图文混排
+    ├── editor/             # 编辑器：无边框书写、Markdown 预览(MarkdownText.kt)、📷插图
     ├── habits/             # 打卡日历 + 统计图表（LineChart 自研）
-    ├── navigation/         # 底部三 Tab：日记/日历/设置 + 编辑器/统计路由
+    ├── navigation/         # 底部四 Tab：日记/日历/倒数日/设置 + 编辑器/统计/倒数日子路由
     ├── settings/           # 设置页
     └── theme/              # Material 3 主题
 ```
@@ -58,8 +61,11 @@ app/src/main/java/com/example/diary/
 | 全文搜索 | `DiaryDao.searchEntries` + `ui/diary/DiaryListScreen.kt` | LIKE 实时 Flow |
 | 统计图表 | `ui/habits/LineChart.kt` + `StatisticsSection.kt` | 数值标签预计算（remember） |
 | 打卡日历 | `ui/habits/CalendarComponents.kt` + `HabitsViewModel.kt` | 多习惯彩点、月份分割 |
+| 倒数日正倒判定 | `data/countdown/DateMath.kt` + 单测 | 三态 Today/Countdown/Countup；+1日；重复滚动；**改动必跑 JUnit** |
+| 倒数日界面 | `ui/countdown/*Screen.kt` + `CountdownUi.kt` | 色板下标 0=自动(倒蓝/正橙)；过程式纹理 TextureBackdrop |
+| 分享图生成 | `data/countdown/ShareCardRenderer.kt` | 纯 android.graphics 离屏 1080×1440；FileProvider 在 Manifest |
 | 亮暗/开屏 | `Theme.kt` + `themes.xml` + `MainActivity.kt` | 独立于系统 |
-| 背景图缓存 | `data/image/BackgroundImageStore.kt` | 覆盖同名文件后必须 `clearCache()` |
+| 背景图缓存 | `data/image/BackgroundImageStore.kt` | 覆盖同名文件后必须 `clearCache()`；倒数日每事件图走 EventImageStore |
 
 ## CODE MAP
 
@@ -101,7 +107,7 @@ app/src/main/java/com/example/diary/
 4. **Compose API 位置**：`drawLayer` 在 `androidx.compose.ui.graphics.layer` 包；`DatePicker` 系列需 `@OptIn(ExperimentalMaterial3Api::class)`；`BoxWithConstraints` 在 `androidx.compose.foundation.layout`
 5. **签名**：debug 与 release 签名不互通，切换安装需先 `adb uninstall com.example.diary`（会清数据，需告知）
 6. **kapt**：Room 处理器对 DAO 中引用已删除类型敏感，删实体字段后全局 grep 残留引用
-7. **stash**：`stash@{0}` 保存有已回滚的「倒数日 Days Matter 升级+图片编辑器」完整 WIP——恢复需 `git stash pop`（可能与新代码冲突）；确认不要可 `git stash drop`
+7. **嵌套密封类型引用**：`DateMath.CountState.Today` 必须带完整嵌套路径或 `import DateMath.CountState`——裸写 `DateMath.Today` 不解析（踩过）
 
 ## 工作流约定
 

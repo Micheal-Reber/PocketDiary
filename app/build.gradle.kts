@@ -69,6 +69,9 @@ dependencies {
     implementation("org.commonmark:commonmark:0.24.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // JVM 单元测试（DateMath 倒数日日期数学）
+    testImplementation("junit:junit:4.13.2")
 }
 
 kapt { correctErrorTypes = true }

@@ -54,6 +54,36 @@ data class HabitRecord(
     val date: String  // yyyy-MM-dd
 )
 
+/**
+ * 倒数日（Days Matter）事件。
+ *
+ * 正数/倒数不是存储字段——渲染时由 `DateMath` 用「今天 vs 目标日」动态判定，
+ * 事件日期一过自动从「还有」迁移为「已经」（对齐 countdateapp 语义分析 §6）。
+ * 日期沿用全项目约定：yyyy-MM-dd 字符串（LocalDate.parse/toString 往返）。
+ */
+@Entity(tableName = "countdown_events", indices = [Index(value = ["date"])])
+data class CountdownEvent(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val date: String,                        // yyyy-MM-dd 锚点日
+    val pinned: Boolean = false,             // 置顶排最前
+    val repeatRule: Int = REPEAT_NONE,       // REPEAT_*：过期后滚动到下一锚点再计数
+    val plusOne: Boolean = false,            // +1日：计数整体 +1（含首尾当天）
+    /** 0 = 自动（倒数蓝/正数橙）；1..N = CountdownPalette 显式色 */
+    val colorIndex: Int = 0,
+    val highlighted: Boolean = false,        // 高亮旗标（卡片描边强调）
+    val endDate: String? = null,             // 进阶：结束日 yyyy-MM-dd（详情脚注展示）
+    val time: String? = null,                // 进阶：精确时间 HH:mm（详情脚注展示）
+    /** -1 = 无纹理；>=0 用过程式纹理背景（详情页），照片背景按文件存在与否优先 */
+    val textureIndex: Int = -1
+) {
+    companion object {
+        const val REPEAT_NONE = 0
+        const val REPEAT_YEARLY = 1
+        const val REPEAT_MONTHLY = 2
+    }
+}
+
 // Statistics data classes
 data class MonthlyStat(
     val month: Int,
