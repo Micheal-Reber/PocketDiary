@@ -25,6 +25,22 @@ class ThemePreferences(context: Context) {
         val DARK_MODE_KEY = booleanPreferencesKey("dark_mode")
         val DIARY_BACKGROUND_KEY = stringPreferencesKey("diary_background_path")
         val DYNAMIC_COLOR_KEY = booleanPreferencesKey("dynamic_color")
+        val EDITOR_PREVIEW_KEY = booleanPreferencesKey("editor_preview")
+    }
+
+    /** Editor markdown-preview toggle, persisted across editor sessions. */
+    val editorPreview: Flow<Boolean> = appContext.dataStore.data.map { preferences ->
+        preferences[EDITOR_PREVIEW_KEY] ?: false
+    }
+
+    suspend fun setEditorPreview(enabled: Boolean) {
+        try {
+            appContext.dataStore.edit { preferences ->
+                preferences[EDITOR_PREVIEW_KEY] = enabled
+            }
+        } catch (e: Exception) {
+            Log.w("ThemePreferences", "Failed to persist editor preview toggle", e)
+        }
     }
 
     val isDarkMode: Flow<Boolean> = appContext.dataStore.data.map { preferences ->
