@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.kapt")
+    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.20"
 }
 
 android {
@@ -67,6 +68,9 @@ dependencies {
     implementation("androidx.core:core-splashscreen:1.0.1")
     // Markdown parsing (CommonMark spec) — rendering is a local Compose subset
     implementation("org.commonmark:commonmark:0.24.0")
+
+    // Serialization for backup/import
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 

@@ -1,22 +1,16 @@
 package com.example.diary.ui.countdown
 
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import com.example.diary.data.countdown.DateMath
 import com.example.diary.data.countdown.DateMath.CountState
-import com.example.diary.data.local.CountdownEvent
+import com.example.diary.data.countdown.TextureLibrary
 import java.time.LocalDate
 
-/** 倒数日 UI 共享件——色板 / 徽章配色 / 过程式纹理背景。 */
+/** 倒数日 UI 共享件——色板 / 徽章配色 / 过程式纹理背景（统一使用 TextureLibrary）。 */
 
 /**
  * 预设色板：下标 0 = 自动（倒数蓝/正数橙），1..8 为显式色。
@@ -63,77 +57,14 @@ fun stateLabel(state: DateMath.CountState): String = when (state) {
     is CountState.Countup -> "已经 ${state.days} 天"
 }
 
-/** 内置过程式纹理数量（详情页背景选项）。 */
-const val TEXTURE_COUNT = 4
+/** 内置过程式纹理数量（详情页背景选项），同步 TextureLibrary.TEXTURE_COUNT。 */
+const val TEXTURE_COUNT = 12
 
 /**
- * 过程式纹理背景——Canvas 手绘四种高对比纹理（点阵/方格纸/斜纹/波纹），
- * 叠在事件色的淡渐变上。零二进制资源、零 APK 增重。
+ * 过程式纹理背景——委托给 TextureLibrary（12 种 Shader 纹理）。
+ * 保持原有签名兼容，内部实现已迁移至 TextureLibrary。
  */
 @Composable
 fun TextureBackdrop(textureIndex: Int, accent: Color, modifier: Modifier = Modifier) {
-    val base = MaterialTheme.colorScheme.background
-    val ink = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f)
-    Canvas(modifier = modifier.fillMaxSize()) {
-        drawRect(base)
-        drawRect(accent.copy(alpha = 0.20f))
-        val cell = 56.dp.toPx()
-        when (textureIndex % TEXTURE_COUNT) {
-            0 -> { // 大圆点阵
-                var y = cell / 2
-                while (y < size.height + cell) {
-                    var x = cell / 2
-                    while (x < size.width + cell) {
-                        drawCircle(ink, radius = 6.dp.toPx(), center = Offset(x, y))
-                        x += cell
-                    }
-                    y += cell
-                }
-            }
-            1 -> { // 方格纸
-                var x = 0f
-                while (x < size.width + cell) {
-                    drawLine(ink, Offset(x, 0f), Offset(x, size.height), strokeWidth = 3.dp.toPx())
-                    x += cell
-                }
-                var y = 0f
-                while (y < size.height + cell) {
-                    drawLine(ink, Offset(0f, y), Offset(size.width, y), strokeWidth = 3.dp.toPx())
-                    y += cell
-                }
-            }
-            2 -> { // 宽斜纹带
-                val span = size.width + size.height
-                var d = -size.height
-                val gap = cell * 1.7f
-                while (d < span + gap) {
-                    drawLine(
-                        ink,
-                        Offset(d, 0f),
-                        Offset(d + size.height, size.height),
-                        strokeWidth = 16.dp.toPx(),
-                        cap = StrokeCap.Butt
-                    )
-                    d += gap
-                }
-            }
-            else -> { // 粗波浪
-                val amp = 18.dp.toPx()
-                val wl = cell * 1.25f
-                var y = wl
-                while (y < size.height + wl) {
-                    val path = Path()
-                    var x = 0f
-                    path.moveTo(x, y)
-                    while (x < size.width + wl) {
-                        path.quadraticBezierTo(x + wl / 4, y - 18.dp.toPx(), x + wl / 2, y)
-                        path.quadraticBezierTo(x + wl * 3 / 4, y + 18.dp.toPx(), x + wl, y)
-                        x += wl
-                    }
-                    drawPath(path, ink, style = Stroke(width = 5.dp.toPx()))
-                    y += cell
-                }
-            }
-        }
-    }
+    TextureLibrary.TextureBackdrop(textureIndex, accent, modifier)
 }

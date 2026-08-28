@@ -21,6 +21,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.diary.data.countdown.TextureLibrary
 import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.ui.theme.Spacing
@@ -57,6 +59,13 @@ fun CountdownEditScreen(
     var timeText by rememberSaveable { mutableStateOf("") }     // 空 = 未设
     var advancedOpen by rememberSaveable { mutableStateOf(false) }
 
+    // 卡片风格：0=经典全屏(CLASSIC)，1=照片卡片(PHOTO_CARD)
+    var cardStyle by rememberSaveable { mutableIntStateOf(CountdownEvent.CARD_STYLE_CLASSIC) }
+    // 照片卡专属设置
+    var blurRadius by rememberSaveable { mutableIntStateOf(0) }
+    var fontDark by rememberSaveable { mutableStateOf(false) }
+    var textureIndex by rememberSaveable { mutableIntStateOf(-1) }
+
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     var showEndDatePicker by rememberSaveable { mutableStateOf(false) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
@@ -69,6 +78,10 @@ fun CountdownEditScreen(
                 repeatRule = e.repeatRule; plusOne = e.plusOne
                 colorIndex = e.colorIndex; highlighted = e.highlighted
                 endDateStr = e.endDate ?: ""; timeText = e.time ?: ""
+                cardStyle = e.cardStyle
+                blurRadius = e.blurRadius
+                fontDark = e.fontDark
+                textureIndex = e.textureIndex
             }
             loaded = true
         }
@@ -82,7 +95,7 @@ fun CountdownEditScreen(
     fun persist() {
         if (!canSave) return
         scope.launch {
-            val id = repository.save(
+            repository.save(
                 CountdownEvent(
                     id = existingId ?: 0L,
                     name = name.trim(),
@@ -93,7 +106,11 @@ fun CountdownEditScreen(
                     colorIndex = colorIndex,
                     highlighted = highlighted,
                     endDate = if (endDateStr.isBlank()) null else endDateStr,
-                    time = if (timeText.isBlank()) null else timeText.trim()
+                    time = if (timeText.isBlank()) null else timeText.trim(),
+                    textureIndex = textureIndex,
+                    cardStyle = cardStyle,
+                    blurRadius = blurRadius,
+                    fontDark = fontDark
                 )
             )
             onBack()
@@ -154,6 +171,32 @@ fun CountdownEditScreen(
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                 modifier = Modifier.clip(MaterialTheme.shapes.small)
             )
+
+            // 卡片风格选择器（双预览卡）
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                Text("卡片风格", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
+                    // 经典全屏预览
+                    StylePreviewCard(
+                        label = "经典全屏",
+                        selected = cardStyle == CountdownEvent.CARD_STYLE_CLASSIC,
+                        onClick = { cardStyle = CountdownEvent.CARD_STYLE_CLASSIC },
+                        accent = MaterialTheme.colorScheme.primary,
+                        isPhotoCard = false,
+                        modifier = Modifier.weight(1f)
+                    )
+                    // 照片卡片预览
+                    StylePreviewCard(
+                        label = "照片卡片",
+                        selected = cardStyle == CountdownEvent.CARD_STYLE_PHOTO_CARD,
+                        onClick = { cardStyle = CountdownEvent.CARD_STYLE_PHOTO_CARD },
+                        accent = MaterialTheme.colorScheme.primary,
+                        isPhotoCard = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
 
             // 置顶
             Row(
@@ -261,6 +304,24 @@ fun CountdownEditScreen(
                         Switch(checked = highlighted, onCheckedChange = { highlighted = it })
                     }
 
+                    // 字色切换：两种风格通用（黑/白字）
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.l),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("文字颜色")
+                        androidx.compose.material3.Switch(
+                            checked = fontDark,
+                            onCheckedChange = { fontDark = it }
+                        )
+                    }
+                    Text(if (fontDark) "黑字（适合浅色背景/纹理）" else "白字（适合深色背景/纹理）",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.l)
+                    )
+
                     // 颜色色板：首格「自动」
                     Column {
                         Text("颜色", style = MaterialTheme.typography.labelMedium,
@@ -284,6 +345,27 @@ fun CountdownEditScreen(
                                     selected = colorIndex == idx + 1,
                                     onClick = { colorIndex = idx + 1 }
                                 )
+                            }
+                        }
+                    }
+
+                    // 纹理选择器：CLASSIC 风格 + PHOTO_CARD 无图时(textureIndex >= 0)显示
+                    if (cardStyle == CountdownEvent.CARD_STYLE_CLASSIC || textureIndex >= 0) {
+                        Column(Modifier.padding(top = Spacing.m)) {
+                            Text("内置纹理", style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            androidx.compose.foundation.layout.Row(
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.s)
+                            ) {
+                                repeat(TEXTURE_COUNT) { idx ->
+                                    TextureLibrary.TexturePreview(
+                                        textureIndex = idx,
+                                        accent = if (colorIndex == CountdownPalette.AUTO) MaterialTheme.colorScheme.primary else CountdownPalette.colors[colorIndex - 1],
+                                        previewSize = 60.dp,
+                                        selected = textureIndex == idx,
+                                        onClick = { textureIndex = idx }
+                                    )
+                                }
                             }
                         }
                     }
@@ -364,6 +446,80 @@ private fun PaletteDot(color: Color?, label: String?, selected: Boolean, onClick
         } else if (label != null) {
             Text(label, style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** 风格预览卡：经典全屏 / 照片卡片 两种风格的微缩预览。 */
+@Composable
+private fun StylePreviewCard(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    accent: androidx.compose.ui.graphics.Color,
+    isPhotoCard: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val shape = MaterialTheme.shapes.large
+    Surface(
+        shape = shape,
+        modifier = modifier
+            .height(120.dp)
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .border(
+                width = if (selected) 2.dp else 0.dp,
+                color = if (selected) accent else androidx.compose.ui.graphics.Color.Transparent,
+                shape = shape
+            ),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh
+    ) {
+        Box(
+            Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            if (isPhotoCard) {
+                // 照片卡片预览：3:2 圆角卡 + 模拟模糊 + 文字
+                Surface(
+                    shape = MaterialTheme.shapes.medium,
+                    modifier = Modifier
+                        .width(80.dp)
+                        .aspectRatio(1.5f)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                ) {
+                    Column(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(Spacing.s),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text("照片卡", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("横图背景", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.outline)
+                    }
+                }
+            } else {
+                // 经典全屏预览：竖向全屏卡 + 大数字
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .padding(Spacing.s),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("经典", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("99", fontSize = 32.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+                        color = accent)
+                    Text("天", style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Text(label, style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = Spacing.xs))
         }
     }
 }

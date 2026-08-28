@@ -4,6 +4,7 @@ import androidx.room.Entity
 import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import kotlinx.serialization.Serializable
 
 @Entity(
     tableName = "diary_entries",
@@ -12,6 +13,7 @@ import androidx.room.PrimaryKey
     // existingId race during navigation) could produce two rows for the same date.
     indices = [Index(value = ["date"], unique = true)]
 )
+@Serializable
 data class DiaryEntry(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val content: String,
@@ -26,6 +28,7 @@ data class DiaryEntry(
 )
 
 @Entity(tableName = "habits")
+@Serializable
 data class Habit(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
@@ -48,6 +51,7 @@ data class Habit(
     ],
     indices = [Index(value = ["habitId", "date"], unique = true)]
 )
+@Serializable
 data class HabitRecord(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val habitId: Long,
@@ -62,6 +66,7 @@ data class HabitRecord(
  * 日期沿用全项目约定：yyyy-MM-dd 字符串（LocalDate.parse/toString 往返）。
  */
 @Entity(tableName = "countdown_events", indices = [Index(value = ["date"])])
+@Serializable
 data class CountdownEvent(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,

@@ -64,6 +64,8 @@ fun StatisticsScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
+            // 视觉居中：顶部适度下垫，避免贴顶
+            Spacer(Modifier.height(40.dp))
             StatisticsSection(
                 statView = statView,
                 selectedYear = selectedYear,

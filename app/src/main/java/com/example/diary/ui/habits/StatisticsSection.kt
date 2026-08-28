@@ -126,8 +126,22 @@ internal fun StatisticsSection(
         )
 
         if (habits.isEmpty()) {
-            Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                Text("添加习惯后开始统计", color = MaterialTheme.colorScheme.outline)
+            // 空状态垂直居中：不贴顶，占据视口中部
+            Box(
+                Modifier.fillMaxWidth()
+                    .padding(top = 72.dp)
+                    .height(320.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("添加习惯后开始统计", color = MaterialTheme.colorScheme.outline)
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        "去「日历」右上角 ＋ 新建习惯",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
+                    )
+                }
             }
         } else {
             // Crossfade between weekly/monthly/yearly instead of a hard jump.

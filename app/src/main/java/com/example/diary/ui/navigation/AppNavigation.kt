@@ -5,6 +5,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
@@ -20,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -29,6 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.CountdownRepository
@@ -60,10 +63,19 @@ fun AppNavigation(
     themePreferences: ThemePreferences,
     database: AppDatabase
 ) {
+    val context = LocalContext.current
     val navController = rememberNavController()
     val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
     val habitRepository = remember { HabitRepository(database.habitDao()) }
     val countdownRepository = remember { CountdownRepository(database.countdownDao()) }
+    val backupRepository = remember { BackupRepository(
+        context = context,
+        diaryRepository = diaryRepository,
+        habitRepository = habitRepository,
+        countdownRepository = countdownRepository,
+        themePreferences = themePreferences,
+        database = database,
+    ) }
     // Shared between the calendar tab and the statistics screen so both see the
     // same stats state (selected year/month, loaded chart data) without refetch.
     val habitsViewModel: HabitsViewModel = viewModel(factory = HabitsViewModelFactory(habitRepository))
@@ -75,6 +87,9 @@ fun AppNavigation(
     }
 
     Scaffold(
+        // 里层各 Tab 的 Scaffold/TopAppBar 已各自消化 statusBars，
+        // 外层不再重复垫状态栏，只留底栏高度，避免双重 top inset 导致顶部黑空隙
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar {
@@ -185,7 +200,10 @@ fun AppNavigation(
                 )
             }
             composable(Screen.Settings.route) {
-                SettingsScreen(themePreferences = themePreferences)
+                SettingsScreen(
+                    themePreferences = themePreferences,
+                    backupRepository = backupRepository,
+                )
             }
             composable(
                 route = "editor?date={date}",

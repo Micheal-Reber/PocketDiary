@@ -1,6 +1,6 @@
 # AGENTS.md — PocketDiary 开发指引
 
-**Generated:** 2026-08-25 · **Commit:** 5206d57 · **Branch:** main
+**Generated:** 2026-08-27 · **Commit:** <待填写> · **Branch:** main
 
 本文件供 AI 编码代理（及新成员）快速了解本项目的构建方式、架构约定与历史坑点。
 
@@ -36,19 +36,20 @@ $env:GRADLE_USER_HOME = "E:\dev\.gradle"
 app/src/main/java/com/example/diary/
 ├── MainActivity.kt         # 亮暗模式独立于系统（同步读 DataStore → setTheme 变体）
 ├── data/
-│   ├── countdown/          # DateMath 正倒判定纯函数 + ShareCardRenderer 分享图
+│   ├── backup/             # 数据导出/导入（手机迁移）：BackupData/ExportService/ImportService/BackupRepository
+│   ├── countdown/          # DateMath 正倒判定纯函数 + ShareCardRenderer 分享图（经典/照片卡双风格）
 │   ├── image/              # BackgroundImageStore（日记背景）/ EventImageStore（倒数日每事件背景）
-│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent（version 5）
+│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent（version 6）
 │   ├── photo/              # DiaryPhotoStore：日记图文混排两阶段生命周期
 │   ├── preferences/        # DataStore: 暗色模式 / 日记背景 / 壁纸取色 / 编辑器预览开关
 │   └── repository/         # 薄仓库层（SaveResult 密封类处理日期冲突）
 └── ui/
-    ├── countdown/          # 倒数日：列表(搜索/网格)/编辑/详情(纹理背景/分享) 三屏 + 共享件
+    ├── countdown/          # 倒数日：列表/编辑/详情 三屏 + 共享件（双卡片风格：CLASSIC / PHOTO_CARD）
     ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索、图文混排
     ├── editor/             # 编辑器：无边框书写、Markdown 预览(MarkdownText.kt)、📷插图
     ├── habits/             # 打卡日历 + 统计图表（LineChart 自研）
     ├── navigation/         # 底部四 Tab：日记/日历/倒数日/设置 + 编辑器/统计/倒数日子路由
-    ├── settings/           # 设置页
+    ├── settings/           # 设置页（含数据迁移：导出/导入 ZIP）
     └── theme/              # Material 3 主题
 ```
 
