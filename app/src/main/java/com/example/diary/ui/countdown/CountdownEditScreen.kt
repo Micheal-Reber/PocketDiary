@@ -22,7 +22,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.diary.data.countdown.TextureLibrary
 import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.ui.theme.Spacing
@@ -349,24 +348,17 @@ fun CountdownEditScreen(
                         }
                     }
 
-                    // 纹理选择器：CLASSIC 风格 + PHOTO_CARD 无图时(textureIndex >= 0)显示
+                    // 纹理选择器：CLASSIC 始终显示；PHOTO_CARD 选过纹理后也显示
                     if (cardStyle == CountdownEvent.CARD_STYLE_CLASSIC || textureIndex >= 0) {
                         Column(Modifier.padding(top = Spacing.m)) {
                             Text("内置纹理", style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            androidx.compose.foundation.layout.Row(
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.s)
-                            ) {
-                                repeat(TEXTURE_COUNT) { idx ->
-                                    TextureLibrary.TexturePreview(
-                                        textureIndex = idx,
-                                        accent = if (colorIndex == CountdownPalette.AUTO) MaterialTheme.colorScheme.primary else CountdownPalette.colors[colorIndex - 1],
-                                        previewSize = 60.dp,
-                                        selected = textureIndex == idx,
-                                        onClick = { textureIndex = idx }
-                                    )
-                                }
-                            }
+                            Spacer(Modifier.height(Spacing.s))
+                            TexturePickerRow(
+                                selectedIndex = textureIndex,
+                                onSelect = { textureIndex = it },
+                                showNone = true
+                            )
                         }
                     }
                 }

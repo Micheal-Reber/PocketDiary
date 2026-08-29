@@ -58,10 +58,10 @@ fun stateLabel(state: DateMath.CountState): String = when (state) {
 }
 
 /** 内置过程式纹理数量（详情页背景选项），同步 TextureLibrary.TEXTURE_COUNT。 */
-const val TEXTURE_COUNT = 12
+const val TEXTURE_COUNT = 4
 
 /**
- * 过程式纹理背景——委托给 TextureLibrary（12 种 Shader 纹理）。
+ * 过程式纹理背景——委托给 TextureLibrary（4 种 Shader 纹理）。
  * 保持原有签名兼容，内部实现已迁移至 TextureLibrary。
  */
 @Composable
