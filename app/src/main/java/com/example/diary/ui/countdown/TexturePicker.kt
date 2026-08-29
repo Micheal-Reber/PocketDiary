@@ -1,6 +1,5 @@
 package com.example.diary.ui.countdown
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -8,7 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -42,7 +40,6 @@ private fun TextureCell(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val brush = TextureLibrary.getTextureBrush(textureIndex)
     val name = TextureLibrary.getTextureName(textureIndex)
     val shape = MaterialTheme.shapes.small
     Column(
@@ -56,13 +53,16 @@ private fun TextureCell(
                 .fillMaxWidth()
                 .size(64.dp)
                 .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .then(
                     if (selected) Modifier.border(2.dp, MaterialTheme.colorScheme.primary, shape)
                     else Modifier
                 )
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) { drawRect(brush) }
+            TextureLibrary.TexturePreviewThumb(
+                textureIndex = textureIndex,
+                accent = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.fillMaxWidth().size(64.dp).clip(shape)
+            )
             if (selected) {
                 Box(
                     modifier = Modifier
