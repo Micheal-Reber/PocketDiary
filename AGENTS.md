@@ -39,17 +39,19 @@ app/src/main/java/com/example/diary/
 │   ├── backup/             # 数据导出/导入（手机迁移）：BackupData/ExportService/ImportService/BackupRepository
 │   ├── countdown/          # DateMath 正倒判定纯函数 + ShareCardRenderer 分享图（经典/照片卡双风格）
 │   ├── image/              # BackgroundImageStore（日记背景）/ EventImageStore（倒数日每事件背景）
-│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent（version 6）
+│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem（version 9, 含reminderAt/repeatRule）
 │   ├── photo/              # DiaryPhotoStore：日记图文混排两阶段生命周期
 │   ├── preferences/        # DataStore: 暗色模式 / 日记背景 / 壁纸取色 / 编辑器预览开关
-│   └── repository/         # 薄仓库层（SaveResult 密封类处理日期冲突）
+│   ├── repository/         # 薄仓库层（SaveResult 密封类处理日期冲突）
+│   └── todo/               # 待办提醒调度：TodoReminderScheduler(AlarmManager) + TodoNotificationHelper + Receivers
 └── ui/
     ├── countdown/          # 倒数日：列表/编辑/详情 三屏 + 共享件（双卡片风格：CLASSIC / PHOTO_CARD）
     ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索、图文混排
     ├── editor/             # 编辑器：无边框书写、Markdown 预览(MarkdownText.kt)、📷插图
     ├── habits/             # 打卡日历 + 统计图表（LineChart 自研）
-    ├── navigation/         # 底部四 Tab：日记/日历/倒数日/设置 + 编辑器/统计/倒数日子路由
+    ├── navigation/         # 底部五 Tab：日记/日历/倒数日/待办/设置 + 编辑器/统计/倒数日子路由
     ├── settings/           # 设置页（含数据迁移：导出/导入 ZIP）
+    ├── todo/               # 待办：TodoListScreen(黑底+已完成折叠+黄FAB) + TodoEditSheet(图1) + ReminderTimeSheet(图2日历)
     └── theme/              # Material 3 主题
 ```
 
@@ -67,6 +69,9 @@ app/src/main/java/com/example/diary/
 | 分享图生成 | `data/countdown/ShareCardRenderer.kt` | 纯 android.graphics 离屏 1080×1440；FileProvider 在 Manifest |
 | 亮暗/开屏 | `Theme.kt` + `themes.xml` + `MainActivity.kt` | 独立于系统 |
 | 背景图缓存 | `data/image/BackgroundImageStore.kt` | 覆盖同名文件后必须 `clearCache()`；倒数日每事件图走 EventImageStore |
+| 待办列表/编辑 | `ui/todo/TodoListScreen.kt`(黑底+已完成折叠) + `TodoEditSheet.kt`(图1底板) + `ReminderTimeSheet.kt`(图2日历) | 勾选下沉/回升、设置提醒胶囊→日历、橙色完成、黄FAB；重构后无独立编辑页（Sheet直管） |
+| 待办数据层 | `data/local/TodoItem.kt` + `TodoDao.kt` + `TodoRepository.kt` | 单表 todo_items，字段：id/text/done/sortOrder/createdAt/reminderAt/repeatRule；DAO: observeAll/getAll/getDueReminders/updateReminder |
+| 待办提醒调度 | `data/todo/TodoReminderScheduler.kt` + `TodoNotificationHelper.kt` + `receiver/TodoAlarmReceiver.kt` + `BootCompletedReceiver.kt` | AlarmManager.setExactAndAllowWhileIdle + NotificationChannel(high) + 重复(每天)自排+开机重排；权限 POST_NOTIFICATIONS/SCHEDULE_EXACT_ALARM |
 
 ## CODE MAP
 
@@ -80,6 +85,10 @@ app/src/main/java/com/example/diary/
 | `HabitsViewModel.loadAllStats` | private | ui/habits/HabitsViewModel.kt | 四数据集全量刷新入口 |
 | `habitColor` / `HabitColorPalette` | fun/val | ui/habits/LineChart.kt | 习惯配色（全局引用） |
 | `AppShapes` / `Spacing` | val | ui/theme | 圆角/间距令牌（禁止字面量） |
+| `TodoRepository.save` | suspend | data/repository | 待办插入/更新/排序更新 + 提醒调度 |
+| `TodoDao.observeAll` | Flow<List<TodoItem>> | data/local | 待办列表实时观察（按 sortOrder 排序） |
+| `TodoReminderScheduler.schedule` | fun | data/todo | 单条待办精确闹钟（过期不排，done取消，重复自增24h） |
+| `TodoNotificationHelper.show` | fun | data/todo | 高优通知（BigText，点穿透至待办） |
 
 ## 关键约定（务必遵守）
 
@@ -87,8 +96,9 @@ app/src/main/java/com/example/diary/
 - **日期一律存 `yyyy-MM-dd` 字符串**（`LocalDate.toString()`），解析用 `LocalDate.parse`
 - 日记一天一篇：`diary_entries.date` 有 UNIQUE 索引；保存走 `DiaryRepository.saveEntry`
   - id==0 → 按日期查重后插入；id!=0 → 按 id 整条 UPDATE（改日期=搬移，冲突返回 `SaveResult.DateConflict`）
-- **schema 变更 → version +1**（v1.2 对应 Room version 4）；开发期用 `fallbackToDestructiveMigration()`（会清数据，需告知用户）
+- **schema 变更 → version +1**（v1.2→4；v1.7→8；v1.8→9 新增 reminderAt/repeatRule）；开发期用 `fallbackToDestructiveMigration()`（会清数据，需告知用户）
 - DAO 查询只写必要字段；统计查询按需加载（切年只查月统计、切月只查日统计）
+- **新表只加不改旧表**：新增 `todo_items` 表不影响现有 Diary/Habit/Countdown 表
 
 ### 主题 / UI
 - **所有圆角走 `MaterialTheme.shapes`**（AppShapes: 8/12/16/28/32），**禁止** `RoundedCornerShape(字面量)`
@@ -109,6 +119,9 @@ app/src/main/java/com/example/diary/
 5. **签名**：debug 与 release 签名不互通，切换安装需先 `adb uninstall com.example.diary`（会清数据，需告知）
 6. **kapt**：Room 处理器对 DAO 中引用已删除类型敏感，删实体字段后全局 grep 残留引用
 7. **嵌套密封类型引用**：`DateMath.CountState.Today` 必须带完整嵌套路径或 `import DateMath.CountState`——裸写 `DateMath.Today` 不解析（踩过）
+8. **Todo 列表交互**：彻底重构后为黑底+灰卡+折叠已完成（图3），勾选即下沉/回升，无拖拽；旧 `dragAndDrop/ SwipeToDismiss` 已移除
+9. **Todo 提醒**：`POST_NOTIFICATIONS` (33+) 需运行时申请、`SCHEDULE_EXACT_ALARM` 在 S+ 需 `canScheduleExactAlarms()` 检测否则降级 `setAndAllowWhileIdle`；`BOOT_COMPLETED` 用于重启重排；过期非重复不排
+10. **Room 破坏性迁移版本号**：每次 schema 变更必须同时更新 `AppDatabase.version` 和 `build.gradle.kts` 的 `versionCode`，两者保持同步（v8=1.7, v9=1.8）
 
 ## 工作流约定
 
