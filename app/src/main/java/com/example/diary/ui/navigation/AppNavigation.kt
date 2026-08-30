@@ -11,9 +11,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.CalendarMonth
+import androidx.compose.material.icons.outlined.CheckCircleOutline
 import androidx.compose.material.icons.outlined.HourglassTop
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Settings
@@ -37,6 +39,7 @@ import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.data.repository.DiaryRepository
 import com.example.diary.data.repository.HabitRepository
+import com.example.diary.data.repository.TodoRepository
 import com.example.diary.ui.countdown.CountdownDetailScreen
 import com.example.diary.ui.countdown.CountdownEditScreen
 import com.example.diary.ui.countdown.CountdownListScreen
@@ -47,15 +50,17 @@ import com.example.diary.ui.habits.HabitsViewModel
 import com.example.diary.ui.habits.HabitsViewModelFactory
 import com.example.diary.ui.habits.StatisticsScreen
 import com.example.diary.ui.settings.SettingsScreen
+import com.example.diary.ui.todo.TodoListScreen
 
 sealed class Screen(val route: String, val title: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Diary : Screen("diary", "日记", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook)
     data object Calendar : Screen("calendar", "日历", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth)
     data object Countdown : Screen("countdown", "倒数日", Icons.Filled.HourglassTop, Icons.Outlined.HourglassTop)
+    data object Todo : Screen("todo", "待办", Icons.Filled.CheckCircle, Icons.Outlined.CheckCircleOutline)
     data object Settings : Screen("settings", "设置", Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
-val bottomNavItems = listOf(Screen.Diary, Screen.Calendar, Screen.Countdown, Screen.Settings)
+val bottomNavItems = listOf(Screen.Diary, Screen.Calendar, Screen.Countdown, Screen.Todo, Screen.Settings)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,10 +70,11 @@ fun AppNavigation(
 ) {
     val context = LocalContext.current
     val navController = rememberNavController()
-    val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
+val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
     val habitRepository = remember { HabitRepository(database.habitDao()) }
     val countdownRepository = remember { CountdownRepository(database.countdownDao()) }
-    val backupRepository = remember { BackupRepository(
+    val todoRepository = remember { TodoRepository(database.todoDao()) }
+val backupRepository = remember { BackupRepository(
         context = context,
         diaryRepository = diaryRepository,
         habitRepository = habitRepository,
@@ -76,6 +82,7 @@ fun AppNavigation(
         themePreferences = themePreferences,
         database = database,
     ) }
+
     // Shared between the calendar tab and the statistics screen so both see the
     // same stats state (selected year/month, loaded chart data) without refetch.
     val habitsViewModel: HabitsViewModel = viewModel(factory = HabitsViewModelFactory(habitRepository))
@@ -198,6 +205,9 @@ fun AppNavigation(
                     onEdit = { navController.navigate("countdown_edit?id=$id") },
                     onCreate = { navController.navigate("countdown_edit") }
                 )
+            }
+            composable(Screen.Todo.route) {
+                TodoListScreen(repository = todoRepository)
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
