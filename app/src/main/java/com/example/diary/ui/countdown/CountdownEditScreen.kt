@@ -477,7 +477,6 @@ private fun StylePreviewCard(
                     modifier = Modifier
                         .width(80.dp)
                         .aspectRatio(1.5f)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
                 ) {
                     Column(
                         Modifier

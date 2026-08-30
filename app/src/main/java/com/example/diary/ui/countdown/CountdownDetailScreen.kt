@@ -212,16 +212,18 @@ private fun PhotoCardContent(
     val dateColor = if (fontDark) Color(0xFF555555) else Color(0xFFCCCCCC)
     val extraColor = if (fontDark) Color(0xFF777777) else Color(0xFFAAAAAA)
 
-    // 外层全屏容器：无图时纹理铺在卡片后面（A 方案）
+    // 外层全屏容器：纹理始终作为全屏背景，照片仅在卡片内部显示
     Box(Modifier.fillMaxSize()) {
-        // ── 外层背景层：仅无图时可见（有图时卡片自带背景，外层保持默认）──
-        if (photoBitmap == null) {
-            when {
-                textureIndex in 0 until TEXTURE_COUNT -> TextureBackdrop(textureIndex, accent)
-                else -> Box(
-                    Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-                )
-            }
+        // ── 外层背景层：纹理始终渲染，照片卡模式下从卡片四周透出 ──
+        when {
+            textureIndex in 0 until TEXTURE_COUNT -> TextureBackdrop(textureIndex, accent)
+            else -> Box(
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            )
+        }
+        // 有图时加一层薄 scrim 提升卡片文字对比度（卡片外的纹理不受影响）
+        if (photoBitmap != null) {
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.10f)))
         }
 
         // ── 卡片层：92% 宽，1.38 比例，居中 ──
@@ -388,21 +390,19 @@ private fun PhotoCardBackgroundSheet(
             modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.l)
         )
 
-        // 无图时：内置纹理选择器
-        if (!hasPhoto) {
-            Text(
-                "内置纹理",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(bottom = Spacing.s)
-            )
-            TexturePickerRow(
-                selectedIndex = textureIndex,
-                onSelect = onTextureClick,
-                showNone = true
-            )
-            Spacer(Modifier.height(Spacing.l))
-        }
+        // 内置纹理选择器：无论是否有照片都显示，纹理与照片是独立图层
+        Text(
+            "内置纹理",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = Spacing.s)
+        )
+        TexturePickerRow(
+            selectedIndex = textureIndex,
+            onSelect = onTextureClick,
+            showNone = true
+        )
+        Spacer(Modifier.height(Spacing.l))
 
         // 选图 / 恢复默认
         Row(
@@ -626,8 +626,6 @@ fun CountdownDetailScreen(
         if (uri != null) {
             scope.launch {
                 EventImageStore.importFromUri(context, uri, e.id)
-                // 换照片时退出纹理模式，让照片可见
-                repository.save(e.copy(textureIndex = -1))
                 bgVersion++
             }
         }
@@ -733,7 +731,6 @@ fun CountdownDetailScreen(
                                 onTextureClick = { idx ->
                                     showBackgroundSheet = false
                                     scope.launch {
-                                        EventImageStore.clear(context, e.id)
                                         repository.save(e.copy(textureIndex = idx))
                                         bgVersion++
                                     }
@@ -778,7 +775,6 @@ fun CountdownDetailScreen(
                                 onTextureClick = { idx ->
                                     showBackgroundSheet = false
                                     scope.launch {
-                                        EventImageStore.clear(context, e.id)
                                         repository.save(e.copy(textureIndex = idx))
                                         bgVersion++
                                     }
