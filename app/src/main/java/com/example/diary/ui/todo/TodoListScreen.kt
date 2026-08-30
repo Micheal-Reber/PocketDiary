@@ -84,25 +84,22 @@ fun TodoListScreen(
             }
         }
     ) { padding ->
+        if (active.isEmpty() && completed.isEmpty()) {
+            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text("还没有待办事项", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.height(6.dp))
+                    Text("点击右下角 + 添加第一项", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                }
+            }
+        } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(horizontal = Spacing.l, vertical = Spacing.m),
             verticalArrangement = Arrangement.spacedBy(Spacing.s)
         ) {
-            if (active.isEmpty() && completed.isEmpty()) {
-                item {
-                    Box(Modifier.fillParentMaxHeight(0.6f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(64.dp))
-                            Spacer(Modifier.height(16.dp))
-                            Text("还没有待办事项", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(6.dp))
-                            Text("点击右下角 + 添加第一项", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
-                        }
-                    }
-                }
-            }
-
             items(active, key = { it.id }) { item ->
                 TodoCard(
                     item = item,
@@ -161,6 +158,7 @@ fun TodoListScreen(
                     }
                 }
             }
+        }
         }
     }
 
