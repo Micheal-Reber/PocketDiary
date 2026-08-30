@@ -42,16 +42,7 @@ fun StatisticsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
-                // Segmented pill tabs centered in the app bar, per the
-                // reference design.
-                title = {
-                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        SegmentedStatTabs(
-                            current = statView,
-                            onSelect = { habitsViewModel.setStatView(it) }
-                        )
-                    }
-                },
+                title = { },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
@@ -64,6 +55,13 @@ fun StatisticsScreen(
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
         ) {
+            // 顶栏下方单独一行：分段选择器
+            Box(Modifier.padding(horizontal = 24.dp, vertical = 16.dp), contentAlignment = Alignment.Center) {
+                SegmentedStatTabs(
+                    current = statView,
+                    onSelect = { habitsViewModel.setStatView(it) }
+                )
+            }
             // 视觉居中：顶部适度下垫，避免贴顶
             Spacer(Modifier.height(40.dp))
             StatisticsSection(
