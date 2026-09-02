@@ -80,6 +80,10 @@ fun DiaryEditorScreen(
     var content by rememberSaveable { mutableStateOf("") }
     var existingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
+    // 改日期 = 切换到目标日期那篇日记（一天一篇）：暂存目标日期并弹确认框，
+    // 防止当前未保存修改被静默丢弃。
+    var pendingNewDate by rememberSaveable { mutableStateOf("") }
+    var showDateSwitchConfirmDialog by rememberSaveable { mutableStateOf(false) }
     // Markdown preview toggle — editing is raw text (markdown IS text);
     // preview renders the subset renderer. The choice PERSISTS across editor
     // sessions via DataStore: turn preview off, exit, come back → still off.
@@ -142,13 +146,13 @@ fun DiaryEditorScreen(
     var locationName by rememberSaveable { mutableStateOf<String?>(null) }
     var weather by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Initial load — exactly once per screen entry. Changing the date later is
-    // NOT a reload trigger anymore: the date field is a property of THIS entry,
-    // so picking another day simply re-dates what's on screen and takes effect
-    // on save (move semantics). A non-null [loadedForDate] after process
-    // restore means fields were already restored from rememberSaveable.
-    LaunchedEffect(Unit) {
-        if (loadedForDate != null) return@LaunchedEffect
+    // Load per date: re-dating switches the editor to that day's entry (one
+    // diary per day) instead of re-dating THIS row. Every date change reloads
+    // the target day — existing entry → edit it, none → blank new. Equal
+    // [loadedForDate] after process restore means fields were already restored
+    // from rememberSaveable — skip the reload.
+    LaunchedEffect(dateStr) {
+        if (loadedForDate == dateStr) return@LaunchedEffect
         isLoaded = false
         val entry = diaryRepository.getEntryByDate(dateStr)
         if (entry != null) {
@@ -613,9 +617,14 @@ fun DiaryEditorScreen(
                     }
                     showDatePicker = false
                     if (newDate != null && newDate != dateStr) {
-                        // Re-date this entry. Takes effect on save; collision is
-                        // surfaced by the repository at that point.
-                        dateStr = newDate
+                        // 改日期 = 切换编辑对象到目标日期那篇日记。有未保存修改时
+                        // 先弹确认框，防止切换导致当前草稿被静默丢弃。
+                        if (isDirty) {
+                            pendingNewDate = newDate
+                            showDateSwitchConfirmDialog = true
+                        } else {
+                            dateStr = newDate
+                        }
                     }
                 }) { Text("确定") }
             },
@@ -650,6 +659,28 @@ fun DiaryEditorScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    if (showDateSwitchConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showDateSwitchConfirmDialog = false },
+            title = { Text("切换日期？") },
+            text = { Text("当前修改尚未保存,切换日期后这些修改将丢失。是否继续？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDateSwitchConfirmDialog = false
+                    dateStr = pendingNewDate
+                    pendingNewDate = ""
+                    // 被丢弃的草稿若含 tmp 照片,已成孤儿,一并清掉
+                    scope.launch { DiaryPhotoStore.clearTmp(context) }
+                }) { Text("继续") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDateSwitchConfirmDialog = false }) {
                     Text("取消")
                 }
             }
