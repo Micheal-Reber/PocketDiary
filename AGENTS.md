@@ -1,6 +1,6 @@
 # AGENTS.md — PocketDiary 开发指引
 
-**Generated:** 2026-08-27 · **Commit:** <待填写> · **Branch:** main
+**Generated:** 2026-08-27 · **Commit:** 42b23ef · **Branch:** main
 
 本文件供 AI 编码代理（及新成员）快速了解本项目的构建方式、架构约定与历史坑点。
 
@@ -45,6 +45,7 @@ app/src/main/java/com/example/diary/
 │   ├── repository/         # 薄仓库层（SaveResult 密封类处理日期冲突）
 │   └── todo/               # 待办提醒调度：TodoReminderScheduler(AlarmManager) + TodoNotificationHelper + Receivers
 └── ui/
+    ├── components/          # SharedUi：SwipeDelete/Confirm/Search/UtcDatePicker/PresetChip（多屏共用）
     ├── countdown/          # 倒数日：列表/编辑/详情 三屏 + 共享件（双卡片风格：CLASSIC / PHOTO_CARD）
     ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索、图文混排
     ├── editor/             # 编辑器：无边框书写、Markdown 预览(MarkdownText.kt)、📷插图
@@ -119,7 +120,7 @@ app/src/main/java/com/example/diary/
 3. **shell 中断**：命令被 kill 直接原样重试
 4. **Compose API 位置**：`drawLayer` 在 `androidx.compose.ui.graphics.layer` 包；`DatePicker` 系列需 `@OptIn(ExperimentalMaterial3Api::class)`；`BoxWithConstraints` 在 `androidx.compose.foundation.layout`
 5. **签名**：debug 与 release 签名不互通，切换安装需先 `adb uninstall com.example.diary`（会清数据，需告知）
-6. **kapt**：Room 处理器对 DAO 中引用已删除类型敏感，删实体字段后全局 grep 残留引用
+6. **KSP/Room**：Room 处理器对 DAO 中引用已删除类型敏感，删实体字段后全局 grep 残留引用
 7. **嵌套密封类型引用**：`DateMath.CountState.Today` 必须带完整嵌套路径或 `import DateMath.CountState`——裸写 `DateMath.Today` 不解析（踩过）
 8. **Todo 列表交互**：彻底重构后为黑底+灰卡+折叠已完成（图3），勾选即下沉/回升，无拖拽；旧 `dragAndDrop/ SwipeToDismiss` 已移除
 9. **Todo 提醒**：`POST_NOTIFICATIONS` (33+) 需运行时申请、`SCHEDULE_EXACT_ALARM` 在 S+ 需 `canScheduleExactAlarms()` 检测否则降级 `setAndAllowWhileIdle` 并 SnackBar 深链；`BOOT_COMPLETED`/`MY_PACKAGE_REPLACED`/`TIME_SET`/`TIMEZONE_CHANGED` 重排 + 补发错过的非重复通知；过期非重复不排；**闹钟调度只走 `TodoRepository.save/delete`**，UI 勿再直接调 Scheduler
