@@ -1,16 +1,19 @@
 package com.example.diary.ui.todo
 
-import androidx.compose.foundation.background
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.*
@@ -18,23 +21,21 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.diary.data.local.TodoItem
 import com.example.diary.data.repository.TodoRepository
 import com.example.diary.data.todo.TodoNotificationHelper
-import com.example.diary.data.todo.TodoReminderScheduler
+import com.example.diary.ui.components.SwipeDeleteCard
 import com.example.diary.ui.theme.Spacing
+import com.example.diary.util.DateUtils
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 /**
  * 待办列表 - 贴合图一浅色整体 + 图三已完成折叠
@@ -45,7 +46,9 @@ import kotlin.math.roundToInt
 fun TodoListScreen(
     repository: TodoRepository,
 ) {
-    val allItems by repository.observeAll().collectAsState(initial = emptyList())
+    // remember: 避免每次重组新建 Flow → collectAsState 取消重订阅
+    val allItems by remember { repository.observeAll() }
+        .collectAsStateWithLifecycle(initialValue = emptyList())
     val active = remember(allItems) { allItems.filter { !it.done } }
     val completed = remember(allItems) { allItems.filter { it.done } }
     var completedCollapsed by rememberSaveable { mutableStateOf(false) }
@@ -53,11 +56,67 @@ fun TodoListScreen(
     var editingItem by remember { mutableStateOf<TodoItem?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) { TodoNotificationHelper.ensureChannel(context) }
 
+    fun hasNotificationPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    // 保存带提醒的待办时申请通知权限；被拒不阻塞保存（闹钟照排），仅提示
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (!granted) {
+            scope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    "未授予通知权限，待办提醒可能无法显示",
+                    actionLabel = "去设置",
+                    duration = SnackbarDuration.Long
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    context.startActivity(
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }
+            }
+        }
+    }
+
+    fun ensureNotificationPermissionForReminder() {
+        if (!hasNotificationPermission()) {
+            notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // S+ 精确闹钟被系统/用户关闭时降级为 inexact，需告知 + 深链设置
+    fun ensureExactAlarmPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val am = context.getSystemService(android.app.AlarmManager::class.java)
+            if (!am.canScheduleExactAlarms()) {
+                scope.launch {
+                    val result = snackbarHostState.showSnackbar(
+                        "未授予精确闹钟权限，提醒可能不准确",
+                        actionLabel = "去设置",
+                        duration = SnackbarDuration.Long
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        context.startActivity(
+                            Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("待办", fontWeight = FontWeight.Bold) },
@@ -105,18 +164,11 @@ fun TodoListScreen(
                     item = item,
                     isCompleted = false,
                     onToggle = {
-                        scope.launch {
-                            val updated = item.copy(done = true)
-                            repository.save(updated)
-                            TodoReminderScheduler.cancel(context, item.id)
-                        }
+                        scope.launch { repository.save(item.copy(done = true)) }
                     },
                     onClick = { editingItem = item; showEditSheet = true },
                     onDelete = {
-                        scope.launch {
-                            repository.delete(item.id)
-                            TodoReminderScheduler.cancel(context, item.id)
-                        }
+                        scope.launch { repository.delete(item.id) }
                     }
                 )
             }
@@ -136,26 +188,20 @@ fun TodoListScreen(
                     }
                 }
                 if (!completedCollapsed) {
-                    items(completed, key = { it.id }) { item ->
-                        TodoCard(
-                            item = item,
-                            isCompleted = true,
-                            onToggle = {
-                                scope.launch {
-                                    val updated = item.copy(done = false)
-                                    repository.save(updated)
-                                    if (updated.reminderAt != null) TodoReminderScheduler.schedule(context, updated)
+                        items(completed, key = { it.id }) { item ->
+                            TodoCard(
+                                item = item,
+                                isCompleted = true,
+                                onToggle = {
+                                    // save() 内自动按 reminderAt 重排闹钟
+                                    scope.launch { repository.save(item.copy(done = false)) }
+                                },
+                                onClick = { editingItem = item; showEditSheet = true },
+                                onDelete = {
+                                    scope.launch { repository.delete(item.id) }
                                 }
-                            },
-                            onClick = { editingItem = item; showEditSheet = true },
-                            onDelete = {
-                                scope.launch {
-                                    repository.delete(item.id)
-                                    TodoReminderScheduler.cancel(context, item.id)
-                                }
-                            }
-                        )
-                    }
+                            )
+                        }
                 }
             }
         }
@@ -173,13 +219,11 @@ fun TodoListScreen(
                     } else {
                         base.copy(text = text, done = done, reminderAt = reminderAt, repeatRule = repeatRule)
                     }
-                    val id = repository.save(toSave)
-                    val saved = toSave.copy(id = if (toSave.id == 0L) id else toSave.id)
-                    if (saved.reminderAt != null && !saved.done) {
+                    repository.save(toSave)
+                    if (toSave.reminderAt != null && !toSave.done) {
                         TodoNotificationHelper.ensureChannel(context)
-                        TodoReminderScheduler.schedule(context, saved)
-                    } else {
-                        TodoReminderScheduler.cancel(context, saved.id)
+                        ensureNotificationPermissionForReminder()
+                        ensureExactAlarmPermission()
                     }
                     showEditSheet = false
                 }
@@ -191,85 +235,40 @@ fun TodoListScreen(
 
 @Composable
 private fun TodoCard(item: TodoItem, isCompleted: Boolean, onToggle: () -> Unit, onClick: () -> Unit, onDelete: () -> Unit) {
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-    var offsetX by remember { mutableStateOf(0f) }
-    val deleteThreshold = -150f
-
-    Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)) {
-        // 红色右滑删除背景 - 抄日记
-        Box(
-            Modifier.matchParentSize()
-                .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.medium)
-                .padding(end = Spacing.xl),
-            contentAlignment = Alignment.CenterEnd
-        ) {
-            Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(28.dp))
+    SwipeDeleteCard(
+        onClick = onClick,
+        onDelete = onDelete,
+        confirmTitle = "删除待办",
+        confirmMessage = "确定要删除“${item.text}”吗？",
+        containerColor = if (isCompleted) {
+            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.6f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerLow
         }
-        Card(
-            shape = MaterialTheme.shapes.medium,
-            colors = CardDefaults.cardColors(
-                containerColor = if (isCompleted) MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.6f) else MaterialTheme.colorScheme.surfaceContainerLow
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-            modifier = Modifier.fillMaxWidth()
-                .offset { IntOffset(offsetX.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (offsetX < deleteThreshold) showDeleteConfirm = true
-                            offsetX = 0f
-                        },
-                        onHorizontalDrag = { _, dragAmount ->
-                            offsetX = (offsetX + dragAmount).coerceIn(-250f, 0f)
-                        }
-                    )
-                }
-                .clickable { onClick() }
+    ) {
+        Row(
+            Modifier.padding(horizontal = Spacing.l, vertical = Spacing.m),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                Modifier.padding(horizontal = Spacing.l, vertical = Spacing.m),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Checkbox(checked = item.done, onCheckedChange = { onToggle() })
-                Spacer(Modifier.width(Spacing.s))
-                Column(Modifier.weight(1f)) {
+            Checkbox(checked = item.done, onCheckedChange = { onToggle() })
+            Spacer(Modifier.width(Spacing.s))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    item.text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface,
+                    textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                )
+                if (item.reminderAt != null && !isCompleted) {
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        item.text,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = if (isCompleted) MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurface,
-                        textDecoration = if (isCompleted) TextDecoration.LineThrough else TextDecoration.None,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                        DateUtils.formatReminder(item.reminderAt, item.repeatRule),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                    if (item.reminderAt != null && !isCompleted) {
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            formatReminder(item.reminderAt, item.repeatRule),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
                 }
             }
         }
     }
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("删除待办") },
-            text = { Text("确定要删除“${item.text}”吗？") },
-            confirmButton = {
-                TextButton(
-                    onClick = { onDelete(); showDeleteConfirm = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("删除") }
-            },
-            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") } }
-        )
-    }
-}
-
-private fun formatReminder(at: Long, repeat: Int): String {
-    val fmt = java.text.SimpleDateFormat("MM/dd HH:mm", java.util.Locale.getDefault())
-    val base = fmt.format(java.util.Date(at))
-    return if (repeat == TodoItem.REPEAT_DAILY) "$base · 每天" else base
 }

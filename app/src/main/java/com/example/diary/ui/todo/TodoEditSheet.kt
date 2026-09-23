@@ -87,7 +87,8 @@ fun TodoEditSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                val fmt = remember(reminderAt) {
+                // key 必须含 repeatRule：只 remember(reminderAt) 时改“每天”不刷新文案
+                val fmt = remember(reminderAt, repeatRule) {
                     DateUtils.formatReminderAt(reminderAt, repeatRule)
                 }
                 Surface(

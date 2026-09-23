@@ -21,6 +21,7 @@
 - 卡片固定尺寸、正文两行预览，长文不撑爆列表
 - **左滑删除**，误删有确认弹窗兜底
 - 支持**自定义列表背景**：在设置里导入一张照片，整个日记页焕然一新
+- **Markdown 预览**与**图文混排**（最多 7 张插图）
 
 ### 📅 日历打卡
 - 月历视图 + 习惯打卡系统
@@ -30,13 +31,22 @@
 
 ### 📊 统计
 - 全屏统计页，三种视图自由切换：**周频率**（最近十周滚动窗口）/ **月视图** / **年视图**
-- 折线图每个数据点带**数值标签**，Y 轴 ∞ 刻度设计
+- 抯线图每个数据点带**数值标签**，Y 轴 ∞ 刻度设计
 - 当前周期（本周 / 本月）**红色高亮**
 - 底部勾选习惯即可控制曲线显隐，同时汇总该周期打卡天数
 
+### ⏳ 倒数日
+- 经典全屏 / 照片卡片双风格，蓝橙徽章、置顶、重复（年/月）
+- 分享图离屏渲染；每事件独立背景图
+
+### ✅ 待办
+- 黑底列表 + 已完成折叠；左滑删除
+- **精确闹钟提醒**（每天重复 / 过期不排 / 开机与改时区自动重排）
+
 ### ⚙️ 设置
-- 暗色 / 亮色模式切换
+- 暗色 / 亮色模式切换（独立于系统）
 - 日记背景自定义与恢复默认
+- **数据迁移**：导出 / 导入 ZIP（全量覆盖 + 事务回滚 + 版本校验）
 
 ## 📥 下载安装
 
@@ -48,45 +58,60 @@
 
 | 分类 | 方案 |
 |------|------|
-| 语言 | Kotlin |
+| 语言 | Kotlin 1.9.24 |
 | UI | Jetpack Compose + Material 3（动态取色） |
-| 数据库 | Room（DiaryEntry / Habit / HabitRecord 三表） |
+| 数据库 | Room **v11**（DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem 五表；v9/v10 手写迁移） |
 | 偏好 | DataStore Preferences |
-| 导航 | Navigation Compose（底部三 Tab + 编辑器 + 统计页） |
+| 导航 | Navigation Compose（底部五 Tab + 编辑器 + 统计页） |
 | 架构 | ViewModel + Repository + Flow 单向数据流 |
 | 定位 | 系统 LocationManager（无 Play Services 依赖） |
+| 备份 | kotlinx-serialization JSON + 流式 ZIP（STORED CRC） |
+| 提醒 | AlarmManager 精确闹钟 + 开机/改时区重排 |
 | 开屏 | 系统开屏纯色化（无 logo，随软件内亮暗设置秒进界面） |
+| 处理器 | **KSP**（Room，非 kapt） |
 
 ## 🚀 构建
 
 1. 安装 JDK 17 与 Android SDK（platform 35）
 2. 配置环境变量 `JAVA_HOME`、`ANDROID_HOME`
-3. 执行：
+3. 签名（可选）：根目录放 `pocketdiary.jks` + gitignored `keystore.properties`（`storePassword`/`keyAlias`/`keyPassword`）
+4. 执行：
 
 ```bash
 ./gradlew assembleDebug      # 调试包
-./gradlew assembleRelease    # 签名发布包（需配置签名密钥）
+./gradlew assembleRelease    # 签名发布包（有 keystore.properties 时）
+./gradlew test               # JVM 单元测试
 ```
+
+> **debug 与 release 签名不互通**，覆盖安装需先卸载旧包。
 
 ## 📂 项目结构
 
 ```
 app/src/main/java/com/example/diary/
-├── MainActivity.kt            # 入口：亮暗模式接管（独立于系统）+ 开屏
+├── MainActivity.kt            # 入口：亮暗模式接管（独立于系统）+ 开屏 + open_todo_id 深链
 ├── DiaryApplication.kt
 ├── data/
-│   ├── image/                 # 背景图导入与降采样解码（带内存缓存）
-│   ├── local/                 # Room 数据库、DAO、实体
+│   ├── backup/                # BackupData / ExportService / ImportService / BackupRepository
+│   ├── countdown/             # DateMath + ShareCardRenderer + TextureLibrary
+│   ├── image/                 # BackgroundImageStore（相对路径）/ EventImageStore
+│   ├── local/                 # Room 数据库、DAO、实体（version 11）
 │   ├── location/              # 定位封装（无 GMS）
-│   ├── preferences/           # DataStore 主题/背景偏好
-│   └── repository/            # 数据仓库层
+│   ├── photo/                 # DiaryPhotoStore 两阶段生命周期
+│   ├── preferences/           # DataStore 主题/背景/预览偏好
+│   ├── repository/            # 数据仓库层
+│   └── todo/                  # TodoReminderScheduler + TodoNotificationHelper
 └── ui/
-    ├── diary/                 # 日历列表：卡片、月份分割、滑动删除、背景
-    ├── editor/                # 日记编辑器：心情/天气/定位
+    ├── components/            # SharedUi：SwipeDelete/Confirm/Search/UtcDatePicker/PresetChip
+    ├── countdown/             # 倒数日三屏 + 共享件
+    ├── diary/                 # 日记列表：卡片、月份分割、滑动删除、背景
+    ├── editor/                # 日记编辑器：心情/天气/定位/预览
     ├── habits/                # 打卡日历 + 统计图表 + ViewModel
     ├── navigation/            # 底部导航 + 路由
-    ├── settings/              # 设置页
-    └── theme/                 # Material 3 主题
+    ├── receiver/              # TodoAlarmReceiver / BootCompletedReceiver
+    ├── settings/              # 设置页（含数据迁移）
+    ├── theme/                 # Material 3 主题
+    └── todo/                  # 待办列表 + 编辑/提醒 Sheet
 ```
 
 ## 📄 License

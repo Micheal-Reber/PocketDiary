@@ -22,17 +22,20 @@ interface TodoDao {
     @Query("SELECT * FROM todo_items WHERE reminderAt IS NOT NULL AND reminderAt <= :now AND done = 0")
     suspend fun getDueReminders(now: Long): List<TodoItem>
 
-    @Query("UPDATE todo_items SET reminderAt = :nextAt WHERE id = :id")
-    suspend fun updateReminder(id: Long, nextAt: Long?)
-
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(item: TodoItem): Long
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(items: List<TodoItem>)
 
     @Update
     suspend fun update(item: TodoItem)
 
     @Query("DELETE FROM todo_items WHERE id = :id")
     suspend fun deleteById(id: Long)
+
+    @Query("DELETE FROM todo_items")
+    suspend fun deleteAll()
 
     /** 批量更新排序（拖拽后调用） */
     @Transaction

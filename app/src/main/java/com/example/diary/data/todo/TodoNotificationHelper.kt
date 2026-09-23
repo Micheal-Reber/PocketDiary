@@ -10,6 +10,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.diary.MainActivity
 import com.example.diary.R
+// 运行时权限申请入口在 ui/todo/TodoListScreen（保存带提醒的待办时触发）
 
 object TodoNotificationHelper {
     const val CHANNEL_ID = "todo_reminder"
@@ -28,7 +29,7 @@ object TodoNotificationHelper {
         }
     }
 
-    fun show(context: Context, todoId: Long, text: String) {
+    fun show(context: Context, todoId: Long, text: String, title: String = "待办提醒") {
         ensureChannel(context)
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -39,7 +40,7 @@ object TodoNotificationHelper {
         val pi = PendingIntent.getActivity(context, notificationId, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val noti = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("待办提醒")
+            .setContentTitle(title)
             .setContentText(text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setAutoCancel(true)
@@ -49,6 +50,8 @@ object TodoNotificationHelper {
             .build()
         try {
             NotificationManagerCompat.from(context).notify(notificationId, noti)
-        } catch (_: SecurityException) { /* POST_NOTIFICATIONS 未授予，静默 */ }
+        } catch (_: SecurityException) {
+            // POST_NOTIFICATIONS 未授予时的兜底（运行时申请见 TodoListScreen）
+        }
     }
 }

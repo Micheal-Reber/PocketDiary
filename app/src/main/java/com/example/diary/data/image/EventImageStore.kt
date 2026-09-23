@@ -31,6 +31,8 @@ object EventImageStore {
                     out.outputStream().use { outs -> ins.copyTo(outs) }
                 } ?: return@withContext null
                 out
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (_: Exception) {
                 null
             }

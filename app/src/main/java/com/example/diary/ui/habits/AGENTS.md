@@ -29,5 +29,5 @@
 
 ## 反模式
 
-- ❌ 恢复已删除的「倒数日」（曾短暂存在，已整体移除——WIP 在根仓库 `stash@{0}`）
 - ❌ 在 `LineChart` draw 作用域内调用 `textMeasurer.measure`（每帧重测）
+- ❌ 把统计查询改成「一次全量」——按需加载是硬约定（见上方 WHERE TO LOOK）

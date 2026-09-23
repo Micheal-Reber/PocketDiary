@@ -16,7 +16,7 @@ import androidx.compose.ui.unit.dp
 
 // Brand seed: ink-green diary palette. Used when dynamic (wallpaper) color
 // is off, and on devices below Android 12.
-private val LightColorScheme = lightColorScheme(
+val LightColorScheme = lightColorScheme(
     primary = Color(0xFF1A6D55),
     onPrimary = Color.White,
     primaryContainer = Color(0xFFA6F2D1),
@@ -55,7 +55,7 @@ private val LightColorScheme = lightColorScheme(
     inversePrimary = Color(0xFF8AD6B6)
 )
 
-private val DarkColorScheme = darkColorScheme(
+val DarkColorScheme = darkColorScheme(
     primary = Color(0xFF8AD6B6),
     onPrimary = Color(0xFF003828),
     primaryContainer = Color(0xFF00523E),

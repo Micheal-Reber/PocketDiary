@@ -1,1 +1,1 @@
-# Empty proguard configuration for the MVP.
+# Project-specific ProGuard rules go here.

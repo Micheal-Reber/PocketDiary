@@ -216,6 +216,18 @@ private fun Node.appendInline(
 
 private val plainTextSpecials = charArrayOf('*', '#', '`', '>', '~', '_')
 
+// Precompiled once — constructing ~10 Regex per card preview was per-recomposition work.
+private val codeBlockRe = Regex("```[\\s\\S]*?(```|$)")
+private val imgMarkerRe = Regex("\\[img:[^\\]]+\\]")
+private val headingRe = Regex("(?m)^#{1,6}\\s+")
+private val boldAsteriskRe = Regex("\\*\\*([^*]+)\\*\\*")
+private val boldUnderscoreRe = Regex("__(.+?)__")
+private val italicAsteriskRe = Regex("\\*([^*\\n]+)\\*")
+private val inlineCodeRe = Regex("`([^`\\n]+)`")
+private val blockquoteRe = Regex("(?m)^>\\s?")
+private val bulletRe = Regex("(?m)^[-*+]\\s+")
+private val multiBlankRe = Regex("\\n{3,}")
+
 /**
  * Strip markdown syntax down to readable plain text — used by the diary list
  * card preview so `**bold**` doesn't show as literal asterisks. Plain-text
@@ -226,15 +238,15 @@ fun markdownToPlainText(markdown: String): String {
         return markdown
     }
     return markdown
-        .replace(Regex("```[\\s\\S]*?(```|$)"), " ")
-        .replace(Regex("\\[img:[^\\]]+\\]"), "")          // 图片标记 → 移除（图片不进文本预览）
-        .replace(Regex("(?m)^#{1,6}\\s+"), "")
-        .replace(Regex("\\*\\*([^*]+)\\*\\*"), "$1")
-        .replace(Regex("__(.+?)__"), "$1")
-        .replace(Regex("\\*([^*\\n]+)\\*"), "$1")
-        .replace(Regex("`([^`\\n]+)`"), "$1")
-        .replace(Regex("(?m)^>\\s?"), "")
-        .replace(Regex("(?m)^[-*+]\\s+"), "· ")
-        .replace(Regex("\\n{3,}"), "\n\n")
+        .replace(codeBlockRe, " ")
+        .replace(imgMarkerRe, "")          // 图片标记 → 移除（图片不进文本预览）
+        .replace(headingRe, "")
+        .replace(boldAsteriskRe, "$1")
+        .replace(boldUnderscoreRe, "$1")
+        .replace(italicAsteriskRe, "$1")
+        .replace(inlineCodeRe, "$1")
+        .replace(blockquoteRe, "")
+        .replace(bulletRe, "· ")
+        .replace(multiBlankRe, "\n\n")
         .trim()
 }

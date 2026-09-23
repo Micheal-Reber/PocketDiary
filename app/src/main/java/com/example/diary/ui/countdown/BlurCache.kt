@@ -7,13 +7,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -120,8 +120,14 @@ private fun boxBlurV(src: IntArray, dst: IntArray, w: Int, h: Int, r: Int, divSu
     }
 }
 
-/** 内存缓存：键 "eventId:档位"，容量极小（每事件最多 6 档），超限简单清空。 */
-private val memCache = LinkedHashMap<String, Bitmap>()
+/**
+ * 内存缓存：键 "eventId:档位"，按字节限额（≈16MB）的 LruCache，线程安全。
+ * 超限由 LruCache 自动淘汰最久未用项。
+ */
+private const val BLUR_CACHE_MAX_BYTES = 16 * 1024 * 1024
+private val memCache = object : android.util.LruCache<String, Bitmap>(BLUR_CACHE_MAX_BYTES) {
+    override fun sizeOf(key: String, value: Bitmap): Int = value.allocationByteCount
+}
 
 /**
  * 取事件照片在指定模糊档位的位图（未命中则栈模糊后缓存）。
@@ -132,18 +138,21 @@ fun blurredFor(eventId: Long, src: Bitmap, radiusDp: Int): Bitmap {
     val level = nearestLevel(radiusDp)
     if (level == 0) return src
     val key = "$eventId:$level"
-    memCache[key]?.let { return it }
+    memCache.get(key)?.let { return it }
     // dp→px：src 已降采样，模糊半径按位图像素近似 ×2（视觉等效卡片显示尺寸）
     val blurred = stackBlur(src, level * 2)
-    if (memCache.size > 24) memCache.clear() // 简单防膨胀
-    memCache[key] = blurred
+    memCache.put(key, blurred)
     return blurred
 }
 
 /** 清空指定事件的模糊缓存（换图/删除事件时调用）。 */
 fun clearBlurCache(eventId: Long? = null) {
-    if (eventId == null) memCache.clear()
-    else memCache.keys.removeAll { it.startsWith("$eventId:") }
+    if (eventId == null) {
+        memCache.evictAll()
+    } else {
+        val prefix = "$eventId:"
+        memCache.snapshot().keys.filter { it.startsWith(prefix) }.forEach { memCache.remove(it) }
+    }
 }
 
 /**
@@ -174,8 +183,14 @@ fun BlurCardImage(
             modifier = modifier.blur(radiusDp.dp)
         )
     } else {
-        val context = LocalContext.current
-        val blurred by produceState<ImageBitmap?>(initialValue = null, key1 = eventId, key2 = nearestLevel(radiusDp)) {
+        // key3 = bitmap 身份：换图后 produceState 重新计算，避免串旧图
+        val bitmapIdentity = remember(bitmap) { System.identityHashCode(bitmap) }
+        val blurred by produceState<ImageBitmap?>(
+            initialValue = null,
+            key1 = eventId,
+            key2 = nearestLevel(radiusDp),
+            key3 = bitmapIdentity
+        ) {
             value = withContext(Dispatchers.Default) {
                 blurredFor(eventId, bitmap.asAndroidBitmap(), radiusDp).asImageBitmap()
             }

@@ -4,6 +4,7 @@ import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.local.Habit
 import com.example.diary.data.local.HabitRecord
+import com.example.diary.data.local.TodoItem
 import kotlinx.serialization.Serializable
 
 /**
@@ -12,23 +13,29 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class BackupData(
-    /** App version that created this backup */
-    val version: Int = 1,
+    /** Backup format version (2 = includes todos) */
+    val version: Int = CURRENT_VERSION,
     /** Timestamp when backup was created (millis since epoch) */
     val timestamp: Long = System.currentTimeMillis(),
     /** All diary entries */
     val diaryEntries: List<DiaryEntry> = emptyList(),
-    /** All habits */
+    /** All habits (including archived) */
     val habits: List<Habit> = emptyList(),
     /** All habit records */
     val habitRecords: List<HabitRecord> = emptyList(),
     /** All countdown events */
     val countdownEvents: List<CountdownEvent> = emptyList(),
+    /** All todos */
+    val todos: List<TodoItem> = emptyList(),
     /** User preferences from DataStore */
     val preferences: PreferencesData = PreferencesData(),
     /** Relative paths of image files included in the backup zip */
     val imageFiles: List<ImageFileInfo> = emptyList(),
-)
+) {
+    companion object {
+        const val CURRENT_VERSION = 2
+    }
+}
 
 /** User preferences from DataStore */
 @Serializable
@@ -46,7 +53,7 @@ data class PreferencesData(
 /** Information about an image file included in the backup */
 @Serializable
 data class ImageFileInfo(
-    /** Relative path within the backup zip (e.g., "images/diary_photos/123/img_123.jpg") */
+    /** Relative path within the backup zip (e.g., "diary_photos/123/img_123.jpg") */
     val relativePath: String,
     /** Original file size in bytes */
     val sizeBytes: Long,
@@ -67,6 +74,7 @@ sealed interface ImportResult {
         val habitsImported: Int,
         val habitRecordsImported: Int,
         val countdownEventsImported: Int,
+        val todosImported: Int,
         val imagesImported: Int,
     ) : ImportResult
 

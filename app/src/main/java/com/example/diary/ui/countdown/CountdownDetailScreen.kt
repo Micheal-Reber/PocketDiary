@@ -189,6 +189,7 @@ private fun ClassicFullscreenContent(
  * 无图时：Header(事件色) + Body(TextureLibrary 纹理/渐变) + Footer 三段式框。 */
 @Composable
 private fun PhotoCardContent(
+    eventId: Long,
     photoBitmap: ImageBitmap?,
     blurRadius: Int,
     fontDark: Boolean,
@@ -246,7 +247,7 @@ private fun PhotoCardContent(
                         BlurCardImage(
                             bitmap = photoBitmap,
                             radiusDp = blurRadius,
-                            eventId = 0,
+                            eventId = eventId,
                             modifier = Modifier.fillMaxSize()
                         )
                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = scrimAlpha)))
@@ -502,7 +503,9 @@ fun CountdownDetailScreen(
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
 
-    val event by repository.observeById(eventId).collectAsState(initial = null)
+    // remember(eventId): 换事件时重建 Flow，避免每次重组重订阅
+    val event by remember(eventId) { repository.observeById(eventId) }
+        .collectAsState(initial = null)
     // 背景图版本号：换图/清背景后自增，驱动重新解码
     var bgVersion by rememberSaveable { mutableIntStateOf(0) }
     var showBackgroundSheet by remember { mutableStateOf(false) }
@@ -524,7 +527,7 @@ fun CountdownDetailScreen(
     ) {
         value = withContext(Dispatchers.IO) {
             val f = EventImageStore.file(context, e.id)
-            if (f.exists()) BackgroundImageStore.decode(f.absolutePath, maxDim = 1400)
+            if (f.exists()) BackgroundImageStore.decode(context, f.absolutePath, maxDim = 1400)
             else null
         }
     }
@@ -626,6 +629,7 @@ fun CountdownDetailScreen(
         if (uri != null) {
             scope.launch {
                 EventImageStore.importFromUri(context, uri, e.id)
+                clearBlurCache(e.id)
                 bgVersion++
             }
         }
@@ -682,6 +686,7 @@ fun CountdownDetailScreen(
             if (e.cardStyle == CountdownEvent.CARD_STYLE_PHOTO_CARD) {
                 // ===== 照片卡片：3:2 圆角框，有图则用图+模糊，无图用 TextureLibrary 纹理 =====
                 PhotoCardContent(
+                    eventId = e.id,
                     photoBitmap = photoBitmap,
                     blurRadius = blurRadiusPreview,
                     fontDark = fontDarkPreview,
@@ -745,6 +750,7 @@ fun CountdownDetailScreen(
                                     showBackgroundSheet = false
                                     scope.launch {
                                         EventImageStore.clear(context, e.id)
+                                        clearBlurCache(e.id)
                                         repository.save(e.copy(textureIndex = -1))
                                         bgVersion++
                                     }
@@ -768,6 +774,7 @@ fun CountdownDetailScreen(
                                     showBackgroundSheet = false
                                     scope.launch {
                                         EventImageStore.clear(context, e.id)
+                                        clearBlurCache(e.id)
                                         repository.save(e.copy(textureIndex = -1))
                                         bgVersion++
                                     }

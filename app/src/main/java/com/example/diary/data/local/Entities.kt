@@ -124,3 +124,9 @@ data class DailyStat(
     val habitId: Long,
     val count: Int
 )
+
+/** 月历单次查询的一行：habitId + 打卡日期（yyyy-MM-dd）。 */
+data class HabitCheckInRow(
+    val habitId: Long,
+    val date: String
+)

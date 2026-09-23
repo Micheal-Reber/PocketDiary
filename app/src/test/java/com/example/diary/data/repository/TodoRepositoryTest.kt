@@ -6,7 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.local.TodoItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.runBlockingTest
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.*
 import org.junit.Before
@@ -14,11 +14,14 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * TodoRepository 单元测试：覆盖 CRUD + 排序更新
+ * Robolectric 4.11 最高支持 SDK 34；钉住避免 targetSdk 35 报错
  */
 @RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 @OptIn(ExperimentalCoroutinesApi::class)
 class TodoRepositoryTest {
 
@@ -34,7 +37,7 @@ class TodoRepositoryTest {
         database = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java)
             .allowMainThreadQueries()
             .build()
-        repository = TodoRepository(database.todoDao())
+        repository = TodoRepository(database.todoDao(), context)
     }
 
     @After
@@ -43,7 +46,7 @@ class TodoRepositoryTest {
     }
 
     @Test
-    fun `insert returns new id`() = runBlockingTest {
+    fun `insert returns new id`() = runTest {
         val id = repository.save(TodoItem(text = "测试待办"))
         assertTrue(id > 0)
         val item = repository.get(id)
@@ -54,7 +57,7 @@ class TodoRepositoryTest {
     }
 
     @Test
-    fun `update existing item by id`() = runBlockingTest {
+    fun `update existing item by id`() = runTest {
         val id = repository.save(TodoItem(text = "原始"))
         val original = repository.get(id)!!
         repository.save(original.copy(text = "已修改", done = true))
@@ -64,7 +67,7 @@ class TodoRepositoryTest {
     }
 
     @Test
-    fun `delete removes item`() = runBlockingTest {
+    fun `delete removes item`() = runTest {
         val id = repository.save(TodoItem(text = "待删除"))
         assertNotNull(repository.get(id))
         repository.delete(id)
@@ -72,7 +75,7 @@ class TodoRepositoryTest {
     }
 
     @Test
-    fun `toggle done updates item`() = runBlockingTest {
+    fun `toggle done updates item`() = runTest {
         val id = repository.save(TodoItem(text = "切换完成"))
         val item = repository.get(id)!!
         repository.save(item.copy(done = true))
@@ -82,7 +85,7 @@ class TodoRepositoryTest {
     }
 
     @Test
-    fun `updateSortOrders reorders items correctly`() = runBlockingTest {
+    fun `updateSortOrders reorders items correctly`() = runTest {
         val id1 = repository.save(TodoItem(text = "第一项", sortOrder = 0))
         repository.save(TodoItem(text = "第二项", sortOrder = 1))
         val id3 = repository.save(TodoItem(text = "第三项", sortOrder = 2))
@@ -103,7 +106,7 @@ class TodoRepositoryTest {
     }
 
     @Test
-    fun `items sorted by sortOrder then createdAt`() = runBlockingTest {
+    fun `items sorted by sortOrder then createdAt`() = runTest {
         repository.save(TodoItem(text = "C", sortOrder = 2, createdAt = 3000))
         repository.save(TodoItem(text = "A", sortOrder = 0, createdAt = 1000))
         repository.save(TodoItem(text = "B", sortOrder = 1, createdAt = 2000))
@@ -114,7 +117,7 @@ class TodoRepositoryTest {
     }
 
     @Test
-    fun `save with id0 inserts new id0 updates`() = runBlockingTest {
+    fun `save with id0 inserts new id0 updates`() = runTest {
         val id1 = repository.save(TodoItem(text = "新建"))
         assertTrue(id1 > 0)
         repository.save(TodoItem(id = id1, text = "更新后", done = true, sortOrder = 5, createdAt = System.currentTimeMillis()))
@@ -125,7 +128,7 @@ class TodoRepositoryTest {
     }
 
     @Test
-    fun `empty text can be saved`() = runBlockingTest {
+    fun `empty text can be saved`() = runTest {
         val id = repository.save(TodoItem(text = ""))
         assertTrue(id >= 0)
     }

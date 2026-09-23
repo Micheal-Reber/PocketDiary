@@ -24,11 +24,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.repository.CountdownRepository
+import com.example.diary.ui.components.ConfirmDialog
+import com.example.diary.ui.components.UtcDatePickerDialog
 import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.launch
-import java.time.Instant
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 
 /**
@@ -379,37 +379,33 @@ fun CountdownEditScreen(
         }
 
         if (showDatePicker) {
-            DatePickerModal(
-                initial = LocalDate.parse(dateStr),
+            UtcDatePickerDialog(
+                initialDate = runCatching { LocalDate.parse(dateStr) }.getOrNull(),
                 onDismiss = { showDatePicker = false },
-                onPick = { showDatePicker = false; dateStr = it }
+                onPick = { showDatePicker = false; dateStr = it.format(DateTimeFormatter.ISO_LOCAL_DATE) }
             )
         }
         if (showEndDatePicker) {
-            DatePickerModal(
-                initial = runCatching { LocalDate.parse(endDateStr) }.getOrElse { LocalDate.now() },
+            UtcDatePickerDialog(
+                initialDate = runCatching { LocalDate.parse(endDateStr) }.getOrElse { LocalDate.now() },
                 onDismiss = { showEndDatePicker = false },
-                onPick = { showEndDatePicker = false; endDateStr = it }
+                onPick = { showEndDatePicker = false; endDateStr = it.format(DateTimeFormatter.ISO_LOCAL_DATE) }
             )
         }
         if (showDeleteDialog && existingId != null) {
-            AlertDialog(
-                onDismissRequest = { showDeleteDialog = false },
-                title = { Text("删除「$name」？") },
-                text = { Text("不可恢复。") },
-                confirmButton = {
-                    TextButton(onClick = {
-                        showDeleteDialog = false
-                        scope.launch {
-                            com.example.diary.data.image.EventImageStore.clear(context, existingId)
-                            repository.delete(existingId)
-                            onBack()
-                        }
-                    }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            ConfirmDialog(
+                title = "删除「$name」？",
+                message = "不可恢复。",
+                onConfirm = {
+                    showDeleteDialog = false
+                    scope.launch {
+                        com.example.diary.data.image.EventImageStore.clear(context, existingId)
+                        clearBlurCache(existingId)
+                        repository.delete(existingId)
+                        onBack()
+                    }
                 },
-                dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) { Text("取消") }
-                }
+                onDismiss = { showDeleteDialog = false }
             )
         }
     }
@@ -512,30 +508,5 @@ private fun StylePreviewCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = Spacing.xs))
         }
-    }
-}
-
-/** M3 DatePicker 弹窗——UTC 毫秒换算（与日记编辑器同约定）。 */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DatePickerModal(initial: LocalDate, onDismiss: () -> Unit, onPick: (String) -> Unit) {
-    val state = rememberDatePickerState(
-        initialSelectedDateMillis = initial.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()
-    )
-    DatePickerDialog(
-        onDismissRequest = onDismiss,
-        confirmButton = {
-            TextButton(onClick = {
-                state.selectedDateMillis?.let { millis ->
-                    onPick(
-                        Instant.ofEpochMilli(millis).atZone(ZoneOffset.UTC).toLocalDate()
-                            .format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    )
-                } ?: onDismiss()
-            }) { Text("确定") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
-    ) {
-        DatePicker(state = state)
     }
 }

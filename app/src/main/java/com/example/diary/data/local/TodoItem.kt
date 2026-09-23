@@ -11,7 +11,10 @@ import kotlinx.serialization.Serializable
  */
 @Entity(
     tableName = "todo_items",
-    indices = [Index(value = ["sortOrder"]), Index(value = ["reminderAt"])]
+    indices = [
+        Index(value = ["sortOrder"]),
+        Index(value = ["reminderAt"])
+    ]
 )
 @Serializable
 data class TodoItem(

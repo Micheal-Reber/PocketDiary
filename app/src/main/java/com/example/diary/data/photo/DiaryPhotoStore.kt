@@ -97,6 +97,8 @@ object DiaryPhotoStore {
                 return@withContext null
             }
             name
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "importFromUri failed", e)
             null

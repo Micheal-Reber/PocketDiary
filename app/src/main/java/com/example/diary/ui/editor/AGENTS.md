@@ -4,8 +4,9 @@
 
 ## 结构
 
-- `DiaryEditorScreen.kt`（~560 行）：编辑器主体——日期胶囊、心情/天气 chips、定位、正文、保存/删除/改期
+- `DiaryEditorScreen.kt`：编辑器主体——日期胶囊、心情/天气 chips（共享 `PresetChipRow`）、定位、正文、保存/删除/改期；日期/删除/放弃弹窗走 `ui/components` 共享件
 - `MarkdownText.kt`：`MarkdownText` 渲染器 + `markdownToPlainText` 预览剥离
+- `DiaryContentView.kt`：图文混排（`[img:]` 标记切段 + 全屏查看）
 
 ## WHERE TO LOOK
 
@@ -28,4 +29,4 @@
 
 - ❌ 引入 WYSIWYG Markdown 编辑库（compose-rich-editor 无法输原始语法、无代码块）——编辑=纯文本，预览=渲染
 - ❌ 在 Main 线程调 Geocoder
-- ❌ 吞 `CancellationException`（保存协程被销毁时必须 rethrow）
+- ❌ 吞 `CancellationException`（保存协程与定位协程被销毁时必须 rethrow——已覆盖保存与 Geocoder 分支）

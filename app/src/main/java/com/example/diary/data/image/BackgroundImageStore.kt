@@ -17,23 +17,49 @@ import java.io.File
  */
 object BackgroundImageStore {
 
-    // In-memory decode cache. The key includes lastModified because imports
-    // ALWAYS overwrite the same fixed filename (diary_background.jpg) — a
-    // path-only key would serve stale bitmaps after re-import. maxDim is part
-    // of the key for safety against future callers using other sizes.
-    @Volatile
-    private var cacheKey: Triple<String, Long, Int>? = null
-
-    @Volatile
-    private var cacheValue: ImageBitmap? = null
+    // In-memory decode cache. Keyed by (path, lastModified, maxDim) so imports
+    // that overwrite the same fixed filename invalidate via mtime; multi-entry
+    // LruCache so list background / editor thumbs / body images don't evict
+    // each other (single-slot thrash). Max entries small — each is a downsampled bitmap.
+    private const val CACHE_MAX_ENTRIES = 8
+    private val decodeCache = object : android.util.LruCache<Triple<String, Long, Int>, ImageBitmap?>(CACHE_MAX_ENTRIES) {
+        override fun sizeOf(key: Triple<String, Long, Int>, value: ImageBitmap?): Int = 1
+    }
 
     private fun clearCache() {
-        cacheKey = null
-        cacheValue = null
+        decodeCache.evictAll()
     }
 
     fun backgroundFile(context: Context): File =
         File(File(context.filesDir, "backgrounds").apply { if (!exists()) mkdirs() }, "diary_background.jpg")
+
+    /** DataStore/备份里存的规范相对路径（相对 filesDir）。 */
+    const val RELATIVE_PATH = "backgrounds/diary_background.jpg"
+
+    /**
+     * 归一成存库值：
+     * - null → null（无背景）
+     * - 已是相对路径 → 原样
+     * - 本机 filesDir 下的绝对路径 → 相对路径
+     * - 旧包/换机绝对路径 → 重写为本机 RELATIVE_PATH（图片本体固定在 backgroundFile）
+     */
+    fun normalizeStoredPath(context: Context, path: String?): String? {
+        if (path.isNullOrBlank()) return null
+        if (!File(path).isAbsolute) return path
+        val filesDir = context.filesDir.canonicalFile
+        val abs = File(path).canonicalFile
+        if (abs.path.startsWith(filesDir.path + File.separator)) {
+            return abs.path.substring(filesDir.path.length + 1).replace('\\', '/')
+        }
+        // 跨设备绝对路径：只要背景文件在本机存在就生效
+        return if (backgroundFile(context).exists()) RELATIVE_PATH else null
+    }
+
+    /** 解析存库路径 → 本机 File；相对路径基于 filesDir，绝对路径原样（兼容旧值）。 */
+    fun resolve(context: Context, storedPath: String): File {
+        val f = File(storedPath)
+        return if (f.isAbsolute) f else File(context.filesDir, storedPath)
+    }
 
     /**
      * Copy a picked image into private storage, overwriting any previous one.
@@ -56,6 +82,8 @@ object BackgroundImageStore {
                 clearCache()
                 out
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             null
         }
@@ -64,20 +92,21 @@ object BackgroundImageStore {
     /**
      * Decode downscaled so the long edge stays around [maxDim] pixels; null if
      * missing/broken. Cached in memory per (path, lastModified, maxDim).
+     * [path] may be filesDir-relative (preferred) or absolute (legacy).
+     * [context] needed only to resolve relative paths.
      */
-    suspend fun decode(path: String?, maxDim: Int): ImageBitmap? = withContext(Dispatchers.IO) {
+    suspend fun decode(context: Context, path: String?, maxDim: Int): ImageBitmap? = withContext(Dispatchers.IO) {
         if (path.isNullOrEmpty()) {
-            clearCache()
             return@withContext null
         }
-        val file = File(path)
+        val file = resolve(context, path)
         if (!file.exists()) {
-            clearCache()
             return@withContext null
         }
         val stamp = runCatching { file.lastModified() }.getOrDefault(0L)
-        cacheKey?.takeIf { it == Triple(path, stamp, maxDim) }?.let {
-            return@withContext cacheValue
+        val key = Triple(file.absolutePath, stamp, maxDim)
+        decodeCache.get(key)?.let {
+            return@withContext it
         }
         val bitmap = try {
             val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -88,12 +117,23 @@ object BackgroundImageStore {
             }
             val opts = BitmapFactory.Options().apply { inSampleSize = sample }
             BitmapFactory.decodeFile(file.absolutePath, opts)?.asImageBitmap()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             null
         }
-        cacheKey = Triple(path, stamp, maxDim)
-        cacheValue = bitmap
+        // null 也缓存：避免坏图每次重组重复解码
+        decodeCache.put(key, bitmap)
         bitmap
+    }
+
+    /** 按背景文件本身解码（相对/绝对统一入口）。 */
+    suspend fun decodeBackground(context: Context, maxDim: Int): ImageBitmap? {
+        val stored = runCatching {
+            // 直接按规范路径读，避免再走 DataStore
+            if (backgroundFile(context).exists()) RELATIVE_PATH else null
+        }.getOrNull()
+        return decode(context, stored, maxDim)
     }
 
     /** Delete the background file and drop the cache. */

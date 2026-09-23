@@ -2,6 +2,7 @@ package com.example.diary
 
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -68,6 +69,9 @@ class MainActivity : ComponentActivity() {
             ColorDrawable(if (startDark) Color.BLACK else Color.parseColor("#FBFDF9"))
         )
 
+        // Notification deep-link: TodoNotificationHelper puts open_todo_id here.
+        val openTodoId = intent.getLongExtra("open_todo_id", -1L).takeIf { it > 0 }
+
         setContent {
             // collectAsStateWithLifecycle suspends collection when the activity
             // is in the background (saves a tiny bit of DataStore churn) and
@@ -78,9 +82,17 @@ class MainActivity : ComponentActivity() {
             DiaryTheme(darkTheme = isDarkMode, dynamicColor = dynamicColor) {
                 AppNavigation(
                     themePreferences = themePreferences,
-                    database = database
+                    database = database,
+                    initialOpenTodoId = openTodoId
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // Re-delivered notification while activity is alive (singleTop not set,
+        // but CLEAR_TASK usually recreates — keep this as a safety net).
+        setIntent(intent)
     }
 }

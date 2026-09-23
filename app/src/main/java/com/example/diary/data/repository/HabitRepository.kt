@@ -65,6 +65,9 @@ class HabitRepository(private val habitDao: HabitDao) {
     suspend fun getDailyStats(yearMonth: String): List<DailyStat> =
         habitDao.getDailyStats(yearMonth)
 
-    suspend fun getCheckInDates(habitId: Long, yearMonth: String): List<String> =
-        habitDao.getCheckInDates(habitId, yearMonth)
+    /** 月历一次取全月打卡，按习惯分组（替代每习惯一条 SQL 的 N+1）。 */
+    suspend fun getCheckInsForMonth(yearMonth: String): Map<Long, Set<LocalDate>> =
+        habitDao.getCheckInsForMonth(yearMonth)
+            .groupBy { it.habitId }
+            .mapValues { (_, rows) -> rows.map { LocalDate.parse(it.date) }.toSet() }
 }

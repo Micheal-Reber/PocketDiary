@@ -38,7 +38,7 @@ class ThemePreferences(context: Context) {
             appContext.dataStore.edit { preferences ->
                 preferences[EDITOR_PREVIEW_KEY] = enabled
             }
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
             Log.w("ThemePreferences", "Failed to persist editor preview toggle", e)
         }
     }
@@ -57,12 +57,12 @@ class ThemePreferences(context: Context) {
             appContext.dataStore.edit { preferences ->
                 preferences[DYNAMIC_COLOR_KEY] = enabled
             }
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
             Log.w("ThemePreferences", "Failed to persist dynamic color", e)
         }
     }
 
-    /** Absolute path of the user-chosen diary list background image, or null. */
+    /** filesDir-relative path of the user-chosen diary list background image, or null. */
     val diaryBackgroundPath: Flow<String?> = appContext.dataStore.data.map { preferences ->
         preferences[DIARY_BACKGROUND_KEY]
     }
@@ -76,7 +76,7 @@ class ThemePreferences(context: Context) {
             appContext.dataStore.edit { preferences ->
                 preferences[DARK_MODE_KEY] = enabled
             }
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
             Log.w("ThemePreferences", "Failed to persist dark mode", e)
         }
     }
@@ -87,7 +87,7 @@ class ThemePreferences(context: Context) {
                 if (path == null) preferences.remove(DIARY_BACKGROUND_KEY)
                 else preferences[DIARY_BACKGROUND_KEY] = path
             }
-        } catch (e: Exception) {
+        } catch (e: java.io.IOException) {
             Log.w("ThemePreferences", "Failed to persist diary background", e)
         }
     }

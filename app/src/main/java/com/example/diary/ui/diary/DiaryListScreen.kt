@@ -2,34 +2,26 @@ package com.example.diary.ui.diary
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.LocationOn
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,10 +29,12 @@ import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.DiaryRepository
+import com.example.diary.ui.components.SearchTextField
+import com.example.diary.ui.components.SearchToggleButton
+import com.example.diary.ui.components.SwipeDeleteCard
 import com.example.diary.ui.editor.markdownToPlainText
 import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -51,24 +45,31 @@ fun DiaryListScreen(
     onEditDiary: (String) -> Unit
 ) {
     // Full-text search — state survives rotation; closing the field clears
-    // the query. The observed flow is swapped only when the query changes.
+    // the query. The observed flow is swapped only when the debounced query
+    // changes (avoids a DB round-trip per keystroke).
     var searchActive by rememberSaveable { mutableStateOf(false) }
     var searchQuery by rememberSaveable { mutableStateOf("") }
+    var debouncedQuery by rememberSaveable { mutableStateOf("") }
     val searchFocusRequester = remember { FocusRequester() }
     LaunchedEffect(searchActive) {
         if (searchActive) searchFocusRequester.requestFocus()
     }
-    val entriesFlow = remember(searchQuery) {
-        if (searchQuery.isBlank()) diaryRepository.getAllEntries()
-        else diaryRepository.searchEntries(searchQuery.trim())
+    LaunchedEffect(searchQuery) {
+        kotlinx.coroutines.delay(250)
+        debouncedQuery = searchQuery.trim()
+    }
+    val entriesFlow = remember(debouncedQuery) {
+        if (debouncedQuery.isBlank()) diaryRepository.getAllEntries()
+        else diaryRepository.searchEntries(debouncedQuery)
     }
     val entries by entriesFlow.collectAsState(initial = emptyList())
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val bgPath by themePreferences.diaryBackgroundPath.collectAsStateWithLifecycle(initialValue = null)
     // Decode once per path change, downscaled — raw camera photos are far too
     // large to decode at full resolution just to crop-fill a phone screen.
     val bgBitmap by produceState<ImageBitmap?>(initialValue = null, bgPath) {
-        value = BackgroundImageStore.decode(bgPath, maxDim = 1600)
+        value = BackgroundImageStore.decode(context, bgPath, maxDim = 1600)
     }
     val hasCustomBg = bgBitmap != null
 
@@ -90,15 +91,14 @@ fun DiaryListScreen(
                 TopAppBar(
                     title = { Text("日记", fontWeight = FontWeight.Bold) },
                     actions = {
-                        IconButton(onClick = {
-                            searchActive = !searchActive
-                            if (!searchActive) searchQuery = ""
-                        }) {
-                            Icon(
-                                if (searchActive) Icons.Default.Close else Icons.Default.Search,
-                                contentDescription = if (searchActive) "关闭搜索" else "搜索日记"
-                            )
-                        }
+                        SearchToggleButton(
+                            searchActive = searchActive,
+                            contentDescriptionBase = "日记",
+                            onToggle = {
+                                searchActive = !searchActive
+                                if (!searchActive) searchQuery = ""
+                            }
+                        )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = if (hasCustomBg) Color.Transparent else MaterialTheme.colorScheme.surface
@@ -114,35 +114,11 @@ fun DiaryListScreen(
         ) { padding ->
             Column(Modifier.fillMaxSize().padding(padding)) {
                 if (searchActive) {
-                    TextField(
+                    SearchTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("搜索日记内容...", color = MaterialTheme.colorScheme.outline) },
-                        leadingIcon = {
-                            Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                        },
-                        trailingIcon = {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { searchQuery = "" }) {
-                                    Icon(Icons.Default.Close, "清空", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-                            }
-                        },
-                        singleLine = true,
-                        shape = MaterialTheme.shapes.small,
-                        colors = TextFieldDefaults.colors(
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            cursorColor = MaterialTheme.colorScheme.primary,
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = Spacing.l, vertical = Spacing.xs)
-                            .focusRequester(searchFocusRequester)
+                        placeholder = "搜索日记内容...",
+                        focusRequester = searchFocusRequester
                     )
                 }
 
@@ -170,11 +146,14 @@ fun DiaryListScreen(
                 // Group by calendar month (yyyy-MM); each new month gets a
                 // big-number divider, like the reference design. groupBy keeps
                 // encounter order, so groups run newest → oldest.
-                val displayItems = entries.groupBy { it.date.take(7) }
-                    .flatMap { (_, monthEntries) ->
-                        listOf<DisplayItem>(DisplayItem.Header(monthEntries.first().date.take(7))) +
-                            monthEntries.map { DisplayItem.Entry(it) }
-                    }
+                // remember: 只在 entries 变化时重建分组，避免每次重组 O(n)
+                val displayItems = remember(entries) {
+                    entries.groupBy { it.date.take(7) }
+                        .flatMap { (_, monthEntries) ->
+                            listOf<DisplayItem>(DisplayItem.Header(monthEntries.first().date.take(7))) +
+                                monthEntries.map { DisplayItem.Entry(it) }
+                        }
+                }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(Spacing.l),
@@ -210,95 +189,46 @@ fun DiaryListScreen(
 
 @Composable
 private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Unit) {
-    var showDeleteConfirm by remember { mutableStateOf(false) }
-    var offsetX by remember { mutableStateOf(0f) }
-    val deleteThreshold = -150f
+    SwipeDeleteCard(
+        onClick = onClick,
+        onDelete = onDelete,
+        confirmTitle = "删除日记",
+        confirmMessage = "确定要删除这篇日记吗？"
+    ) {
+        Column(modifier = Modifier.padding(Spacing.xl)) {
+            // Heading is always the entry's date; mood rides on the right.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text(entry.date, style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (!entry.mood.isNullOrEmpty()) Text(entry.mood, style = MaterialTheme.typography.titleLarge)
+            }
 
-    Box(modifier = Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)) {
-        // Red swipe-delete background — matchParentSize sizes it to the Box's
-        // final dimensions (dictated by the Card below), so the red always
-        // covers the entire card, edge to edge.
-        Box(
-            Modifier
-                .matchParentSize()
-                .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.medium)
-                .padding(end = Spacing.xl),
-            contentAlignment = Alignment.CenterEnd
-        ) {
-            Icon(Icons.Default.Delete, "删除", tint = MaterialTheme.colorScheme.onErrorContainer, modifier = Modifier.size(28.dp))
-        }
+            Spacer(Modifier.height(8.dp))
 
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .offset { IntOffset(offsetX.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (offsetX < deleteThreshold) showDeleteConfirm = true
-                            offsetX = 0f
-                        },
-                        onHorizontalDrag = { _, dragAmount ->
-                            offsetX = (offsetX + dragAmount).coerceIn(-250f, 0f)
-                        }
-                    )
-                }
-                .clickable { onClick() },
-            shape = MaterialTheme.shapes.medium,
-            // Flat tonal card (ReadYou-style): layering via container color,
-            // not shadows. surfaceContainerLow sits one step above the page.
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(modifier = Modifier.padding(Spacing.xl)) {
-                // Heading is always the entry's date; mood rides on the right.
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text(entry.date, style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (!entry.mood.isNullOrEmpty()) Text(entry.mood, style = MaterialTheme.typography.titleLarge)
-                }
+            // Fixed-size content preview: exactly one line, ellipsized.
+            // Markdown syntax is stripped so **bold** reads as bold words.
+            Text(markdownToPlainText(entry.content), style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
-                Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(10.dp))
 
-                // Fixed-size content preview: exactly one line, ellipsized.
-                // Markdown syntax is stripped so **bold** reads as bold words.
-                Text(markdownToPlainText(entry.content), style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
-
-                Spacer(Modifier.height(10.dp))
-
-                // Weather + location pinned to the card's bottom-left; the row
-                // keeps its height even when both are empty so every card is
-                // the same size.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.heightIn(min = 18.dp)
-                ) {
-                    Text(entry.weather ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    if (!entry.locationName.isNullOrEmpty()) {
-                        if (!entry.weather.isNullOrEmpty()) Spacer(Modifier.width(8.dp))
-                        Icon(Icons.Default.LocationOn, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.outline)
-                        Spacer(Modifier.width(2.dp))
-                        Text(entry.locationName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
+            // Weather + location pinned to the card's bottom-left; the row
+            // keeps its height even when both are empty so every card is
+            // the same size.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.heightIn(min = 18.dp)
+            ) {
+                Text(entry.weather ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (!entry.locationName.isNullOrEmpty()) {
+                    if (!entry.weather.isNullOrEmpty()) Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Default.LocationOn, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.outline)
+                    Spacer(Modifier.width(2.dp))
+                    Text(entry.locationName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
-    }
-
-    if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("删除日记") },
-            text = { Text("确定要删除这篇日记吗？") },
-            confirmButton = {
-                TextButton(onClick = { onDelete(); showDeleteConfirm = false },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("删除") }
-            },
-            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") } }
-        )
     }
 }
 

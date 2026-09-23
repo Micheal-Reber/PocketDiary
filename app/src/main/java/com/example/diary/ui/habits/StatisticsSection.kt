@@ -31,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -154,15 +155,18 @@ internal fun StatisticsSection(
                 StatView.WEEKLY -> {
                     // Fixed rolling window: the last 10 Monday-based weeks,
                     // bucket 10 being the current week — no navigation.
-                    val byHabit = recentWeeklyStats.groupBy { it.habitId }
-                    val lines = habits.filter { it.id in selectedHabitIds }.map { habit ->
-                        val group = byHabit[habit.id].orEmpty()
-                        val values = (1..10).map { week ->
-                            group.filter { it.weekIndex == week }.sumOf { it.count }.toFloat()
+                    // remember: 图表序列只在输入变化时重建，避免每次重组 O(habits×点)
+                    val lines = remember(recentWeeklyStats, habits, selectedHabitIds) {
+                        val byHabit = recentWeeklyStats.groupBy { it.habitId }
+                        habits.filter { it.id in selectedHabitIds }.map { habit ->
+                            val group = byHabit[habit.id].orEmpty()
+                            val values = (1..10).map { week ->
+                                group.filter { it.weekIndex == week }.sumOf { it.count }.toFloat()
+                            }
+                            ChartLine("${habit.emoji} ${habit.name}", habitColor(habit.colorIndex), values)
                         }
-                        ChartLine("${habit.emoji} ${habit.name}", habitColor(habit.colorIndex), values)
                     }
-                    val xLabels = (1..9).map { "第${it}周" } + "本周"
+                    val xLabels = remember { (1..9).map { "第${it}周" } + "本周" }
                     LineChart(lines, xLabels, highlightXIndex = 9)
 
                     Text(
@@ -179,15 +183,17 @@ internal fun StatisticsSection(
                     val isCurrentMonth = selectedStatMonth == YearMonth.now()
                     val today = LocalDate.now().dayOfMonth
 
-                    val byHabit = dailyStats.groupBy { it.habitId }
-                    val lines = habits.filter { it.id in selectedHabitIds }.map { habit ->
-                        val group = byHabit[habit.id].orEmpty()
-                        val values = (1..daysInMonth).map { day ->
-                            group.filter { it.day == day }.sumOf { it.count }.toFloat()
+                    val lines = remember(dailyStats, habits, selectedHabitIds, daysInMonth) {
+                        val byHabit = dailyStats.groupBy { it.habitId }
+                        habits.filter { it.id in selectedHabitIds }.map { habit ->
+                            val group = byHabit[habit.id].orEmpty()
+                            val values = (1..daysInMonth).map { day ->
+                                group.filter { it.day == day }.sumOf { it.count }.toFloat()
+                            }
+                            ChartLine("${habit.emoji} ${habit.name}", habitColor(habit.colorIndex), values)
                         }
-                        ChartLine("${habit.emoji} ${habit.name}", habitColor(habit.colorIndex), values)
                     }
-                    val xLabels = (1..daysInMonth).map { "${it}日" }
+                    val xLabels = remember(daysInMonth) { (1..daysInMonth).map { "${it}日" } }
 
                     LineChart(
                         lines, xLabels,
@@ -202,15 +208,19 @@ internal fun StatisticsSection(
                     val isCurrentYear = selectedYear == LocalDate.now().year
                     val currentMonth = LocalDate.now().monthValue
 
-                    val byHabit = monthlyStats.groupBy { it.habitId }
-                    val lines = habits.filter { it.id in selectedHabitIds }.map { habit ->
-                        val group = byHabit[habit.id].orEmpty()
-                        val values = (1..12).map { month ->
-                            group.filter { it.month == month }.sumOf { it.count }.toFloat()
+                    val lines = remember(monthlyStats, habits, selectedHabitIds) {
+                        val byHabit = monthlyStats.groupBy { it.habitId }
+                        habits.filter { it.id in selectedHabitIds }.map { habit ->
+                            val group = byHabit[habit.id].orEmpty()
+                            val values = (1..12).map { month ->
+                                group.filter { it.month == month }.sumOf { it.count }.toFloat()
+                            }
+                            ChartLine("${habit.emoji} ${habit.name}", habitColor(habit.colorIndex), values)
                         }
-                        ChartLine("${habit.emoji} ${habit.name}", habitColor(habit.colorIndex), values)
                     }
-                    val xLabels = (1..11).map { "${it}月" } + listOf(if (isCurrentYear) "本月" else "12月")
+                    val xLabels = remember(isCurrentYear) {
+                        (1..11).map { "${it}月" } + listOf(if (isCurrentYear) "本月" else "12月")
+                    }
 
                     LineChart(
                         lines, xLabels,
@@ -224,13 +234,15 @@ internal fun StatisticsSection(
         }
 
         // Period totals per habit + selection checkboxes driving the chart.
-        val totalsByHabit: Map<Long, Int> = when (statView) {
-            StatView.WEEKLY -> recentWeeklyStats.groupBy { it.habitId }
-                .mapValues { (_, list) -> list.sumOf { it.count } }
-            StatView.MONTHLY -> dailyStats.groupBy { it.habitId }
-                .mapValues { (_, list) -> list.sumOf { it.count } }
-            StatView.YEARLY -> monthlyStats.groupBy { it.habitId }
-                .mapValues { (_, list) -> list.sumOf { it.count } }
+        val totalsByHabit: Map<Long, Int> = remember(statView, recentWeeklyStats, dailyStats, monthlyStats) {
+            when (statView) {
+                StatView.WEEKLY -> recentWeeklyStats.groupBy { it.habitId }
+                    .mapValues { (_, list) -> list.sumOf { it.count } }
+                StatView.MONTHLY -> dailyStats.groupBy { it.habitId }
+                    .mapValues { (_, list) -> list.sumOf { it.count } }
+                StatView.YEARLY -> monthlyStats.groupBy { it.habitId }
+                    .mapValues { (_, list) -> list.sumOf { it.count } }
+            }
         }
         HabitChecklist(
             habits = habits,

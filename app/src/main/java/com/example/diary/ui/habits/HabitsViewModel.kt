@@ -227,12 +227,11 @@ class HabitsViewModel(private val habitRepository: HabitRepository) : ViewModel(
         val prefix = _currentMonth.value.toString() // yyyy-MM
         val allHabits = habits.value
         if (allHabits.isNotEmpty()) {
-            val map = mutableMapOf<Long, Set<LocalDate>>()
-            for (habit in allHabits) {
-                val dates = habitRepository.getCheckInDates(habit.id, prefix)
-                map[habit.id] = dates.map { LocalDate.parse(it) }.toSet()
+            // 单查询按月取全量，再 groupBy——避免每习惯一条 SQL（N+1）
+            val byHabit = habitRepository.getCheckInsForMonth(prefix)
+            _calendarCheckInDates.value = allHabits.associate { habit ->
+                habit.id to byHabit[habit.id].orEmpty()
             }
-            _calendarCheckInDates.value = map
         } else {
             _calendarCheckInDates.value = emptyMap()
         }

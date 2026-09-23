@@ -4,7 +4,6 @@
     <!-- Todo reminder -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
-    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <!-- Network for weather lookup -->
@@ -21,6 +20,7 @@
         android:label="Pocket Diary"
         android:supportsRtl="true"
         android:theme="@style/Theme.PocketDiary">
+        
         <activity
             android:name=".MainActivity"
             android:theme="@style/Theme.PocketDiary.Starting.Dark"
@@ -43,9 +43,13 @@
         </provider>
 
         <receiver android:name=".receiver.TodoAlarmReceiver" android:exported="false" />
+        <!-- 开机 / 应用更新 / 改系统时间/时区 → 全量重排提醒（僵尸闹钟随旧进程消失） -->
         <receiver android:name=".receiver.BootCompletedReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
     </application>

@@ -8,7 +8,6 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -46,11 +45,13 @@ import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.repository.DiaryRepository
 import com.example.diary.data.repository.SaveResult
 import com.example.diary.data.preferences.ThemePreferences
+import com.example.diary.ui.components.ConfirmDialog
+import com.example.diary.ui.components.PresetChipRow
+import com.example.diary.ui.components.UtcDatePickerDialog
 import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.time.LocalDate
@@ -83,11 +84,16 @@ fun DiaryEditorScreen(
     // Markdown preview toggle — editing is raw text (markdown IS text);
     // preview renders the subset renderer. The choice PERSISTS across editor
     // sessions via DataStore: turn preview off, exit, come back → still off.
-    // Seeded with a one-shot sync read (same pattern as MainActivity's theme
-    // read) so the first frame already shows the remembered state, no flash.
+    // Async load (LaunchedEffect) — never runBlocking DataStore on the main
+    // thread during composition; default false until the stored value arrives.
     val themePreferences = remember { ThemePreferences(context) }
-    var showPreview by remember {
-        mutableStateOf(runBlocking { themePreferences.editorPreview.first() })
+    var showPreview by rememberSaveable { mutableStateOf(false) }
+    var previewLoaded by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!previewLoaded) {
+            showPreview = themePreferences.editorPreview.first()
+            previewLoaded = true
+        }
     }
     var showDatePicker by rememberSaveable { mutableStateOf(false) }
     // Tracks the entry as it was last loaded/saved, so we can detect unsaved
@@ -207,6 +213,8 @@ fun DiaryEditorScreen(
                                 .distinct().joinToString(" ")
                                 .ifEmpty { addr.getAddressLine(0) ?: "" }
                         }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         locationName = "%.4f, %.4f".format(loc.latitude, loc.longitude)
                     }
@@ -440,35 +448,19 @@ fun DiaryEditorScreen(
             }
             Spacer(Modifier.height(Spacing.s))
 
-            // Mood selector (scrollable like weather)
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = Spacing.xs).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.s)
-            ) {
-                moodPresets.forEachIndexed { index, icon ->
-                    val selected = mood == icon
-                    FilterChip(
-                        selected = selected,
-                        onClick = { mood = if (selected) null else icon },
-                        label = { Text("$icon ${moodLabels[index]}", style = MaterialTheme.typography.labelSmall) }
-                    )
-                }
-            }
-
-            // Weather selector
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = Spacing.xs).horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(Spacing.s)
-            ) {
-                weatherPresets.forEachIndexed { index, icon ->
-                    val selected = weather == icon
-                    FilterChip(
-                        selected = selected,
-                        onClick = { weather = if (selected) null else icon },
-                        label = { Text("$icon ${weatherLabels[index]}", style = MaterialTheme.typography.labelSmall) }
-                    )
-                }
-            }
+            // Mood / weather selectors (同构 chip 行，抽共享 PresetChipRow)
+            PresetChipRow(
+                values = moodPresets,
+                labels = moodLabels,
+                selected = mood,
+                onToggle = { mood = it }
+            )
+            PresetChipRow(
+                values = weatherPresets,
+                labels = weatherLabels,
+                selected = weather,
+                onToggle = { weather = it }
+            )
 
             // Location / weather row (only shown when we have a fix)
             if (lat != null && lon != null) {
@@ -551,7 +543,7 @@ fun DiaryEditorScreen(
                         items(photoNames) { name ->
                             val thumb by produceState<ImageBitmap?>(initialValue = null, name) {
                                 val f = DiaryPhotoStore.resolve(context, existingId, name)
-                                value = f?.let { BackgroundImageStore.decode(it.absolutePath, maxDim = 400) }
+                                value = f?.let { BackgroundImageStore.decode(context, it.absolutePath, maxDim = 400) }
                             }
                             Box(
                                 Modifier
@@ -571,7 +563,7 @@ fun DiaryEditorScreen(
                                         scope.launch {
                                             DiaryPhotoStore.deletePhoto(context, existingId, name)
                                         }
-                                        content = content.replaceFirst("[img:$name]", "")
+                                        content = content.replace("[img:$name]", "")
                                     },
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
@@ -594,89 +586,53 @@ fun DiaryEditorScreen(
     }
 
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = try {
-                LocalDate.parse(dateStr).toEpochDay() * 86400000L
-            } catch (e: Exception) { null }
+        UtcDatePickerDialog(
+            initialDate = try { LocalDate.parse(dateStr) } catch (e: Exception) { null },
+            onDismiss = { showDatePicker = false },
+            onPick = { picked ->
+                showDatePicker = false
+                val newDate = picked.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                if (newDate != dateStr) {
+                    // Re-date this entry. Takes effect on save; collision is
+                    // surfaced by the repository at that point.
+                    dateStr = newDate
+                }
+            }
         )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(onClick = {
-                    val newDate = datePickerState.selectedDateMillis?.let { millis ->
-                        // selectedDateMillis from DatePicker is in UTC; using systemDefault()
-                        // can shift the date by ±1 day across DST or far-from-UTC timezones.
-                        java.time.Instant.ofEpochMilli(millis)
-                            .atZone(java.time.ZoneOffset.UTC)
-                            .toLocalDate()
-                            .format(DateTimeFormatter.ISO_LOCAL_DATE)
-                    }
-                    showDatePicker = false
-                    if (newDate != null && newDate != dateStr) {
-                        // Re-date this entry. Takes effect on save; collision is
-                        // surfaced by the repository at that point.
-                        dateStr = newDate
-                    }
-                }) { Text("确定") }
-            },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("取消") } }
-        ) {
-            DatePicker(state = datePickerState)
-        }
     }
 
     if (showDeleteDialog) {
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("删除日记") },
-            text = { Text("确定要删除这篇日记吗？此操作不可撤销。") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        scope.launch {
-                            existingId?.let { id ->
-                                diaryRepository.deleteEntry(id)
-                                // Cascade: the entry's photo folder goes with it.
-                                DiaryPhotoStore.deleteEntryDir(context, id)
-                            }
-                            showDeleteDialog = false
-                            onBack()
-                        }
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) {
-                    Text("删除")
+        ConfirmDialog(
+            title = "删除日记",
+            message = "确定要删除这篇日记吗？此操作不可撤销。",
+            onConfirm = {
+                showDeleteDialog = false
+                scope.launch {
+                    existingId?.let { id ->
+                        diaryRepository.deleteEntry(id)
+                        // Cascade: the entry's photo folder goes with it.
+                        DiaryPhotoStore.deleteEntryDir(context, id)
+                    }
+                    onBack()
                 }
             },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) {
-                    Text("取消")
-                }
-            }
+            onDismiss = { showDeleteDialog = false }
         )
     }
 
     if (showDiscardChangesDialog) {
-        AlertDialog(
-            onDismissRequest = { showDiscardChangesDialog = false },
-            title = { Text("放弃编辑？") },
-            text = { Text("当前修改尚未保存,是否放弃并退出？") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showDiscardChangesDialog = false
-                        // Unsaved exit: tmp photo picks are orphans — wipe them.
-                        scope.launch { DiaryPhotoStore.clearTmp(context) }
-                        onBack()
-                    },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("放弃") }
+        ConfirmDialog(
+            title = "放弃编辑？",
+            message = "当前修改尚未保存,是否放弃并退出？",
+            confirmText = "放弃",
+            dismissText = "继续编辑",
+            onConfirm = {
+                showDiscardChangesDialog = false
+                // Unsaved exit: tmp photo picks are orphans — wipe them.
+                scope.launch { DiaryPhotoStore.clearTmp(context) }
+                onBack()
             },
-            dismissButton = {
-                TextButton(onClick = { showDiscardChangesDialog = false }) {
-                    Text("继续编辑")
-                }
-            }
+            onDismiss = { showDiscardChangesDialog = false }
         )
     }
 }

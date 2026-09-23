@@ -13,10 +13,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.outlined.HourglassEmpty
 import androidx.compose.material3.*
@@ -26,7 +24,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,7 +34,11 @@ import com.example.diary.data.countdown.DateMath.CountState
 import com.example.diary.data.image.EventImageStore
 import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.repository.CountdownRepository
+import com.example.diary.ui.components.ConfirmDialog
+import com.example.diary.ui.components.SearchTextField
+import com.example.diary.ui.components.SearchToggleButton
 import com.example.diary.ui.theme.Spacing
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -58,7 +59,8 @@ fun CountdownListScreen(
     val searchFocusRequester = remember { FocusRequester() }
     LaunchedEffect(searchActive) { if (searchActive) searchFocusRequester.requestFocus() }
 
-    val allEvents by repository.observeAll().collectAsState(initial = emptyList())
+    val allEvents by remember { repository.observeAll() }
+        .collectAsStateWithLifecycle(initialValue = emptyList())
     val today = remember { LocalDate.now() }
     val events = remember(allEvents, searchQuery) {
         if (searchQuery.isBlank()) allEvents
@@ -79,15 +81,14 @@ fun CountdownListScreen(
                             contentDescription = if (gridMode) "列表视图" else "网格视图"
                         )
                     }
-                    IconButton(onClick = {
-                        searchActive = !searchActive
-                        if (!searchActive) searchQuery = ""
-                    }) {
-                        Icon(
-                            if (searchActive) Icons.Default.Close else Icons.Default.Search,
-                            contentDescription = if (searchActive) "关闭搜索" else "搜索事件"
-                        )
-                    }
+                    SearchToggleButton(
+                        searchActive = searchActive,
+                        contentDescriptionBase = "事件",
+                        onToggle = {
+                            searchActive = !searchActive
+                            if (!searchActive) searchQuery = ""
+                        }
+                    )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
@@ -105,35 +106,11 @@ fun CountdownListScreen(
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (searchActive) {
-                TextField(
+                SearchTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("搜索事件名称...", color = MaterialTheme.colorScheme.outline) },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotEmpty()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Close, "清空", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = MaterialTheme.shapes.small,
-                    colors = TextFieldDefaults.colors(
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        cursorColor = MaterialTheme.colorScheme.primary,
-                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = Spacing.l, vertical = Spacing.xs)
-                        .focusRequester(searchFocusRequester)
+                    placeholder = "搜索事件名称...",
+                    focusRequester = searchFocusRequester
                 )
             }
 
@@ -154,6 +131,7 @@ fun CountdownListScreen(
                             onDelete = {
                                 scope.launch {
                                     EventImageStore.clear(context, event.id)
+                                    clearBlurCache(event.id)
                                     repository.delete(event.id)
                                 }
                             }
@@ -173,6 +151,7 @@ fun CountdownListScreen(
                                 onDelete = {
                                     scope.launch {
                                         EventImageStore.clear(context, event.id)
+                                        clearBlurCache(event.id)
                                         repository.delete(event.id)
                                     }
                                 }
@@ -264,18 +243,11 @@ private fun EventCard(
     }
 
     if (showDeleteConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("删除「${event.name}」？") },
-            text = { Text("该事件的背景图也会一并删除，不可恢复。") },
-            confirmButton = {
-                TextButton(onClick = { showDeleteConfirm = false; onDelete() }) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
-            }
+        ConfirmDialog(
+            title = "删除「${event.name}」？",
+            message = "该事件的背景图也会一并删除，不可恢复。",
+            onConfirm = { showDeleteConfirm = false; onDelete() },
+            onDismiss = { showDeleteConfirm = false }
         )
     }
 }

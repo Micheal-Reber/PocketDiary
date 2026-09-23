@@ -2,129 +2,112 @@ package com.example.diary.data.backup
 
 import android.content.Context
 import android.net.Uri
-import android.os.ParcelFileDescriptor
+import androidx.room.withTransaction
+import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.local.AppDatabase
-import com.example.diary.data.local.CountdownEvent
-import com.example.diary.data.local.DiaryEntry
-import com.example.diary.data.local.Habit
-import com.example.diary.data.local.HabitRecord
 import com.example.diary.data.preferences.ThemePreferences
-import com.example.diary.data.repository.CountdownRepository
-import com.example.diary.data.repository.DiaryRepository
-import com.example.diary.data.repository.HabitRepository
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 /**
  * Service for exporting all user data to a zip file for phone migration.
+ * Zip layout: data.json (everything incl. preferences) + image files at their
+ * filesDir-relative paths (same paths listed in imageFiles).
+ *
+ * Writes to a cacheDir temp file first so a mid-write failure never leaves a
+ * half-written zip at the SAF destination. Images are streamed (CRC pass then
+ * write pass) instead of loading whole files into memory.
  */
 class ExportService(
     private val context: Context,
-    private val diaryRepository: DiaryRepository,
-    private val habitRepository: HabitRepository,
-    private val countdownRepository: CountdownRepository,
     private val themePreferences: ThemePreferences,
     private val database: AppDatabase,
 ) {
 
-    private val json = Json { prettyPrint = true }
+    private val json = Json {
+        prettyPrint = true
+        encodeDefaults = true
+    }
 
     /**
      * Exports all user data to a zip file.
      * @param outputUri The URI to write the zip file to (via SAF)
-     * @return Result containing the output file on success, or exception on failure
      */
     suspend fun export(outputUri: Uri): Result<Uri> = withContext(Dispatchers.IO) {
+        val tmpZip = File(context.cacheDir, "export_tmp.zip")
         try {
-            // Collect all data
             val backupData = collectBackupData()
-
-            // Serialize to JSON strings
             val dataJson = json.encodeToString(backupData)
-            val preferencesJson = json.encodeToString(backupData.preferences)
 
-            // Create zip file via SAF
+            // Build complete zip in cache first.
+            FileOutputStream(tmpZip).use { outputStream ->
+                ZipOutputStream(outputStream).use { zip ->
+                    addStringToZip(zip, "data.json", dataJson)
+                    addImagesToZip(zip, backupData.imageFiles)
+                }
+            }
+
+            // Copy to SAF destination only after the zip is fully written.
             val parcelFileDescriptor = context.contentResolver.openFileDescriptor(outputUri, "w")
                 ?: return@withContext Result.failure(IllegalStateException("Failed to open output URI"))
-
-            val outputStream = FileOutputStream(parcelFileDescriptor.fileDescriptor)
-            val zipOutputStream = ZipOutputStream(outputStream)
-
-            try {
-                // Add data.json
-                addStringToZip(zipOutputStream, "data.json", dataJson)
-
-                // Add preferences.json
-                addStringToZip(zipOutputStream, "preferences.json", preferencesJson)
-
-                // Add image files
-                addImagesToZip(zipOutputStream, backupData.imageFiles)
-
-            } finally {
-                zipOutputStream.close()
-                parcelFileDescriptor.close()
+            parcelFileDescriptor.use { pfd ->
+                FileOutputStream(pfd.fileDescriptor).use { out ->
+                    tmpZip.inputStream().use { it.copyTo(out) }
+                }
             }
 
             Result.success(outputUri)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            tmpZip.delete()
         }
     }
 
-    /**
-     * Collects all data needed for backup.
-     */
-    private suspend fun collectBackupData(): BackupData {
-        // Get all Room entities
-        val diaryEntries = database.diaryDao().getAllEntries().first()
-        val habits = database.habitDao().getActiveHabits().first()
-        val habitRecords = database.habitDao().getRecordsSince("1970-01-01") // All records
-        val countdownEvents = database.countdownDao().observeAll().first()
-
-        // Get preferences
+    private suspend fun collectBackupData(): BackupData = database.withTransaction {
+        // One-shot suspend queries — collecting Flows inside withTransaction can deadlock.
+        val diaryEntries = database.diaryDao().getAllEntriesOnce()
+        val habits = database.habitDao().getAllHabits()
+        val habitRecords = database.habitDao().getRecordsSince("1970-01-01")
+        val countdownEvents = database.countdownDao().getAllOnce()
+        val todos = database.todoDao().getAll()
         val preferences = collectPreferences()
-
-        // Collect image file info
         val imageFiles = collectImageFiles()
 
-        return BackupData(
+        BackupData(
             diaryEntries = diaryEntries,
             habits = habits,
             habitRecords = habitRecords,
             countdownEvents = countdownEvents,
+            todos = todos,
             preferences = preferences,
             imageFiles = imageFiles,
         )
     }
 
-    /**
-     * Collects all preferences from DataStore.
-     */
     private suspend fun collectPreferences(): PreferencesData {
-        val darkMode = themePreferences.isDarkMode.first()
-        val dynamicColor = themePreferences.dynamicColor.first()
-        val editorPreview = themePreferences.editorPreview.first()
-        val diaryBackgroundPath = themePreferences.diaryBackgroundPath.first()
-
+        // 导出时把绝对路径归一成 filesDir 相对路径，换机导入不悬空
+        val rawPath = themePreferences.diaryBackgroundPath.first()
         return PreferencesData(
-            darkMode = darkMode,
-            diaryBackgroundPath = diaryBackgroundPath,
-            dynamicColor = dynamicColor,
-            editorPreview = editorPreview,
+            darkMode = themePreferences.isDarkMode.first(),
+            diaryBackgroundPath = BackgroundImageStore.normalizeStoredPath(context, rawPath),
+            dynamicColor = themePreferences.dynamicColor.first(),
+            editorPreview = themePreferences.editorPreview.first(),
         )
     }
 
-    /**
-     * Walks the filesDir and collects all image files for backup.
-     */
+    /** Walks filesDir and collects all image files for backup. */
     private fun collectImageFiles(): List<ImageFileInfo> {
         val filesDir = context.filesDir
         val imageFiles = mutableListOf<ImageFileInfo>()
@@ -134,15 +117,15 @@ class ExportService(
         if (diaryPhotosDir.exists()) {
             diaryPhotosDir.walkTopDown().forEach { file ->
                 if (file.isFile && file.extension.lowercase() == "jpg") {
-                    val relativePath = getRelativePath(filesDir, file)
-                    val entryId = extractEntryIdFromDiaryPhotoPath(file)
-                    imageFiles.add(ImageFileInfo(
-                        relativePath = relativePath,
-                        sizeBytes = file.length(),
-                        entityType = "diary_entry",
-                        entityId = entryId,
-                        photoIndex = extractPhotoIndex(file),
-                    ))
+                    imageFiles.add(
+                        ImageFileInfo(
+                            relativePath = getRelativePath(filesDir, file),
+                            sizeBytes = file.length(),
+                            entityType = "diary_entry",
+                            entityId = file.parentFile?.name?.toLongOrNull() ?: 0,
+                            photoIndex = extractPhotoIndex(file),
+                        )
+                    )
                 }
             }
         }
@@ -152,14 +135,14 @@ class ExportService(
         if (countdownBgDir.exists()) {
             countdownBgDir.listFiles()?.forEach { file ->
                 if (file.isFile && file.extension.lowercase() == "jpg") {
-                    val relativePath = getRelativePath(filesDir, file)
-                    val eventId = extractEventIdFromCountdownBgPath(file)
-                    imageFiles.add(ImageFileInfo(
-                        relativePath = relativePath,
-                        sizeBytes = file.length(),
-                        entityType = "countdown_event",
-                        entityId = eventId,
-                    ))
+                    imageFiles.add(
+                        ImageFileInfo(
+                            relativePath = getRelativePath(filesDir, file),
+                            sizeBytes = file.length(),
+                            entityType = "countdown_event",
+                            entityId = file.nameWithoutExtension.substringAfterLast('_').toLongOrNull() ?: 0,
+                        )
+                    )
                 }
             }
         }
@@ -167,44 +150,66 @@ class ExportService(
         // Diary background: filesDir/backgrounds/diary_background.jpg
         val diaryBgFile = File(filesDir, "backgrounds/diary_background.jpg")
         if (diaryBgFile.exists()) {
-            val relativePath = getRelativePath(filesDir, diaryBgFile)
-            imageFiles.add(ImageFileInfo(
-                relativePath = relativePath,
-                sizeBytes = diaryBgFile.length(),
-                entityType = "diary_background",
-                entityId = 0,
-            ))
+            imageFiles.add(
+                ImageFileInfo(
+                    relativePath = getRelativePath(filesDir, diaryBgFile),
+                    sizeBytes = diaryBgFile.length(),
+                    entityType = "diary_background",
+                    entityId = 0,
+                )
+            )
         }
 
         return imageFiles
     }
 
     /**
-     * Adds image files to the zip archive.
+     * Adds image files as STORED (no compression). CRC32/size must be set
+     * before putNextEntry or ZipOutputStream throws — computed via a streaming
+     * first pass so the whole file never sits in memory.
      */
     private fun addImagesToZip(zipOutputStream: ZipOutputStream, imageFiles: List<ImageFileInfo>) {
         val filesDir = context.filesDir
 
         imageFiles.forEach { info ->
+            // Normalize and reject anything outside filesDir
             val sourceFile = File(filesDir, info.relativePath)
-            if (sourceFile.exists()) {
-                val entry = ZipEntry(info.relativePath)
-                // Use STORED (no compression) for images since they're already compressed
-                entry.method = ZipEntry.STORED
-                entry.size = sourceFile.length()
-                zipOutputStream.putNextEntry(entry)
+            if (!sourceFile.isFile) return@forEach
+            val canonicalBase = filesDir.canonicalFile
+            val canonicalSource = sourceFile.canonicalFile
+            if (!canonicalSource.path.startsWith(canonicalBase.path + File.separator)) return@forEach
 
-                FileInputStream(sourceFile).use { input ->
-                    input.copyTo(zipOutputStream)
-                }
-                zipOutputStream.closeEntry()
+            val size = canonicalSource.length()
+            val crcValue = computeCrc32(canonicalSource)
+
+            val entry = ZipEntry(info.relativePath).apply {
+                method = ZipEntry.STORED
+                this.size = size
+                compressedSize = size
+                crc = crcValue
             }
+            zipOutputStream.putNextEntry(entry)
+            FileInputStream(canonicalSource).use { input ->
+                input.copyTo(zipOutputStream)
+            }
+            zipOutputStream.closeEntry()
         }
     }
 
-    /**
-     * Adds a string as a zip entry.
-     */
+    /** Streaming CRC32 so large images never load fully into a ByteArray. */
+    private fun computeCrc32(file: File): Long {
+        val crc = CRC32()
+        FileInputStream(file).use { input ->
+            val buf = ByteArray(8192)
+            while (true) {
+                val n = input.read(buf)
+                if (n < 0) break
+                crc.update(buf, 0, n)
+            }
+        }
+        return crc.value
+    }
+
     private fun addStringToZip(zipOutputStream: ZipOutputStream, entryName: String, content: String) {
         val entry = ZipEntry(entryName)
         entry.method = ZipEntry.DEFLATED
@@ -213,38 +218,16 @@ class ExportService(
         zipOutputStream.closeEntry()
     }
 
-    /**
-     * Gets the relative path of a file from a base directory.
-     */
     private fun getRelativePath(base: File, file: File): String {
         val basePath = base.canonicalPath
         val filePath = file.canonicalPath
         return filePath.substring(basePath.length + 1).replace('\\', '/')
     }
 
-    /**
-     * Extracts entry ID from diary photo path: diary_photos/<entryId>/img_<index>.jpg
-     */
-    private fun extractEntryIdFromDiaryPhotoPath(file: File): Long {
-        val parent = file.parentFile
-        return parent?.name?.toLongOrNull() ?: 0
-    }
-
-    /**
-     * Extracts photo index from filename: img_<index>.jpg
-     */
+    /** photo index from filename: img_<index>.jpg */
     private fun extractPhotoIndex(file: File): Int {
         val name = file.nameWithoutExtension
         val parts = name.split("_")
         return if (parts.size >= 2) parts.last().toIntOrNull() ?: -1 else -1
-    }
-
-    /**
-     * Extracts event ID from countdown background path: bg_<eventId>.jpg
-     */
-    private fun extractEventIdFromCountdownBgPath(file: File): Long {
-        val name = file.nameWithoutExtension
-        val parts = name.split("_")
-        return if (parts.size >= 2) parts.last().toLongOrNull() ?: 0 else 0
     }
 }

@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.diary.data.local.TodoItem
 import com.example.diary.util.DateUtils
+import com.example.diary.ui.theme.Spacing
 import java.time.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -99,6 +100,22 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
             Spacer(Modifier.height(12.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, thickness = 0.5.dp)
             Spacer(Modifier.height(12.dp))
+
+            // 过去时间（非重复）确定时按日历日顺延——明确提示，不再静默 +24h
+            val previewAt = remember(selectedDate, selectedTime) {
+                LocalDateTime.of(selectedDate, selectedTime)
+                    .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            }
+            val willRollOver = previewAt <= System.currentTimeMillis() && repeatRule == TodoItem.REPEAT_NONE
+            if (willRollOver) {
+                Text(
+                    "所选时间已过，确定后将顺延至下一天同一时刻",
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 13.sp,
+                    modifier = Modifier.padding(bottom = Spacing.xs)
+                )
+                Spacer(Modifier.height(8.dp))
+            }
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = { currentMonth = currentMonth.minusMonths(1) }) {
@@ -171,8 +188,15 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
                 ) { Text("取消", fontSize = 16.sp) }
                 Button(
                     onClick = {
-                        val at = LocalDateTime.of(selectedDate, selectedTime).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
-                        val finalAt = if (at <= System.currentTimeMillis() && repeatRule == TodoItem.REPEAT_NONE) at + 24*60*60*1000L else at
+                        val at = LocalDateTime.of(selectedDate, selectedTime)
+                            .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        // 顺延用日历日 +1（DST 安全），非固定 86400000ms
+                        val finalAt = if (at <= System.currentTimeMillis() && repeatRule == TodoItem.REPEAT_NONE) {
+                            LocalDateTime.of(selectedDate, selectedTime).plusDays(1)
+                                .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        } else {
+                            at
+                        }
                         onConfirm(finalAt, repeatRule)
                     },
                     shape = RoundedCornerShape(24.dp),

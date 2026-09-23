@@ -82,7 +82,7 @@ fun DiaryContentView(
                     var fullscreen by remember { mutableStateOf(false) }
                     val bmp by produceState<ImageBitmap?>(initialValue = null, seg.fileName) {
                         val f = DiaryPhotoStore.resolve(context, entryId, seg.fileName)
-                        value = f?.let { BackgroundImageStore.decode(it.absolutePath, maxDim = 1600) }
+                        value = f?.let { BackgroundImageStore.decode(context, it.absolutePath, maxDim = 1600) }
                     }
                     bmp?.let { imageBitmap ->
                         Image(

@@ -146,7 +146,7 @@ object ShareCardRenderer {
         // 1. 解码原图（不降采样，用全分辨率以保证分享图质量）
         val srcFile = EventImageStore.file(context, eventId)
         val photoBmp = if (srcFile.exists()) {
-            BackgroundImageStore.decode(srcFile.absolutePath, maxDim = PHOTO_CARD_WIDTH)?.asAndroidBitmap()
+            BackgroundImageStore.decode(context, srcFile.absolutePath, maxDim = PHOTO_CARD_WIDTH)?.asAndroidBitmap()
         } else null
 
         val bmp = Bitmap.createBitmap(PHOTO_CARD_WIDTH, PHOTO_CARD_HEIGHT, Bitmap.Config.ARGB_8888)

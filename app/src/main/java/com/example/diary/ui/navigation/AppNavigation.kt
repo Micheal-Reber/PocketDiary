@@ -1,6 +1,9 @@
 package com.example.diary.ui.navigation
 
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -62,32 +65,49 @@ sealed class Screen(val route: String, val title: String, val selectedIcon: Imag
 
 val bottomNavItems = listOf(Screen.Diary, Screen.Calendar, Screen.Countdown, Screen.Todo, Screen.Settings)
 
+// 编辑器/倒数日详情页共用的上滑+淡入转场（原先 5 处复制粘贴）
+private val SlideUpEnter: AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.() -> EnterTransition =
+    { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) }
+private val SlideUpPopExit: AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.() -> ExitTransition =
+    { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigation(
     themePreferences: ThemePreferences,
-    database: AppDatabase
+    database: AppDatabase,
+    initialOpenTodoId: Long? = null,
 ) {
     val context = LocalContext.current
     val navController = rememberNavController()
 val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
     val habitRepository = remember { HabitRepository(database.habitDao()) }
     val countdownRepository = remember { CountdownRepository(database.countdownDao()) }
-    val todoRepository = remember { TodoRepository(database.todoDao()) }
-val backupRepository = remember { BackupRepository(
-        context = context,
-        diaryRepository = diaryRepository,
-        habitRepository = habitRepository,
-        countdownRepository = countdownRepository,
-        themePreferences = themePreferences,
-        database = database,
-    ) }
+    val todoRepository = remember { TodoRepository(database.todoDao(), context) }
+    val backupRepository = remember {
+        BackupRepository(
+            context = context,
+            themePreferences = themePreferences,
+            database = database,
+        )
+    }
 
     // Shared between the calendar tab and the statistics screen so both see the
     // same stats state (selected year/month, loaded chart data) without refetch.
     val habitsViewModel: HabitsViewModel = viewModel(factory = HabitsViewModelFactory(habitRepository))
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
+
+    // 通知点进来：读 open_todo_id → 直达待办 Tab（写入方 TodoNotificationHelper.show）
+    LaunchedEffect(initialOpenTodoId) {
+        if (initialOpenTodoId != null && initialOpenTodoId > 0) {
+            navController.navigate(Screen.Todo.route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
 
     val showBottomBar = bottomNavItems.any { screen ->
         currentDestination?.hierarchy?.any { it.route == screen.route } == true
@@ -139,8 +159,8 @@ val backupRepository = remember { BackupRepository(
                     diaryRepository = diaryRepository,
                     themePreferences = themePreferences,
                     onWriteDiary = { date ->
-                        val route = if (date != null) "editor?date=$date" else "editor"
-                        navController.navigate(route)
+                        // 可选参数 route：无日期用空串匹配 editor?date={date}
+                        navController.navigate("editor?date=${date ?: ""}")
                     },
                     onEditDiary = { date -> navController.navigate("editor?date=$date") }
                 )
@@ -162,7 +182,7 @@ val backupRepository = remember { BackupRepository(
                 CountdownListScreen(
                     repository = countdownRepository,
                     onOpenDetail = { id -> navController.navigate("countdown_detail/$id") },
-                    onCreate = { navController.navigate("countdown_edit") }
+                    onCreate = { navController.navigate("countdown_edit?id=0") }
                 )
             }
             composable(
@@ -170,8 +190,8 @@ val backupRepository = remember { BackupRepository(
                 arguments = listOf(navArgument("id") {
                     type = NavType.LongType; defaultValue = 0L
                 }),
-                enterTransition = { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) },
-                popExitTransition = { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
+                enterTransition = SlideUpEnter,
+                popExitTransition = SlideUpPopExit
             ) { backStackEntry ->
                 val id = backStackEntry.arguments?.getLong("id") ?: 0L
                 CountdownEditScreen(
@@ -181,21 +201,10 @@ val backupRepository = remember { BackupRepository(
                 )
             }
             composable(
-                route = "countdown_edit",
-                enterTransition = { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) },
-                popExitTransition = { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
-            ) {
-                CountdownEditScreen(
-                    existingId = null,
-                    repository = countdownRepository,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable(
                 route = "countdown_detail/{id}",
                 arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                enterTransition = { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) },
-                popExitTransition = { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
+                enterTransition = SlideUpEnter,
+                popExitTransition = SlideUpPopExit
             ) { backStackEntry ->
                 val id = backStackEntry.arguments?.getLong("id") ?: 0L
                 CountdownDetailScreen(
@@ -203,7 +212,7 @@ val backupRepository = remember { BackupRepository(
                     repository = countdownRepository,
                     onBack = { navController.popBackStack() },
                     onEdit = { navController.navigate("countdown_edit?id=$id") },
-                    onCreate = { navController.navigate("countdown_edit") }
+                    onCreate = { navController.navigate("countdown_edit?id=0") }
                 )
             }
             composable(Screen.Todo.route) {
@@ -218,23 +227,12 @@ val backupRepository = remember { BackupRepository(
             composable(
                 route = "editor?date={date}",
                 arguments = listOf(navArgument("date") { type = NavType.StringType; defaultValue = "" }),
-                enterTransition = { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) },
-                popExitTransition = { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
+                enterTransition = SlideUpEnter,
+                popExitTransition = SlideUpPopExit
             ) { backStackEntry ->
                 val dateStr = backStackEntry.arguments?.getString("date")?.ifEmpty { null }
                 DiaryEditorScreen(
                     initialDate = dateStr,
-                    diaryRepository = diaryRepository,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable(
-                route = "editor",
-                enterTransition = { slideInVertically(tween(220)) { it / 6 } + fadeIn(tween(220)) },
-                popExitTransition = { slideOutVertically(tween(200)) { it / 6 } + fadeOut(tween(180)) }
-            ) {
-                DiaryEditorScreen(
-                    initialDate = null,
                     diaryRepository = diaryRepository,
                     onBack = { navController.popBackStack() }
                 )
