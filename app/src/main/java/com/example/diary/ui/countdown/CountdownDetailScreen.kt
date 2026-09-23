@@ -185,8 +185,10 @@ private fun ClassicFullscreenContent(
     }
 }
 
-/** 照片卡片内容：3:2 圆角卡 + 模糊背景 + 实时滑杆预览 + 黑白字切换。
- * 无图时：Header(事件色) + Body(TextureLibrary 纹理/渐变) + Footer 三段式框。 */
+/**
+ * 照片卡片内容：三段式——顶=目标名，中=倒数大数字，底=目标日。
+ * 有图：整卡铺照片 + scrim，文字全透明叠加；无图：顶栏事件色 / 底栏浅灰实色带。
+ */
 @Composable
 private fun PhotoCardContent(
     eventId: Long,
@@ -194,7 +196,6 @@ private fun PhotoCardContent(
     blurRadius: Int,
     fontDark: Boolean,
     eventName: String,
-    stateLabel: String,
     bigNumber: String,
     accent: androidx.compose.ui.graphics.Color,
     dateLine: String,
@@ -207,27 +208,24 @@ private fun PhotoCardContent(
     textureIndex: Int = -1
 ) {
     val textColor = if (fontDark) Color.Black else Color.White
-    val scrimAlpha = if (fontDark) 0.15f else 0.25f // 黑字时浅一点，白字时深一点保对比
-    val placeholderBg = if (fontDark) Color(0xFFF2F2F2) else Color(0xFF1E1E1E)
-    val footerBg = if (fontDark) Color(0xFFEAEAEA) else Color(0xFF2B2B2E)
-    val dateColor = if (fontDark) Color(0xFF555555) else Color(0xFFCCCCCC)
-    val extraColor = if (fontDark) Color(0xFF777777) else Color(0xFFAAAAAA)
+    val scrimAlpha = if (fontDark) 0.12f else 0.28f
+    val bodyFallback = if (fontDark) Color(0xFFF7F7F7) else Color(0xFF1A1A1C)
+    val hasPhoto = photoBitmap != null
+    val footerBg = Color(0xFFF0F1F3)
+    val footerTextNoPhoto = Color(0xFF555555)
+    val footerMutedNoPhoto = Color(0xFF777777)
 
-    // 外层全屏容器：纹理始终作为全屏背景，照片仅在卡片内部显示
     Box(Modifier.fillMaxSize()) {
-        // ── 外层背景层：纹理始终渲染，照片卡模式下从卡片四周透出 ──
         when {
             textureIndex in 0 until TEXTURE_COUNT -> TextureBackdrop(textureIndex, accent)
             else -> Box(
                 Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             )
         }
-        // 有图时加一层薄 scrim 提升卡片文字对比度（卡片外的纹理不受影响）
         if (photoBitmap != null) {
             Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.10f)))
         }
 
-        // ── 卡片层：92% 宽，1.38 比例，居中 ──
         Column(
             Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.Center,
@@ -238,12 +236,11 @@ private fun PhotoCardContent(
                 color = Color.Transparent,
                 modifier = Modifier
                     .fillMaxWidth(0.92f)
-                    .aspectRatio(1.38f)
+                    .aspectRatio(1.25f)
                     .padding(vertical = Spacing.l)
             ) {
-                if (photoBitmap != null) {
-                    // 有图：全铺横图 + 模糊 + scrim，文字居中叠加
-                    Box(Modifier.fillMaxSize().clip(MaterialTheme.shapes.large)) {
+                Box(Modifier.fillMaxSize().clip(MaterialTheme.shapes.large)) {
+                    if (photoBitmap != null) {
                         BlurCardImage(
                             bitmap = photoBitmap,
                             radiusDp = blurRadius,
@@ -251,75 +248,100 @@ private fun PhotoCardContent(
                             modifier = Modifier.fillMaxSize()
                         )
                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = scrimAlpha)))
-                        Column(
-                            Modifier.fillMaxSize().padding(Spacing.l),
-                            verticalArrangement = Arrangement.Center,
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(eventName, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = textColor, maxLines = 1)
-                            Spacer(Modifier.height(Spacing.s))
-                            Text(stateLabel, style = MaterialTheme.typography.titleMedium, color = textColor.copy(alpha = 0.9f))
-                            Spacer(Modifier.height(Spacing.m))
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth().padding(vertical = Spacing.xs)) {
-                                Text(bigNumber, fontSize = 82.sp, lineHeight = 94.sp, fontWeight = FontWeight.Black, color = textColor, textAlign = TextAlign.Center, maxLines = 1)
-                            }
-                            if (bigNumber != "今") {
-                                Text("天", style = MaterialTheme.typography.titleLarge, color = textColor.copy(alpha = 0.8f))
-                            }
-                            Spacer(Modifier.height(Spacing.l))
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(dateLine, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = textColor.copy(alpha = 0.85f))
-                                if (!endDate.isNullOrBlank()) {
-                                    Spacer(Modifier.height(Spacing.xs))
-                                    Text("结束 ${endDate}", style = MaterialTheme.typography.bodySmall, color = textColor.copy(alpha = 0.75f))
-                                }
-                                if (!time.isNullOrBlank()) {
-                                    Spacer(Modifier.height(Spacing.xs))
-                                    Text(time!!, style = MaterialTheme.typography.bodySmall, color = textColor.copy(alpha = 0.75f))
-                                }
-                            }
-                        }
+                    } else {
+                        Box(
+                            Modifier.fillMaxSize()
+                                .background(bodyFallback.copy(alpha = 0.78f))
+                        )
                     }
-                } else {
-                    // 无图：三段式框，Body 改为半透明（外层纹理透出）
+
                     Column(Modifier.fillMaxSize()) {
-                        // Header - 事件色
+                        // ── 顶：目标名 ──
                         Box(
-                            Modifier.fillMaxWidth().height(56.dp).background(accent),
+                            Modifier
+                                .fillMaxWidth()
+                                .then(
+                                    if (hasPhoto) Modifier
+                                    else Modifier.background(accent)
+                                )
+                                .padding(horizontal = Spacing.m, vertical = Spacing.m),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(eventName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1, textAlign = TextAlign.Center, modifier = Modifier.padding(horizontal = Spacing.l))
+                            Text(
+                                eventName,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (hasPhoto) textColor else Color.White,
+                                maxLines = 1,
+                                textAlign = TextAlign.Center
+                            )
                         }
-                        // Body - 半透明承载文字（纹理在外层全屏）
+
+                        // ── 中：还有多久大数字 ──
                         Box(
-                            Modifier.weight(1f).fillMaxWidth()
-                                .background(placeholderBg.copy(alpha = 0.72f)),
+                            Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                                Text(stateLabel, style = MaterialTheme.typography.bodyMedium, color = textColor.copy(alpha = 0.85f))
-                                Spacer(Modifier.height(Spacing.s))
-                                Box(contentAlignment = Alignment.Center, modifier = Modifier.padding(horizontal = Spacing.m, vertical = Spacing.xs)) {
-                                    Text(bigNumber, fontSize = 82.sp, lineHeight = 94.sp, fontWeight = FontWeight.Black, color = textColor, textAlign = TextAlign.Center, maxLines = 1)
-                                }
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier.padding(Spacing.l)
+                            ) {
+                                Text(
+                                    bigNumber,
+                                    fontSize = 96.sp,
+                                    lineHeight = 104.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = textColor,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1
+                                )
                                 if (bigNumber != "今") {
-                                    Text("天", style = MaterialTheme.typography.titleSmall, color = textColor.copy(alpha = 0.75f))
+                                    Text(
+                                        "天",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = textColor.copy(alpha = 0.8f)
+                                    )
                                 }
                             }
                         }
-                        // Footer - 日期
+
+                        // ── 底：目标日 ──
                         Box(
-                            Modifier.fillMaxWidth().height(48.dp).background(footerBg),
-                            contentAlignment = Alignment.Center
+                            Modifier
+                                .fillMaxWidth()
+                                .then(
+                                    if (hasPhoto) Modifier
+                                    else Modifier.background(footerBg)
+                                )
                         ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(dateLine, style = MaterialTheme.typography.bodyMedium, color = dateColor, textAlign = TextAlign.Center)
+                            Column(
+                                Modifier.fillMaxWidth().padding(
+                                    horizontal = Spacing.m,
+                                    vertical = Spacing.s
+                                ),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    "目标日: $dateLine",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (hasPhoto) textColor else footerTextNoPhoto,
+                                    textAlign = TextAlign.Center
+                                )
                                 if (!endDate.isNullOrBlank() || !time.isNullOrBlank()) {
                                     val extra = buildList {
                                         if (!endDate.isNullOrBlank()) add("结束 ${endDate}")
                                         if (!time.isNullOrBlank()) add(time!!)
                                     }.joinToString(" · ")
-                                    Text(extra, style = MaterialTheme.typography.bodySmall, color = extraColor)
+                                    Spacer(Modifier.height(2.dp))
+                                    Text(
+                                        extra,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (hasPhoto) textColor.copy(alpha = 0.75f) else footerMutedNoPhoto
+                                    )
                                 }
                             }
                         }
@@ -539,8 +561,7 @@ fun CountdownDetailScreen(
     }
 
     suspend fun renderCard(): File? {
-        val foot = buildList {
-            add("${e.date} · ${weekdayLabel(anchor)}")
+        val extra = buildList {
             if (!e.endDate.isNullOrBlank()) add("结束 ${e.endDate}")
             if (!e.time.isNullOrBlank()) add(e.time)
         }
@@ -550,10 +571,10 @@ fun CountdownDetailScreen(
                 eventId = e.id,
                 eventName = e.name,
                 accentArgb = accent.toArgb(),
-                headline = stateLabel(state),
                 bigNumber = bigNumberText(),
                 unit = if (state is CountState.Today) "" else "天",
-                footLines = foot,
+                dateLine = e.date,
+                extraLines = extra,
                 blurRadius = e.blurRadius,
                 fontDark = e.fontDark
             )
@@ -564,7 +585,10 @@ fun CountdownDetailScreen(
                 headline = stateLabel(state),
                 bigNumber = bigNumberText(),
                 unit = if (state is CountState.Today) "" else "天",
-                footLines = foot,
+                footLines = buildList {
+                    add("${e.date} · ${weekdayLabel(anchor)}")
+                    addAll(extra)
+                },
                 fontDark = e.fontDark
             )
         }
@@ -691,10 +715,9 @@ fun CountdownDetailScreen(
                     blurRadius = blurRadiusPreview,
                     fontDark = fontDarkPreview,
                     eventName = e.name,
-                    stateLabel = stateLabel(state),
                     bigNumber = bigNumberText(),
                     accent = accent,
-                    dateLine = "${e.date} · ${weekdayLabel(anchor)}",
+                    dateLine = e.date,
                     endDate = e.endDate,
                     time = e.time,
                     onBlurChange = { blurRadiusPreview = it },

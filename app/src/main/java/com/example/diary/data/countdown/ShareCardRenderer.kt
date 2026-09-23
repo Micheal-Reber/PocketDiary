@@ -4,13 +4,9 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.DashPathEffect
-import android.graphics.LinearGradient
 import android.graphics.Paint
-import android.graphics.PorterDuff
-import android.graphics.PorterDuffXfermode
 import android.graphics.Rect
 import android.graphics.RectF
-import android.graphics.Shader
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.image.EventImageStore
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -128,22 +124,22 @@ object ShareCardRenderer {
     }
 
     /**
-     * 照片卡风格分享卡片（1080×720）：镜像详情页照片卡外观。
-     * 背景：用户照片 + 模糊 + scrim → 圆角内嵌卡（白/黑字）+ 大数字 + 脚注。
+     * 照片卡风格分享卡片（1080×720）：三段式，镜像详情页 PhotoCardContent——
+     * 顶=目标名，中=倒数大数字，底=目标日。
+     * 有图整卡铺照片（文字全透明叠加）；无图顶栏事件色 / 底栏浅灰实色带。
      */
     suspend fun renderPhotoCard(
         context: android.content.Context,
         eventId: Long,
         eventName: String,
         accentArgb: Int,
-        headline: String,
         bigNumber: String,
         unit: String,
-        footLines: List<String>,
+        dateLine: String,
+        extraLines: List<String>,
         blurRadius: Int,
         fontDark: Boolean
     ): Bitmap = withContext(Dispatchers.IO) {
-        // 1. 解码原图（不降采样，用全分辨率以保证分享图质量）
         val srcFile = EventImageStore.file(context, eventId)
         val photoBmp = if (srcFile.exists()) {
             BackgroundImageStore.decode(context, srcFile.absolutePath, maxDim = PHOTO_CARD_WIDTH)?.asAndroidBitmap()
@@ -152,15 +148,17 @@ object ShareCardRenderer {
         val bmp = Bitmap.createBitmap(PHOTO_CARD_WIDTH, PHOTO_CARD_HEIGHT, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bmp)
 
-        // 背景色（兜底）
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE }
-        canvas.drawRect(0f, 0f, PHOTO_CARD_WIDTH.toFloat(), PHOTO_CARD_HEIGHT.toFloat(), bgPaint)
+        val HEADER_H = 120f
+        val FOOTER_H = 150f
+        val bodyTop = HEADER_H
+        val bodyBottom = PHOTO_CARD_HEIGHT - FOOTER_H
 
-        // 2. 绘制照片背景（如果有）
+        val bodyBg = if (fontDark) Color.rgb(0xF7, 0xF7, 0xF7) else Color.rgb(0x1A, 0x1A, 0x1C)
+        canvas.drawRect(0f, 0f, PHOTO_CARD_WIDTH.toFloat(), PHOTO_CARD_HEIGHT.toFloat(),
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = bodyBg })
+        val hasPhoto = photoBmp != null
         if (photoBmp != null) {
-            val dest = RectF(0f, 0f, PHOTO_CARD_WIDTH.toFloat(), PHOTO_CARD_HEIGHT.toFloat())
             val src = Rect(0, 0, photoBmp.width, photoBmp.height)
-            // Crop 居中绘制
             val scale = maxOf(
                 PHOTO_CARD_WIDTH.toFloat() / src.width(),
                 PHOTO_CARD_HEIGHT.toFloat() / src.height()
@@ -171,101 +169,88 @@ object ShareCardRenderer {
             val top = (PHOTO_CARD_HEIGHT - scaledH) / 2f
             val destCrop = RectF(left, top, left + scaledW, top + scaledH)
             canvas.drawBitmap(photoBmp, src, destCrop, null)
-
-            // 模糊（软件栈模糊，离线）
             if (blurRadius > 0) {
                 val blurred = stackBlurForShare(photoBmp, blurRadius * 2)
                 canvas.drawBitmap(blurred, src, destCrop, null)
                 blurred.recycle()
             }
-
-            // Scrim 提升文字对比度
-            val scrimAlpha = if (fontDark) 0.15f else 0.25f
-            val scrimPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.argb((255 * scrimAlpha).toInt(), 0, 0, 0)
-            }
-            canvas.drawRect(0f, 0f, PHOTO_CARD_WIDTH.toFloat(), PHOTO_CARD_HEIGHT.toFloat(), scrimPaint)
+            val scrimAlpha = if (fontDark) 0.12f else 0.28f
+            canvas.drawRect(0f, 0f, PHOTO_CARD_WIDTH.toFloat(), PHOTO_CARD_HEIGHT.toFloat(),
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb((255 * scrimAlpha).toInt(), 0, 0, 0) })
         } else {
-            // 无照片兜底：纯色渐变
-            val grad = LinearGradient(
-                0f, 0f, 0f, PHOTO_CARD_HEIGHT.toFloat(),
-                intArrayOf(accentArgb, Color.WHITE),
-                null,
-                Shader.TileMode.CLAMP
-            )
-            val gradPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = grad }
-            canvas.drawRect(0f, 0f, PHOTO_CARD_WIDTH.toFloat(), PHOTO_CARD_HEIGHT.toFloat(), gradPaint)
+            canvas.drawRect(0f, 0f, PHOTO_CARD_WIDTH.toFloat(), HEADER_H,
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accentArgb })
+            canvas.drawRect(0f, bodyBottom, PHOTO_CARD_WIDTH.toFloat(), PHOTO_CARD_HEIGHT.toFloat(),
+                Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0xF0, 0xF1, 0xF3) })
         }
 
-        // 3. 文字（直接在全画布上画）
         val textColor = if (fontDark) Color.BLACK else Color.WHITE
 
-        // 事件名
+        // ── 顶：目标名 ──
         val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = textColor
-            textSize = 64f
+            color = if (hasPhoto) textColor else Color.WHITE
+            textSize = 52f
             typeface = TypefaceCompat.bold()
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText(eventName.ellipsize(16), PHOTO_CARD_WIDTH / 2f, 160f, namePaint)
+        canvas.drawText(eventName.ellipsize(16), PHOTO_CARD_WIDTH / 2f, HEADER_H / 2f + 18f, namePaint)
 
-        // 状态副标题
-        val headSub = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(200, Color.red(textColor), Color.green(textColor), Color.blue(textColor))
-            textSize = 36f
-            textAlign = Paint.Align.CENTER
-        }
-        canvas.drawText(headline, PHOTO_CARD_WIDTH / 2f, 220f, headSub)
+        // ── 中：大数字 ──
+        val bodyCy = (bodyTop + bodyBottom) / 2f
 
-        // 大数字
         val numberPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = textColor
-            textSize = 280f
+            textSize = 260f
             typeface = TypefaceCompat.bold()
             textAlign = Paint.Align.CENTER
         }
-        val scaled = fitText(bigNumber, numberPaint, PHOTO_CARD_WIDTH - 160f)
+        val scaled = fitText(bigNumber, numberPaint, PHOTO_CARD_WIDTH - 160f, minSize = 80f)
         numberPaint.textSize = scaled
-        canvas.drawText(bigNumber, PHOTO_CARD_WIDTH / 2f, 420f, numberPaint)
+        canvas.drawText(bigNumber, PHOTO_CARD_WIDTH / 2f, bodyCy + 80f, numberPaint)
 
         if (unit.isNotEmpty()) {
             val unitPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.argb(180, Color.red(textColor), Color.green(textColor), Color.blue(textColor))
-                textSize = 44f
+                color = Color.argb(204, Color.red(textColor), Color.green(textColor), Color.blue(textColor))
+                textSize = 40f
                 textAlign = Paint.Align.CENTER
             }
-            canvas.drawText(unit, PHOTO_CARD_WIDTH / 2f, 490f, unitPaint)
+            canvas.drawText(unit, PHOTO_CARD_WIDTH / 2f, bodyCy + 145f, unitPaint)
         }
 
-        // 虚线分隔
-        val dash = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(80, Color.red(textColor), Color.green(textColor), Color.blue(textColor))
-            strokeWidth = 2f
-            pathEffect = DashPathEffect(floatArrayOf(20f, 16f), 0f)
-        }
-        canvas.drawLine(100f, 530f, PHOTO_CARD_WIDTH - 100f, 530f, dash)
-
-        // 脚注
+        // ── 底：目标日 ──
+        val footColor = if (hasPhoto) textColor else Color.rgb(0x55, 0x55, 0x55)
         val foot = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(200, Color.red(textColor), Color.green(textColor), Color.blue(textColor))
-            textSize = 38f
+            color = footColor
+            textSize = 40f
+            typeface = TypefaceCompat.bold()
             textAlign = Paint.Align.CENTER
         }
-        var y = 570f
-        for (line in footLines.take(3)) {
+        canvas.drawText("目标日: $dateLine", PHOTO_CARD_WIDTH / 2f, bodyBottom + 72f, foot)
+
+        val footMuted = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (hasPhoto) {
+                Color.argb(190, Color.red(textColor), Color.green(textColor), Color.blue(textColor))
+            } else {
+                Color.rgb(0x77, 0x77, 0x77)
+            }
+            textSize = 32f
+            textAlign = Paint.Align.CENTER
+        }
+        var y = bodyBottom + 122f
+        for (line in extraLines.take(2)) {
             if (line.isBlank()) continue
-            canvas.drawText(line, PHOTO_CARD_WIDTH / 2f, y, foot)
-            y += 55f
+            canvas.drawText(line, PHOTO_CARD_WIDTH / 2f, y, footMuted)
+            y += 44f
         }
 
         return@withContext bmp
     }
 
     /** 超长数字缩字号到可用宽度内。 */
-    private fun fitText(text: String, probe: Paint, maxWidth: Float): Float {
+    private fun fitText(text: String, probe: Paint, maxWidth: Float, minSize: Float = 120f): Float {
         var size = probe.textSize
         probe.textSize = size
-        while (probe.measureText(text) > maxWidth && size > 120f) {
+        while (probe.measureText(text) > maxWidth && size > minSize) {
             size -= 24f
             probe.textSize = size
         }

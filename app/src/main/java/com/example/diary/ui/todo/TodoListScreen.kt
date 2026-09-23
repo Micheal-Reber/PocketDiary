@@ -120,17 +120,7 @@ fun TodoListScreen(
         topBar = {
             TopAppBar(
                 title = { Text("待办", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface),
-                actions = {
-                    // 右上 ✎ 与图一一致（预留编辑入口，暂无额外动作）
-                    IconButton(onClick = { }) {
-                        Icon(
-                            Icons.Filled.Add, // 使用 Add 占位，若需 pencil 可换 Icons.Filled.Edit
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
         floatingActionButton = {

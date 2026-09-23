@@ -57,6 +57,13 @@ fun stateLabel(state: DateMath.CountState): String = when (state) {
     is CountState.Countup -> "已经 ${state.days} 天"
 }
 
+/** 照片卡顶栏短语（日历页风，不含天数）：还有 / 已经 / 今天。 */
+fun headerStatePhrase(state: DateMath.CountState): String = when (state) {
+    is CountState.Today -> "今天"
+    is CountState.Countdown -> "还有"
+    is CountState.Countup -> "已经"
+}
+
 /** 内置过程式纹理数量（详情页背景选项），同步 TextureLibrary.TEXTURE_COUNT。 */
 const val TEXTURE_COUNT = 4
 
