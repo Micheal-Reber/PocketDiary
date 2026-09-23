@@ -390,6 +390,7 @@ fun DiaryEditorScreen(
                 AssistChip(
                     onClick = { showDatePicker = true },
                     label = { Text(dateStr, style = MaterialTheme.typography.labelLarge) },
+                    border = null,
                     leadingIcon = {
                         Icon(
                             Icons.Default.CalendarMonth,

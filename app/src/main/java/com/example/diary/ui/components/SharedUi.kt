@@ -231,6 +231,7 @@ fun PresetChipRow(
             FilterChip(
                 selected = isSelected,
                 onClick = { onToggle(if (isSelected) null else icon) },
+                border = null,
                 label = { Text("$icon ${labels[index]}", style = MaterialTheme.typography.labelSmall) }
             )
         }

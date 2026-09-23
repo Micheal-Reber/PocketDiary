@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.diary.BuildConfig
 import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.backup.ImportResult
 import com.example.diary.data.image.BackgroundImageStore
@@ -283,7 +284,9 @@ fun SettingsScreen(
 
             ListItem(
                 headlineContent = { Text("PocketDiary") },
-                supportingContent = { Text("版本 1.0 · 简洁好用的日记本") },
+                supportingContent = {
+                    Text("版本 ${BuildConfig.VERSION_NAME} · 简洁好用的日记本")
+                },
                 leadingContent = {
                     Icon(Icons.Default.Info, contentDescription = null)
                 }

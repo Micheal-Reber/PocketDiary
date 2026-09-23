@@ -28,7 +28,7 @@ $env:GRADLE_USER_HOME = "E:\dev\.gradle"
 
 - adb: `E:\dev\android-sdk\platform-tools\adb.exe`
 - 测试机: 小米 23116PN5BC（USB 连接不稳定，掉线后等几秒重试即可）
-- 发版流程：改 `versionName/versionCode` → 构建 → 用户手动上传 GitHub Release（**未经用户确认不得发布**）
+- 发版流程：改 `versionName/versionCode` → **设置页「关于」版本自动读 `BuildConfig.VERSION_NAME`（勿手写死字符串）** → 构建 → 用户手动上传 GitHub Release（**未经用户确认不得发布**）
 
 ## 架构
 
@@ -102,6 +102,10 @@ app/src/main/java/com/example/diary/
 - **schema 变更 → version +1**（v1.2→4；v1.7→8；v1.8→9 新增 reminderAt/repeatRule；当前 11）；同步 bump `versionCode`；**提供 Migration**（见 `AppDatabase` 的 MIGRATION_9_11/MIGRATION_10_11），仅无历史 schema 的旧版本才走 `fallbackToDestructiveMigration()`（会清数据，需告知用户）
 - DAO 查询只写必要字段；统计查询按需加载（切年只查月统计、切月只查日统计）
 - **新表只加不改旧表**：新增 `todo_items` 表不影响现有 Diary/Habit/Countdown 表
+
+### 版本号
+- **唯一来源**：`app/build.gradle.kts` 的 `versionName`/`versionCode`
+- 设置页「关于」读 `BuildConfig.VERSION_NAME`（`buildFeatures.buildConfig = true`）——**改版本时不要另改 Settings 里的字符串**，避免两处不一致
 
 ### 主题 / UI
 - **所有圆角走 `MaterialTheme.shapes`**（AppShapes: 8/12/16/28/32），**禁止** `RoundedCornerShape(字面量)`
