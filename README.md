@@ -31,7 +31,7 @@
 
 ### 📊 统计
 - 全屏统计页，三种视图自由切换：**周频率**（最近十周滚动窗口）/ **月视图** / **年视图**
-- 抯线图每个数据点带**数值标签**，Y 轴 ∞ 刻度设计
+- 折线图每个数据点带**数值标签**，Y 轴 ∞ 刻度设计
 - 当前周期（本周 / 本月）**红色高亮**
 - 底部勾选习惯即可控制曲线显隐，同时汇总该周期打卡天数
 
@@ -47,6 +47,7 @@
 - 暗色 / 亮色模式切换（独立于系统）
 - 日记背景自定义与恢复默认
 - **数据迁移**：导出 / 导入 ZIP（全量覆盖 + 事务回滚 + 版本校验）
+- 关于页版本号自动跟随构建版本（`BuildConfig`）
 
 ## 📥 下载安装
 
@@ -91,6 +92,8 @@
 app/src/main/java/com/example/diary/
 ├── MainActivity.kt            # 入口：亮暗模式接管（独立于系统）+ 开屏 + open_todo_id 深链
 ├── DiaryApplication.kt
+├── receiver/                  # TodoAlarmReceiver / BootCompletedReceiver（闹钟 + 开机/改时区重排）
+├── util/                      # DateUtils 共享日期格式化
 ├── data/
 │   ├── backup/                # BackupData / ExportService / ImportService / BackupRepository
 │   ├── countdown/             # DateMath + ShareCardRenderer + TextureLibrary
@@ -104,14 +107,21 @@ app/src/main/java/com/example/diary/
 └── ui/
     ├── components/            # SharedUi：SwipeDelete/Confirm/Search/UtcDatePicker/PresetChip
     ├── countdown/             # 倒数日三屏 + 共享件
-    ├── diary/                 # 日记列表：卡片、月份分割、滑动删除、背景
+    ├── diary/                 # 日记列表：卡片、月份分割、滑动删除、背景、搜索防抖
     ├── editor/                # 日记编辑器：心情/天气/定位/预览
     ├── habits/                # 打卡日历 + 统计图表 + ViewModel
     ├── navigation/            # 底部导航 + 路由
-    ├── receiver/              # TodoAlarmReceiver / BootCompletedReceiver
-    ├── settings/              # 设置页（含数据迁移）
+    ├── settings/              # 设置页（含数据迁移 + 关于版本）
     ├── theme/                 # Material 3 主题
     └── todo/                  # 待办列表 + 编辑/提醒 Sheet
+```
+
+## 🧪 测试
+
+JVM 单测覆盖倒数日日期计算、提醒调度、备份序列化/版本闸门、待办仓库、模糊缓存等级：
+
+```bash
+./gradlew test
 ```
 
 ## 📄 License

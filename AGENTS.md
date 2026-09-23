@@ -1,6 +1,6 @@
 # AGENTS.md — PocketDiary 开发指引
 
-**Generated:** 2026-08-27 · **Commit:** 42b23ef · **Branch:** main
+**Generated:** 2026-08-27 · **Commit:** e9bd832 · **Branch:** main
 
 本文件供 AI 编码代理（及新成员）快速了解本项目的构建方式、架构约定与历史坑点。
 
@@ -9,9 +9,10 @@
 **PocketDiary** — 极简 Android 日记 App。纯本地存储、零联网依赖（无账号/云同步）。
 
 - **语言/UI**: Kotlin 1.9.24 + Jetpack Compose (BOM 2024.09.03, M3 1.3) + Material 3
-- **数据库**: Room（v9/v10 有手写迁移；v8 及更早仍破坏性回退会清数据）
+- **数据库**: Room v11（v9/v10 有手写迁移；v8 及更早仍破坏性回退会清数据）
 - **偏好**: DataStore Preferences
 - **SDK**: minSdk 26 / target & compile 35 / JDK 17
+- **当前版本**: 1.8.2 (code 10)
 - **约束**: Kotlin 1.9.24 工具链 —— **不要**引入要求 Kotlin 2.x / Compose 1.8+ / M3 1.4 的依赖（如 Material 3 Expressive 组件）
 
 ## 构建与安装
@@ -22,37 +23,43 @@
 $env:JAVA_HOME = "E:\dev\jdk-17"
 $env:ANDROID_HOME = "E:\dev\android-sdk"
 $env:GRADLE_USER_HOME = "E:\dev\.gradle"
-.\gradlew.bat assembleRelease   # 签名发布包（本地测试也用这个，与手机上已装签名一致）
-.\gradlew.bat assembleDebug     # 调试包（与 release 签名不互通，覆盖安装需先卸载）
+.\gradlew.bat test             # JVM 单元测试（发版前必跑）
+.\gradlew.bat assembleRelease  # 签名发布包（本地测试也用这个，与手机上已装签名一致）
+.\gradlew.bat assembleDebug    # 调试包（与 release 签名不互通，覆盖安装需先卸载）
 ```
 
 - adb: `E:\dev\android-sdk\platform-tools\adb.exe`
 - 测试机: 小米 23116PN5BC（USB 连接不稳定，掉线后等几秒重试即可）
-- 发版流程：改 `versionName/versionCode` → **设置页「关于」版本自动读 `BuildConfig.VERSION_NAME`（勿手写死字符串）** → 构建 → 用户手动上传 GitHub Release（**未经用户确认不得发布**）
+- 发版流程：改 `versionName/versionCode` → **设置页「关于」版本自动读 `BuildConfig.VERSION_NAME`（勿手写死字符串）** → `test` + `assembleRelease` → 用户手动上传 GitHub Release（**未经用户确认不得发布**）
+- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `BlurCacheTest`
 
 ## 架构
 
 ```
 app/src/main/java/com/example/diary/
-├── MainActivity.kt         # 亮暗模式独立于系统（同步读 DataStore → setTheme 变体）
+├── MainActivity.kt         # 亮暗模式独立于系统（同步读 DataStore → setTheme 变体）+ open_todo_id 深链
+├── DiaryApplication.kt
+├── receiver/               # TodoAlarmReceiver / BootCompletedReceiver（闹钟触发 + 开机/改时区重排）
+├── util/                   # DateUtils：共享日期/提醒格式化（勿再各屏复制 formatter）
 ├── data/
 │   ├── backup/             # 数据导出/导入（手机迁移）：BackupData/ExportService/ImportService/BackupRepository
-│   ├── countdown/          # DateMath 正倒判定纯函数 + ShareCardRenderer 分享图（经典/照片卡双风格）
-│   ├── image/              # BackgroundImageStore（日记背景）/ EventImageStore（倒数日每事件背景）
+│   ├── countdown/          # DateMath 正倒判定纯函数 + ShareCardRenderer 分享图 + TextureLibrary 纹理
+│   ├── image/              # BackgroundImageStore（日记背景，相对路径）/ EventImageStore（倒数日每事件背景）
 │   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem（version 11）
+│   ├── location/           # LocationManager 封装（无 GMS）
 │   ├── photo/              # DiaryPhotoStore：日记图文混排两阶段生命周期
 │   ├── preferences/        # DataStore: 暗色模式 / 日记背景 / 壁纸取色 / 编辑器预览开关
 │   ├── repository/         # 薄仓库层（SaveResult 密封类处理日期冲突）
-│   └── todo/               # 待办提醒调度：TodoReminderScheduler(AlarmManager) + TodoNotificationHelper + Receivers
+│   └── todo/               # TodoReminderScheduler(AlarmManager) + TodoNotificationHelper
 └── ui/
-    ├── components/          # SharedUi：SwipeDelete/Confirm/Search/UtcDatePicker/PresetChip（多屏共用）
+    ├── components/         # SharedUi：SwipeDelete/Confirm/Search/UtcDatePicker/PresetChip（多屏共用）
     ├── countdown/          # 倒数日：列表/编辑/详情 三屏 + 共享件（双卡片风格：CLASSIC / PHOTO_CARD）
-    ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索、图文混排
-    ├── editor/             # 编辑器：无边框书写、Markdown 预览(MarkdownText.kt)、📷插图
+    ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索（250ms 防抖）
+    ├── editor/             # 编辑器：无边框书写、Markdown 预览、📷插图（日期/chips 无描边）
     ├── habits/             # 打卡日历 + 统计图表（LineChart 自研）
     ├── navigation/         # 底部五 Tab：日记/日历/倒数日/待办/设置 + 编辑器/统计/倒数日子路由
-    ├── settings/           # 设置页（含数据迁移：导出/导入 ZIP）
-    ├── todo/               # 待办：TodoListScreen(黑底+已完成折叠+黄FAB) + TodoEditSheet(图1) + ReminderTimeSheet(图2日历)
+    ├── settings/           # 设置页（数据迁移 ZIP + 关于读 BuildConfig）
+    ├── todo/               # 待办：TodoListScreen(黑底+已完成折叠+黄FAB) + TodoEditSheet + ReminderTimeSheet
     └── theme/              # Material 3 主题
 ```
 
@@ -62,7 +69,9 @@ app/src/main/java/com/example/diary/
 |------|------|------|
 | 日记编辑/保存/改期 | `ui/editor/DiaryEditorScreen.kt` + `DiaryRepository.saveEntry` | 改日期=搬移语义 |
 | Markdown 渲染/预览 | `ui/editor/MarkdownText.kt` | commonmark 解析 + 自研子集渲染 |
-| 全文搜索 | `DiaryDao.searchEntries` + `ui/diary/DiaryListScreen.kt` | LIKE 实时 Flow |
+| 全文搜索 | `DiaryDao.searchEntries` + `ui/diary/DiaryListScreen.kt` | **250ms 防抖**后再查（勿改成每次按键直查） |
+| 数据迁移导出/导入 | `data/backup/BackupRepository` + `SettingsScreen` | 版本闸门 `1..CURRENT_VERSION`；zip-slip/CRC/条目上限；导入=全量覆盖+事务 |
+| 日记背景相对路径 | `BackgroundImageStore.normalizeStoredPath/RELATIVE_PATH` | 备份与导入必须归一，绝对路径换机悬空 |
 | 统计图表 | `ui/habits/LineChart.kt` + `StatisticsSection.kt` | 数值标签预计算（remember） |
 | 打卡日历 | `ui/habits/CalendarComponents.kt` + `HabitsViewModel.kt` | 多习惯彩点、月份分割 |
 | 倒数日正倒判定 | `data/countdown/DateMath.kt` + 单测 | 三态 Today/Countdown/Countup；+1日；重复滚动；**改动必跑 JUnit** |
@@ -91,7 +100,10 @@ app/src/main/java/com/example/diary/
 | `TodoReminderScheduler.schedule` | fun | data/todo | 精确闹钟；过期不排、done 取消；重复走 `nextDailyOccurrence` 日历日+1 |
 | `TodoReminderScheduler.requestCodeFor` | fun | data/todo | `(id xor (id ushr 32)).toInt()` —— 防 `toInt()` 截断撞号 |
 | `TodoNotificationHelper.show` | fun | data/todo | 高优通知（BigText，点穿透 `open_todo_id` 至待办 Tab） |
-| `SwipeDeleteCard` / `ConfirmDialog` / `SearchTextField` / `UtcDatePickerDialog` / `PresetChipRow` | fun | ui/components/SharedUi.kt | 列表滑删/确认弹窗/搜索框/UTC 日期/心情天气 chip 行（日记+待办+倒数日+编辑器共用） |
+| `SwipeDeleteCard` / `ConfirmDialog` / `SearchTextField` / `UtcDatePickerDialog` / `PresetChipRow` | fun | ui/components/SharedUi.kt | 列表滑删/确认弹窗/搜索框/UTC 日期/心情天气 chip 行（日记+待办+倒数日+编辑器共用；chip **无描边** `border = null`） |
+| `BackupRepository.export/importData` | suspend | data/backup | 迁移唯一入口（Uri SAF）；内部走 Export/ImportService |
+| `BackgroundImageStore.normalizeStoredPath` | fun | data/image | 绝对路径 → filesDir 相对（备份/导入用） |
+| `DateUtils.format*` | fun | util | 日期/提醒共享格式化——**新屏必须复用，勿复制** |
 
 ## 关键约定（务必遵守）
 
@@ -128,7 +140,10 @@ app/src/main/java/com/example/diary/
 7. **嵌套密封类型引用**：`DateMath.CountState.Today` 必须带完整嵌套路径或 `import DateMath.CountState`——裸写 `DateMath.Today` 不解析（踩过）
 8. **Todo 列表交互**：彻底重构后为黑底+灰卡+折叠已完成（图3），勾选即下沉/回升，无拖拽；旧 `dragAndDrop/ SwipeToDismiss` 已移除
 9. **Todo 提醒**：`POST_NOTIFICATIONS` (33+) 需运行时申请、`SCHEDULE_EXACT_ALARM` 在 S+ 需 `canScheduleExactAlarms()` 检测否则降级 `setAndAllowWhileIdle` 并 SnackBar 深链；`BOOT_COMPLETED`/`MY_PACKAGE_REPLACED`/`TIME_SET`/`TIMEZONE_CHANGED` 重排 + 补发错过的非重复通知；过期非重复不排；**闹钟调度只走 `TodoRepository.save/delete`**，UI 勿再直接调 Scheduler
-10. **Room 版本号同步**：每次 schema 变更必须同时更新 `AppDatabase.version` 和 `build.gradle.kts` 的 `versionCode`，两者保持同步（v8=1.7, v9=1.8, v11=1.8.2/code 10）；升级路径写 `addMigrations`，勿只靠破坏性回退
+10. **Room 版本号同步**：每次 schema 变更必须同时更新 `AppDatabase.version` 和 `build.gradle.kts` 的 `versionCode`，两者保持同步（v8=1.7, v9=1.8, v11=1.8.2/code 10）；升级路径写 `addMigrations`，勿只靠破坏性回退；schema JSON 在 `app/schemas/…/11.json` **必须入库**
+11. **Robolectric**：4.11 最高官方 SDK 34，而 targetSdk=35——用 Robolectric 的测试类必须 `@Config(sdk = [34])`，否则 `Package targetSdkVersion=35 > maxSdkVersion=34` 初始化失败
+12. **备份安全**：导入必须先过版本闸门（`version < 1 || > CURRENT_VERSION` → Failure）；ZIP 解压防滑移（禁 `..`）；STORED 需 CRC 校验；日记背景路径入库前 `normalizeStoredPath`
+13. **Kotlin DSL 签名配置**：`build.gradle.kts` 里用 `java.util.Properties` 必须文件头 `import java.util.Properties`（脚本内 `java.util` 会 Unresolved）
 
 ## 工作流约定
 
