@@ -12,10 +12,17 @@ interface DiaryDao {
     @Query("SELECT * FROM diary_entries ORDER BY date DESC, createdAt DESC")
     suspend fun getAllEntriesOnce(): List<DiaryEntry>
 
-    // Full-text search over entry content. LIKE keeps Chinese matching simple
-    // (per-character); user-supplied % and _ act as wildcards — acceptable for
-    // a personal diary.
-    @Query("SELECT * FROM diary_entries WHERE content LIKE '%' || :query || '%' ORDER BY date DESC, createdAt DESC")
+    // Search all user-visible diary fields. LIKE keeps Chinese matching simple
+    // (per-character) and avoids adding an FTS table for this small local DB.
+    @Query("""
+        SELECT * FROM diary_entries
+          WHERE content LIKE '%' || :query || '%' ESCAPE '\\'
+              OR date LIKE '%' || :query || '%' ESCAPE '\\'
+              OR COALESCE(mood, '') LIKE '%' || :query || '%' ESCAPE '\\'
+              OR COALESCE(weather, '') LIKE '%' || :query || '%' ESCAPE '\\'
+              OR COALESCE(locationName, '') LIKE '%' || :query || '%' ESCAPE '\\'
+        ORDER BY date DESC, createdAt DESC
+    """)
     fun searchEntries(query: String): Flow<List<DiaryEntry>>
 
     @Query("SELECT * FROM diary_entries WHERE date = :date")

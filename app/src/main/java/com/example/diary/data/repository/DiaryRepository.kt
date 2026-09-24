@@ -18,8 +18,9 @@ class DiaryRepository(private val diaryDao: DiaryDao) {
 
     fun getAllEntries(): Flow<List<DiaryEntry>> = diaryDao.getAllEntries()
 
-    /** Live full-text search over entry content; blank query = all entries. */
-    fun searchEntries(query: String): Flow<List<DiaryEntry>> = diaryDao.searchEntries(query)
+    /** Live search over diary fields; LIKE wildcards in user input are literal. */
+    fun searchEntries(query: String): Flow<List<DiaryEntry>> =
+        diaryDao.searchEntries(query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_"))
 
     suspend fun getEntryByDate(date: String): DiaryEntry? = diaryDao.getEntryByDate(date)
 

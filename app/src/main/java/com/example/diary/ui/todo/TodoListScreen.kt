@@ -136,8 +136,8 @@ fun TodoListScreen(
         if (active.isEmpty() && completed.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(48.dp))
-                    Spacer(Modifier.height(16.dp))
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
+                    Spacer(Modifier.height(Spacing.l))
                     Text("还没有待办事项", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(6.dp))
                     Text("点击右下角 + 添加第一项", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)

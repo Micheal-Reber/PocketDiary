@@ -16,7 +16,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.ViewList
-import androidx.compose.material.icons.outlined.HourglassEmpty
+import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -257,13 +257,13 @@ private fun EmptyHint(text: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
-                Icons.Outlined.HourglassEmpty, null,
-                tint = MaterialTheme.colorScheme.outline,
-                modifier = Modifier.size(48.dp)
+                Icons.Filled.HourglassTop, null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(64.dp)
             )
             Spacer(Modifier.height(Spacing.l))
             Text(
-                text, style = MaterialTheme.typography.bodyMedium,
+                text, style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )

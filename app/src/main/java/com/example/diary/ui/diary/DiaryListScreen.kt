@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material3.*
@@ -20,6 +21,8 @@ import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -120,6 +123,14 @@ fun DiaryListScreen(
                         placeholder = "搜索日记内容...",
                         focusRequester = searchFocusRequester
                     )
+                    if (debouncedQuery.isNotBlank()) {
+                        Text(
+                            "找到 ${entries.size} 篇日记",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (hasCustomBg) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = Spacing.l, vertical = Spacing.xs)
+                        )
+                    }
                 }
 
         if (entries.isEmpty()) {
@@ -132,7 +143,12 @@ fun DiaryListScreen(
             } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📝", style = MaterialTheme.typography.displayMedium)
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.MenuBook,
+                        contentDescription = null,
+                        tint = if (hasCustomBg) Color.White else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(64.dp)
+                    )
                     Spacer(Modifier.height(Spacing.l))
                     Text("还没有日记", style = MaterialTheme.typography.titleMedium,
                         color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
@@ -174,6 +190,7 @@ fun DiaryListScreen(
                                 is DisplayItem.Header -> MonthDivider(item.month.drop(5).toInt(), hasCustomBg)
                                 is DisplayItem.Entry -> DiaryCard(
                                     entry = item.entry,
+                                    highlightQuery = debouncedQuery,
                                     onClick = { onEditDiary(item.entry.date) },
                                     onDelete = { scope.launch { diaryRepository.deleteEntry(item.entry.id) } }
                                 )
@@ -188,7 +205,12 @@ fun DiaryListScreen(
 }
 
 @Composable
-private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Unit) {
+private fun DiaryCard(
+    entry: DiaryEntry,
+    highlightQuery: String = "",
+    onClick: () -> Unit,
+    onDelete: () -> Unit
+) {
     SwipeDeleteCard(
         onClick = onClick,
         onDelete = onDelete,
@@ -207,9 +229,10 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
 
             // Fixed-size content preview: exactly one line, ellipsized.
             // Markdown syntax is stripped so **bold** reads as bold words.
-            Text(markdownToPlainText(entry.content), style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                minLines = 1, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            HighlightedPreview(
+                text = markdownToPlainText(entry.content),
+                query = highlightQuery
+            )
 
             Spacer(Modifier.height(10.dp))
 
@@ -230,6 +253,50 @@ private fun DiaryCard(entry: DiaryEntry, onClick: () -> Unit, onDelete: () -> Un
             }
         }
     }
+}
+
+@Composable
+private fun HighlightedPreview(text: String, query: String) {
+    val normalizedQuery = query.trim()
+    if (normalizedQuery.isBlank()) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            minLines = 1,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        return
+    }
+
+    val highlighted = buildAnnotatedString {
+        val matcher = Regex(Regex.escape(normalizedQuery), RegexOption.IGNORE_CASE)
+        var cursor = 0
+        matcher.findAll(text).forEach { match ->
+            append(text.substring(cursor, match.range.first))
+            val start = length
+            append(match.value)
+            addStyle(
+                SpanStyle(
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold
+                ),
+                start,
+                length
+            )
+            cursor = match.range.last + 1
+        }
+        append(text.substring(cursor))
+    }
+    Text(
+        highlighted,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        minLines = 1,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis
+    )
 }
 
 /** LazyColumn row model: a month divider or a diary card. */

@@ -10,6 +10,7 @@ import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.TodoRepository
 import com.example.diary.data.todo.TodoReminderScheduler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -109,6 +110,12 @@ class ImportService(
 
             // Capture pre-import todo ids so stale alarms can be cancelled after success.
             val oldTodoIds = database.todoDao().getAll().map { it.id }
+            val oldPreferences = PreferencesData(
+                darkMode = themePreferences.isDarkMode.first(),
+                diaryBackgroundPath = themePreferences.diaryBackgroundPath.first(),
+                dynamicColor = themePreferences.dynamicColor.first(),
+                editorPreview = themePreferences.editorPreview.first(),
+            )
 
             // --- Swap image dirs: old → *.bak, staged → filesDir ---
             val filesDir = context.filesDir.canonicalFile
@@ -124,18 +131,19 @@ class ImportService(
 
                 val imagesImported = moveStagedImages(staging, filesDir)
 
-                // --- DB restore (single transaction) ---
+                // Restore preferences before the DB so a DB failure can compensate
+                // the DataStore writes before the old image tree is restored.
                 val counts = try {
+                    restorePreferences(preferences)
                     database.withTransaction { restoreDatabase(backupData) }
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
-                    // Roll back image swap; DB already rolled back by Room.
+                    // Room rolls back its transaction; restore DataStore and images too.
+                    runCatching { restorePreferences(oldPreferences) }
                     restoreBakDirsSuspend(bakDirs)
                     return@withContext ImportResult.Failure("Import failed restoring database: ${e.message}", e.toString())
                 }
-
-                restorePreferences(preferences)
 
                 // Success — drop backups of the old images.
                 bakDirs.forEach { (_, bak) -> if (bak.exists()) bak.deleteRecursively() }
