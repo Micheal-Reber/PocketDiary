@@ -2,12 +2,12 @@ package com.example.diary.ui.countdown
 
 import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -55,6 +56,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+import kotlin.math.abs
 import java.io.File
 import java.time.LocalDate
 
@@ -190,22 +192,21 @@ private fun ClassicFullscreenContent(
  * 有图：整卡铺照片 + scrim，文字全透明叠加；无图：顶栏事件色 / 底栏浅灰实色带。
  */
 @Composable
-private fun PhotoCardContent(
+internal fun PhotoCardContent(
     eventId: Long,
     photoBitmap: ImageBitmap?,
     blurRadius: Int,
     fontDark: Boolean,
+    photoOffsetY: Float = 0f,
+    photoScale: Float = 1f,
     eventName: String,
     bigNumber: String,
     accent: androidx.compose.ui.graphics.Color,
     dateLine: String,
     endDate: String?,
     time: String?,
-    onBlurChange: (Int) -> Unit,
-    onFontDarkChange: (Boolean) -> Unit,
-    onConfirmBlur: (Int) -> Unit,
-    onConfirmFontDark: (Boolean) -> Unit,
-    textureIndex: Int = -1
+    textureIndex: Int = -1,
+    modifier: Modifier = Modifier
 ) {
     val textColor = if (fontDark) Color.Black else Color.White
     val scrimAlpha = if (fontDark) 0.12f else 0.28f
@@ -215,7 +216,7 @@ private fun PhotoCardContent(
     val footerTextNoPhoto = Color(0xFF555555)
     val footerMutedNoPhoto = Color(0xFF777777)
 
-    Box(Modifier.fillMaxSize()) {
+    Box(modifier.fillMaxSize()) {
         when {
             textureIndex in 0 until TEXTURE_COUNT -> TextureBackdrop(textureIndex, accent)
             else -> Box(
@@ -245,6 +246,8 @@ private fun PhotoCardContent(
                             bitmap = photoBitmap,
                             radiusDp = blurRadius,
                             eventId = eventId,
+                            photoOffsetY = photoOffsetY,
+                            photoScale = photoScale,
                             modifier = Modifier.fillMaxSize()
                         )
                         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = scrimAlpha)))
@@ -352,94 +355,34 @@ private fun PhotoCardContent(
     }
 }
 
-/** 照片卡模式背景底表：模糊滑杆 + 字色切换 + 选图/恢复默认。
- * 无图时额外显示纹理选择器（复用 TexturePickerRow）。 */
+/** 照片卡背景入口。模糊、文字颜色和图片位置统一在独立编辑页调整。 */
 @Composable
 private fun PhotoCardBackgroundSheet(
-    blurRadiusPreview: Int,
-    onBlurChange: (Int) -> Unit,
-    onConfirmBlur: (Int) -> Unit,
-    fontDarkPreview: Boolean,
-    onFontDarkChange: (Boolean) -> Unit,
-    onConfirmFontDark: (Boolean) -> Unit,
     hasPhoto: Boolean,
     textureIndex: Int,
     onTextureClick: (Int) -> Unit,
     onPickPhoto: () -> Unit,
     onResetPhoto: () -> Unit
 ) {
-    Column {
-        // 模糊滑杆（实时预览，松手确认）
-        Column(Modifier.fillMaxWidth().padding(bottom = Spacing.l)) {
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("背景模糊")
-                Text("${blurRadiusPreview}", style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary)
-            }
-            androidx.compose.material3.Slider(
-                value = blurRadiusPreview.toFloat(),
-                onValueChange = { value -> onBlurChange(value.roundToInt()) },
-                onValueChangeFinished = { onConfirmBlur(blurRadiusPreview) },
-                valueRange = 0f..25f,
-                steps = 25,
-                modifier = Modifier.fillMaxWidth()
-            )
-            Text("拖动调整背景模糊强度（0 = 无模糊，25 = 强模糊）",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-
-        // 字色切换
-        Row(
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.l)
-        ) {
-            Text("文字颜色")
-            androidx.compose.material3.Switch(
-                checked = fontDarkPreview,
-                onCheckedChange = { newVal ->
-                    onFontDarkChange(newVal)
-                    onConfirmFontDark(newVal)
-                }
-            )
-        }
-        Text(if (fontDarkPreview) "黑字（适合浅色照片）" else "白字（适合深色照片）",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.l)
-        )
-
-        // 内置纹理选择器：无论是否有照片都显示，纹理与照片是独立图层
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         Text(
-            "内置纹理",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = Spacing.s)
+            if (hasPhoto) "已设置照片背景" else "尚未设置照片背景",
+            style = MaterialTheme.typography.bodyLarge
         )
+        OutlinedButton(onClick = onPickPhoto, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.PhotoCamera, null, modifier = Modifier.padding(end = Spacing.xs))
+            Text(if (hasPhoto) "调整图片位置和显示效果" else "选择背景图片")
+        }
+        Text("内置纹理", style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
         TexturePickerRow(
             selectedIndex = textureIndex,
             onSelect = onTextureClick,
             showNone = true
         )
-        Spacer(Modifier.height(Spacing.l))
-
-        // 选图 / 恢复默认
-        Row(
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(if (hasPhoto) "更换背景图" else "选择背景图")
-            if (hasPhoto) {
-                TextButton(onClick = onResetPhoto) { Text("恢复默认") }
-            }
-            OutlinedButton(onClick = onPickPhoto) {
-                Icon(Icons.Default.PhotoCamera, null, modifier = Modifier.padding(end = Spacing.xs))
-                Text("相册")
+        if (hasPhoto) {
+            TextButton(onClick = onResetPhoto, modifier = Modifier.fillMaxWidth()) {
+                Text("恢复默认背景")
             }
         }
     }
@@ -448,6 +391,7 @@ private fun PhotoCardBackgroundSheet(
 /** 经典模式背景底表：字色切换 + 纹理选择 + 选图/恢复默认。 */
 @Composable
 private fun ClassicBackgroundSheet(
+    hasPhoto: Boolean,
     textureIndex: Int,
     accent: androidx.compose.ui.graphics.Color,
     fontDarkPreview: Boolean,
@@ -496,17 +440,19 @@ private fun ClassicBackgroundSheet(
                 .fillMaxWidth()
                 .clickable(onClick = onResetPhoto)
         )
-        Text(
-            "内置纹理",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = Spacing.s)
-        )
-        TexturePickerRow(
-            selectedIndex = textureIndex,
-            onSelect = onTextureClick,
-            showNone = true
-        )
+        if (!hasPhoto) {
+            Text(
+                "内置纹理",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = Spacing.s)
+            )
+            TexturePickerRow(
+                selectedIndex = textureIndex,
+                onSelect = onTextureClick,
+                showNone = true
+            )
+        }
     }
 }
 
@@ -519,14 +465,25 @@ fun CountdownDetailScreen(
     repository: CountdownRepository,
     onBack: () -> Unit,
     onEdit: () -> Unit,
+    onEditPhoto: () -> Unit,
     onCreate: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = remember { SnackbarHostState() }
+    var activeEventId by rememberSaveable { mutableLongStateOf(eventId) }
+    val allEvents by remember { repository.observeAll() }
+        .collectAsState(initial = emptyList())
 
-    // remember(eventId): 换事件时重建 Flow，避免每次重组重订阅
-    val event by remember(eventId) { repository.observeById(eventId) }
+    LaunchedEffect(eventId) { activeEventId = eventId }
+    LaunchedEffect(allEvents, activeEventId) {
+        if (allEvents.isNotEmpty() && allEvents.none { it.id == activeEventId }) {
+            activeEventId = allEvents.first().id
+        }
+    }
+
+    // remember(activeEventId): 左右滑动切换事件时重建 Flow
+    val event by remember(activeEventId) { repository.observeById(activeEventId) }
         .collectAsState(initial = null)
     // 背景图版本号：换图/清背景后自增，驱动重新解码
     var bgVersion by rememberSaveable { mutableIntStateOf(0) }
@@ -543,6 +500,14 @@ fun CountdownDetailScreen(
     val state = DateMath.compute(e.date, e.repeatRule, e.plusOne, today)
     val accent = eventAccent(e.colorIndex, state)
     val anchor = DateMath.resolveAnchor(e.date, e.repeatRule, today)
+
+    fun switchBySwipe(deltaX: Float) {
+        if (abs(deltaX) < 72f) return
+        val currentIndex = allEvents.indexOfFirst { it.id == e.id }
+        if (currentIndex < 0) return
+        val targetIndex = if (deltaX < 0f) currentIndex + 1 else currentIndex - 1
+        allEvents.getOrNull(targetIndex)?.let { activeEventId = it.id }
+    }
 
     val photoBitmap by produceState<ImageBitmap?>(
         initialValue = null, key1 = e.id, key2 = bgVersion
@@ -576,7 +541,9 @@ fun CountdownDetailScreen(
                 dateLine = e.date,
                 extraLines = extra,
                 blurRadius = e.blurRadius,
-                fontDark = e.fontDark
+                fontDark = e.fontDark,
+                photoOffsetY = e.photoOffsetY,
+                photoScale = e.photoScale
             )
         } else {
             ShareCardRenderer.render(
@@ -647,21 +614,10 @@ fun CountdownDetailScreen(
         }
     }
 
-    val pickPhotoLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri ->
-        if (uri != null) {
-            scope.launch {
-                EventImageStore.importFromUri(context, uri, e.id)
-                clearBlurCache(e.id)
-                bgVersion++
-            }
-        }
-    }
-
     // 照片卡专用：实时模糊预览状态（滑杆拖动时更新，松手写库）
-    var blurRadiusPreview by remember { mutableStateOf(e.blurRadius) }
-    var fontDarkPreview by remember { mutableStateOf(e.fontDark) }
+    var blurRadiusPreview by remember(e.id) { mutableStateOf(e.blurRadius) }
+    var fontDarkPreview by remember(e.id) { mutableStateOf(e.fontDark) }
+    LaunchedEffect(e.id) { showBackgroundSheet = false }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -705,6 +661,16 @@ fun CountdownDetailScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .pointerInput(allEvents, e.id) {
+                    var totalDragX = 0f
+                    detectHorizontalDragGestures(
+                        onDragEnd = { switchBySwipe(totalDragX) },
+                        onDragCancel = { totalDragX = 0f }
+                    ) { change, dragAmount ->
+                        change.consume()
+                        totalDragX += dragAmount
+                    }
+                }
         ) {
             // ── 分支渲染：CLASSIC / PHOTO_CARD（照片卡无图也保留框）──
             if (e.cardStyle == CountdownEvent.CARD_STYLE_PHOTO_CARD) {
@@ -714,16 +680,14 @@ fun CountdownDetailScreen(
                     photoBitmap = photoBitmap,
                     blurRadius = blurRadiusPreview,
                     fontDark = fontDarkPreview,
+                    photoOffsetY = e.photoOffsetY,
+                    photoScale = e.photoScale,
                     eventName = e.name,
                     bigNumber = bigNumberText(),
                     accent = accent,
                     dateLine = e.date,
                     endDate = e.endDate,
                     time = e.time,
-                    onBlurChange = { blurRadiusPreview = it },
-                    onFontDarkChange = { fontDarkPreview = it },
-                    onConfirmBlur = { scope.launch { repository.save(e.copy(blurRadius = it)) } },
-                    onConfirmFontDark = { scope.launch { repository.save(e.copy(fontDark = it)) } },
                     textureIndex = e.textureIndex
                 )
             } else {
@@ -748,12 +712,6 @@ fun CountdownDetailScreen(
                         // 照片卡模式：模糊滑杆 + 字色切换 + 选图/恢复默认 (+无图时纹理选择器)
                         if (e.cardStyle == CountdownEvent.CARD_STYLE_PHOTO_CARD) {
                             PhotoCardBackgroundSheet(
-                                blurRadiusPreview = blurRadiusPreview,
-                                onBlurChange = { blurRadiusPreview = it },
-                                onConfirmBlur = { scope.launch { repository.save(e.copy(blurRadius = it)) } },
-                                fontDarkPreview = fontDarkPreview,
-                                onFontDarkChange = { fontDarkPreview = it },
-                                onConfirmFontDark = { scope.launch { repository.save(e.copy(fontDark = it)) } },
                                 hasPhoto = photoBitmap != null,
                                 textureIndex = e.textureIndex,
                                 onTextureClick = { idx ->
@@ -763,12 +721,7 @@ fun CountdownDetailScreen(
                                         bgVersion++
                                     }
                                 },
-                                onPickPhoto = {
-                                    showBackgroundSheet = false
-                                    pickPhotoLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
-                                },
+                                onPickPhoto = { showBackgroundSheet = false; onEditPhoto() },
                                 onResetPhoto = {
                                     showBackgroundSheet = false
                                     scope.launch {
@@ -782,6 +735,7 @@ fun CountdownDetailScreen(
                         } else {
                             // 经典模式：字色切换 + 纹理选择 + 选图/恢复默认
                             ClassicBackgroundSheet(
+                                hasPhoto = photoBitmap != null,
                                 textureIndex = e.textureIndex,
                                 accent = accent,
                                 fontDarkPreview = fontDarkPreview,
@@ -789,9 +743,10 @@ fun CountdownDetailScreen(
                                 onConfirmFontDark = { scope.launch { repository.save(e.copy(fontDark = it)) } },
                                 onPickPhoto = {
                                     showBackgroundSheet = false
-                                    pickPhotoLauncher.launch(
-                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                                    )
+                                    scope.launch {
+                                        repository.save(e.copy(textureIndex = -1))
+                                        onEditPhoto()
+                                    }
                                 },
                                 onResetPhoto = {
                                     showBackgroundSheet = false

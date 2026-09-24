@@ -3,18 +3,24 @@ package com.example.diary.ui.countdown
 import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.requiredHeight
+import androidx.compose.foundation.layout.requiredWidth
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -156,7 +162,7 @@ fun clearBlurCache(eventId: Long? = null) {
 }
 
 /**
- * 照片卡背景图：bitmap 空或零模糊 → 普通 Crop Image；
+ * 照片卡背景图：宽度铺满、按原比例显示完整图片高度，超出卡片上下边界由容器裁切；
  * API 31+ 系统实时模糊；API <31 栈模糊档位缓存。
  */
 @Composable
@@ -164,24 +170,16 @@ fun BlurCardImage(
     bitmap: ImageBitmap?,
     radiusDp: Int,
     eventId: Long,
+    photoOffsetY: Float = 0f,
+    photoScale: Float = 1f,
     modifier: Modifier = Modifier
 ) {
     if (bitmap == null || radiusDp <= 0) {
-        Image(
-            bitmap = bitmap ?: return,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = modifier
-        )
+        UncroppedCardImage(bitmap ?: return, modifier, photoOffsetY, photoScale)
         return
     }
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        Image(
-            bitmap = bitmap,
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = modifier.blur(radiusDp.dp)
-        )
+        UncroppedCardImage(bitmap, modifier, photoOffsetY, photoScale, radiusDp.dp)
     } else {
         // key3 = bitmap 身份：换图后 produceState 重新计算，避免串旧图
         val bitmapIdentity = remember(bitmap) { System.identityHashCode(bitmap) }
@@ -196,11 +194,36 @@ fun BlurCardImage(
             }
         }
         val shown = blurred ?: bitmap
+        UncroppedCardImage(shown, modifier, photoOffsetY, photoScale)
+    }
+}
+
+@Composable
+private fun UncroppedCardImage(
+    bitmap: ImageBitmap,
+    modifier: Modifier,
+    photoOffsetY: Float,
+    photoScale: Float,
+    blurRadius: androidx.compose.ui.unit.Dp = 0.dp
+) {
+    BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
+        val density = LocalDensity.current
+        val scale = photoScale.coerceAtLeast(1f)
+        val imageWidth = with(density) { (maxWidth.toPx() * scale).toDp() }
+        val imageHeight = with(density) {
+            (maxWidth.toPx() * bitmap.height.toFloat() / bitmap.width.toFloat() * scale).toDp()
+        }
         Image(
-            bitmap = shown,
+            bitmap = bitmap,
             contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = modifier
+            contentScale = ContentScale.FillBounds,
+            modifier = Modifier
+                .requiredWidth(imageWidth)
+                .requiredHeight(imageHeight)
+                .graphicsLayer {
+                    translationY = photoOffsetY.coerceIn(-1f, 1f) * size.height
+                }
+                .then(if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier)
         )
     }
 }

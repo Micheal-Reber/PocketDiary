@@ -86,7 +86,11 @@ data class CountdownEvent(
     /** 照片卡模糊半径 dp（0..25），经典风格不使用 */
     val blurRadius: Int = 0,
     /** 照片卡文字色：false = 白字，true = 黑字 */
-    val fontDark: Boolean = false
+    val fontDark: Boolean = false,
+    /** 照片卡图片垂直位置：-1..1，0 为居中，随卡片尺寸自适应 */
+    val photoOffsetY: Float = 0f,
+    /** 照片卡缩放比例：1 为自动铺满，最小不能低于 1 */
+    val photoScale: Float = 1f
 ) {
     companion object {
         const val REPEAT_NONE = 0

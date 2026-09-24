@@ -21,6 +21,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *  - v9: TodoItem 新增 reminderAt / repeatRule（提醒时间+每天重复，贴合系统待办）。
  *  - v10: TodoItem 新增 parentId / hasSubtasks（已随小组件回退）。
  *  - v11: TodoItem 移除 parentId / hasSubtasks（小组件功能整体删除）。
+ *  - v12: CountdownEvent 新增照片卡图片垂直位置。
+ *  - v13: CountdownEvent 新增照片卡图片缩放比例。
  *
  * Migrations:
  *  - v9 与 v11 的 todo_items 结构等价 → MIGRATION_9_11 为空（保数据升级）。
@@ -29,7 +31,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [DiaryEntry::class, Habit::class, HabitRecord::class, CountdownEvent::class, TodoItem::class],
-    version = 11,
+    version = 13,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -81,6 +83,22 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `countdown_events` ADD COLUMN `photoOffsetY` REAL NOT NULL DEFAULT 0.0"
+                )
+            }
+        }
+
+        private val MIGRATION_12_13 = object : Migration(12, 13) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `countdown_events` ADD COLUMN `photoScale` REAL NOT NULL DEFAULT 1.0"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -88,7 +106,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "pocket_diary.db"
                 )
-                    .addMigrations(MIGRATION_9_11, MIGRATION_10_11)
+                    .addMigrations(MIGRATION_9_11, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }

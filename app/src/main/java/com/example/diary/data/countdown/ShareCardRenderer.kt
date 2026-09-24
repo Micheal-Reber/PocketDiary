@@ -138,7 +138,9 @@ object ShareCardRenderer {
         dateLine: String,
         extraLines: List<String>,
         blurRadius: Int,
-        fontDark: Boolean
+        fontDark: Boolean,
+        photoOffsetY: Float = 0f,
+        photoScale: Float = 1f
     ): Bitmap = withContext(Dispatchers.IO) {
         val srcFile = EventImageStore.file(context, eventId)
         val photoBmp = if (srcFile.exists()) {
@@ -159,14 +161,13 @@ object ShareCardRenderer {
         val hasPhoto = photoBmp != null
         if (photoBmp != null) {
             val src = Rect(0, 0, photoBmp.width, photoBmp.height)
-            val scale = maxOf(
-                PHOTO_CARD_WIDTH.toFloat() / src.width(),
-                PHOTO_CARD_HEIGHT.toFloat() / src.height()
-            )
-            val scaledW = src.width() * scale
-            val scaledH = src.height() * scale
+            // 只按宽度铺满，保留原图完整纵向内容；上下溢出由卡片边界裁切。
+            val scale = PHOTO_CARD_WIDTH.toFloat() / src.width()
+            val zoom = photoScale.coerceAtLeast(1f)
+            val scaledW = src.width() * scale * zoom
+            val scaledH = src.height() * scale * zoom
             val left = (PHOTO_CARD_WIDTH - scaledW) / 2f
-            val top = (PHOTO_CARD_HEIGHT - scaledH) / 2f
+            val top = (PHOTO_CARD_HEIGHT - scaledH) / 2f + photoOffsetY.coerceIn(-1f, 1f) * PHOTO_CARD_HEIGHT
             val destCrop = RectF(left, top, left + scaledW, top + scaledH)
             canvas.drawBitmap(photoBmp, src, destCrop, null)
             if (blurRadius > 0) {

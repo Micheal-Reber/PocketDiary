@@ -303,24 +303,6 @@ fun CountdownEditScreen(
                         Switch(checked = highlighted, onCheckedChange = { highlighted = it })
                     }
 
-                    // 字色切换：两种风格通用（黑/白字）
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.l),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("文字颜色")
-                        androidx.compose.material3.Switch(
-                            checked = fontDark,
-                            onCheckedChange = { fontDark = it }
-                        )
-                    }
-                    Text(if (fontDark) "黑字（适合浅色背景/纹理）" else "白字（适合深色背景/纹理）",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.l)
-                    )
-
                     // 颜色色板：首格「自动」
                     Column {
                         Text("颜色", style = MaterialTheme.typography.labelMedium,
