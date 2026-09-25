@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.DisposableEffect
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.activity.SystemBarStyle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -22,6 +23,8 @@ class MainActivity : ComponentActivity() {
 
     private val database by lazy { AppDatabase.getInstance(this) }
     private val themePreferences by lazy { ThemePreferences(this) }
+    private val appWindowBackground = ColorDrawable()
+    private var windowBackgroundInstalled = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // The app's dark/light mode is INDEPENDENT of the system (settings
@@ -52,22 +55,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         // System bars follow the APP mode too, not the system one.
-        if (startDark) {
-            enableEdgeToEdge(
-                statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
-                navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
-            )
-        } else {
-            enableEdgeToEdge(
-                statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
-                navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-            )
-        }
-        // Any frame exposed between splash dismissal and Compose's first draw
-        // now matches the app mode instead of whatever the system uiMode is.
-        window.setBackgroundDrawable(
-            ColorDrawable(if (startDark) Color.BLACK else Color.parseColor("#FBFDF9"))
-        )
+        applyAppWindowStyle(startDark)
 
         // Notification deep-link: TodoNotificationHelper puts open_todo_id here.
         val openTodoId = intent.getLongExtra("open_todo_id", -1L).takeIf { it > 0 }
@@ -79,6 +67,10 @@ class MainActivity : ComponentActivity() {
             // brief "false" flash before the first read completes.
             val isDarkMode by themePreferences.isDarkMode.collectAsStateWithLifecycle(initialValue = startDark)
             val dynamicColor by themePreferences.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
+            DisposableEffect(isDarkMode) {
+                applyAppWindowStyle(isDarkMode)
+                onDispose { }
+            }
             DiaryTheme(darkTheme = isDarkMode, dynamicColor = dynamicColor) {
                 AppNavigation(
                     themePreferences = themePreferences,
@@ -94,5 +86,25 @@ class MainActivity : ComponentActivity() {
         // Re-delivered notification while activity is alive (singleTop not set,
         // but CLEAR_TASK usually recreates — keep this as a safety net).
         setIntent(intent)
+    }
+
+    private fun applyAppWindowStyle(dark: Boolean) {
+        if (dark) {
+            enableEdgeToEdge(
+                statusBarStyle = SystemBarStyle.dark(Color.TRANSPARENT),
+                navigationBarStyle = SystemBarStyle.dark(Color.TRANSPARENT)
+            )
+        } else {
+            enableEdgeToEdge(
+                statusBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT),
+                navigationBarStyle = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+            )
+        }
+        appWindowBackground.color =
+            if (dark) Color.parseColor("#191C1A") else Color.parseColor("#FBFDF9")
+        if (!windowBackgroundInstalled) {
+            window.setBackgroundDrawable(appWindowBackground)
+            windowBackgroundInstalled = true
+        }
     }
 }
