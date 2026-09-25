@@ -1,5 +1,7 @@
 package com.example.diary.ui.countdown
 
+import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -38,6 +40,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
@@ -73,10 +76,15 @@ fun PhotoCardEditorScreen(
     var photoOffsetY by remember { mutableFloatStateOf(0f) }
     var photoScale by remember { mutableFloatStateOf(1f) }
     var pickerOpened by remember { mutableStateOf(false) }
+    // 编辑会话标记：旋转/进程重建后为 true（保留草稿）；新进入为 false（清掉上次遗留草稿）
+    var editingSession by rememberSaveable { mutableStateOf(false) }
 
-    val photoBitmap by produceState<ImageBitmap?>(null, eventId, imageVersion) {
+    val photoBitmap by produceState<ImageBitmap?>(null, eventId, imageVersion, editingSession) {
         value = withContext(Dispatchers.IO) {
-            val file = EventImageStore.file(context, eventId)
+            if (!editingSession) return@withContext null
+            // 草稿优先：选图未点完成时预览草稿，正式文件保持原样
+            val file = EventImageStore.draftFile(context, eventId).takeIf { it.exists() }
+                ?: EventImageStore.file(context, eventId)
             if (file.exists()) BackgroundImageStore.decode(context, file.absolutePath, maxDim = 1400)
             else null
         }
@@ -87,7 +95,8 @@ fun PhotoCardEditorScreen(
     ) { uri ->
         if (uri != null) {
             scope.launch {
-                EventImageStore.importFromUri(context, uri, eventId)
+                // 只写草稿：点「完成」才覆盖正式背景，直接退出则丢弃
+                EventImageStore.importToDraft(context, uri, eventId)
                 clearBlurCache(eventId)
                 photoOffsetY = 0f
                 photoScale = 1f
@@ -97,12 +106,18 @@ fun PhotoCardEditorScreen(
     }
 
     LaunchedEffect(eventId) {
+        if (!editingSession) {
+            EventImageStore.deleteDraft(context, eventId) // 上次异常退出遗留的草稿
+            editingSession = true
+        }
         repository.get(eventId)?.let { eventValue ->
             blurRadius = eventValue.blurRadius
             fontDark = eventValue.fontDark
             photoOffsetY = eventValue.photoOffsetY
             photoScale = eventValue.photoScale.coerceAtLeast(1f)
-            if (!EventImageStore.exists(context, eventId) && !pickerOpened) {
+            if (!EventImageStore.exists(context, eventId) &&
+                !EventImageStore.draftFile(context, eventId).exists() && !pickerOpened
+            ) {
                 pickerOpened = true
                 pickPhotoLauncher.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -110,6 +125,14 @@ fun PhotoCardEditorScreen(
             }
         }
     }
+
+    // 返回（图标/手势）= 放弃本次编辑：丢弃草稿，正式背景与 DB 保持原样
+    fun discardAndBack() {
+        EventImageStore.deleteDraft(context, eventId)
+        onBack()
+    }
+
+    BackHandler { discardAndBack() }
 
     val currentEvent = event ?: return
     val state = DateMath.compute(
@@ -127,6 +150,9 @@ fun PhotoCardEditorScreen(
 
     fun saveAndBack() {
         scope.launch {
+            // 点「完成」才把草稿转正：覆盖正式背景文件（失败则草稿保留、本次不应用）
+            val promoted = EventImageStore.promoteDraft(context, eventId)
+            if (promoted != null) clearBlurCache(eventId)
             repository.save(
                 currentEvent.copy(
                     blurRadius = blurRadius,
@@ -146,7 +172,7 @@ fun PhotoCardEditorScreen(
             TopAppBar(
                 title = { Text("调整背景图片") },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = { discardAndBack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
                     }
                 },
