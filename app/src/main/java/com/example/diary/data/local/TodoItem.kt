@@ -24,10 +24,13 @@ data class TodoItem(
     val sortOrder: Int = 0,
     val createdAt: Long = System.currentTimeMillis(),
     val reminderAt: Long? = null,        // 提醒时间戳（毫秒），null=无提醒
-    val repeatRule: Int = REPEAT_NONE    // 重复规则
+    val repeatRule: Int = REPEAT_NONE,   // 重复规则
+    val alarmMode: Int = MODE_NOTIFY     // 到点方式：通知提醒 / 闹钟响铃
 ) {
     companion object {
         const val REPEAT_NONE = 0
         const val REPEAT_DAILY = 1
+        const val MODE_NOTIFY = 0        // 普通通知提醒
+        const val MODE_RING = 1          // 系统级闹钟响铃（全屏+循环铃声）
     }
 }

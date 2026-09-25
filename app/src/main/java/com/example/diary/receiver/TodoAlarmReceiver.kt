@@ -7,6 +7,7 @@ import android.util.Log
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.local.TodoItem
 import com.example.diary.data.repository.TodoRepository
+import com.example.diary.data.todo.TodoAlarmNotifier
 import com.example.diary.data.todo.TodoNotificationHelper
 import com.example.diary.data.todo.TodoReminderScheduler
 import kotlinx.coroutines.CoroutineScope
@@ -24,10 +25,15 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                 val repo = TodoRepository(db.todoDao(), context)
                 val item = repo.get(id) ?: return@launch
                 if (item.done) return@launch
-                TodoNotificationHelper.show(context, item.id, item.text)
-                if (item.repeatRule == TodoItem.REPEAT_DAILY) {
+                val snoozed = intent.getBooleanExtra("snoozed", false)
+                if (item.alarmMode == TodoItem.MODE_RING) {
+                    TodoAlarmNotifier.show(context, item) // 闹钟模式：全屏响铃
+                } else {
+                    TodoNotificationHelper.show(context, item.id, item.text)
+                }
+                if (!snoozed && item.repeatRule == TodoItem.REPEAT_DAILY) {
                     // 日历日 +1（系统时区），DST 不漂移；错过多天自动跳到未来
-                    // save() 内会同步 schedule 下一次
+                    // save() 内会同步 schedule 下一次；稍后提醒不推进重复规则
                     val finalAt = TodoReminderScheduler.nextDailyOccurrence(
                         fromMillis = item.reminderAt ?: System.currentTimeMillis()
                     )

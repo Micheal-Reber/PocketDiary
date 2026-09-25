@@ -12,19 +12,47 @@ import java.time.ZoneId
 
 object TodoReminderScheduler {
 
+    /** 稍后提醒默认延后 5 分钟 */
+    const val DEFAULT_SNOOZE_MILLIS = 5 * 60 * 1000L
+
     /**
      * 与通知 id 一致的 64-bit 混合：直接 todoId.toInt() 会在 id≥2³¹ 时截断撞号。
      */
     fun requestCodeFor(todoId: Long): Int = (todoId xor (todoId ushr 32)).toInt()
 
-    private fun pendingIntent(context: Context, todoId: Long): PendingIntent {
+    private fun pendingIntent(context: Context, todoId: Long, snoozed: Boolean = false): PendingIntent {
         val intent = Intent(context, TodoAlarmReceiver::class.java).apply {
             putExtra("todo_id", todoId)
+            if (snoozed) putExtra("snoozed", true)
         }
         return PendingIntent.getBroadcast(
             context, requestCodeFor(todoId), intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
+    }
+
+    /** AlarmClockInfo.showIntent：系统闹钟状态/权限界面点开 → 待办 Tab。 */
+    private fun showPendingIntent(context: Context, todoId: Long): PendingIntent {
+        val intent = Intent(context, com.example.diary.MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            putExtra("open_todo_id", todoId)
+        }
+        return PendingIntent.getActivity(
+            context, requestCodeFor(todoId), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+
+    private fun setExactOrInexact(am: AlarmManager, at: Long, pi: PendingIntent) {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
+                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+            } else {
+                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
+            }
+        } catch (_: SecurityException) {
+            try { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) } catch (_: Exception) {}
+        }
     }
 
     fun schedule(context: Context, item: TodoItem) {
@@ -36,15 +64,29 @@ object TodoReminderScheduler {
         }
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
         val pi = pendingIntent(context, item.id)
-        try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !am.canScheduleExactAlarms()) {
-                am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-            } else {
-                am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-            }
-        } catch (_: SecurityException) {
-            try { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi) } catch (_: Exception) {}
+        // 闹钟响铃模式：setAlarmClock 享有闹钟豁免（Doze/省电不延迟），系统状态栏显示闹钟图标
+        if (item.alarmMode == TodoItem.MODE_RING) {
+            try {
+                am.setAlarmClock(AlarmManager.AlarmClockInfo(at, showPendingIntent(context, item.id)), pi)
+                return
+            } catch (_: SecurityException) { /* 精确闹钟被拒 → 走下方降级 */ }
         }
+        setExactOrInexact(am, at, pi)
+    }
+
+    /** 稍后提醒：短延时重排一次（snoozed 标记让接收器只响铃、不推进重复规则）。 */
+    fun snooze(context: Context, item: TodoItem, delayMillis: Long = DEFAULT_SNOOZE_MILLIS) {
+        if (item.done) return
+        val at = System.currentTimeMillis() + delayMillis
+        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        val pi = pendingIntent(context, item.id, snoozed = true)
+        if (item.alarmMode == TodoItem.MODE_RING) {
+            try {
+                am.setAlarmClock(AlarmManager.AlarmClockInfo(at, showPendingIntent(context, item.id)), pi)
+                return
+            } catch (_: SecurityException) { /* fall through */ }
+        }
+        setExactOrInexact(am, at, pi)
     }
 
     fun cancel(context: Context, todoId: Long) {

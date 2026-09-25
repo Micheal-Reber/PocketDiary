@@ -23,6 +23,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *  - v11: TodoItem 移除 parentId / hasSubtasks（小组件功能整体删除）。
  *  - v12: CountdownEvent 新增照片卡图片垂直位置。
  *  - v13: CountdownEvent 新增照片卡图片缩放比例。
+ *  - v14: TodoItem 新增 alarmMode（通知提醒 / 闹钟响铃）。
  *
  * Migrations:
  *  - v9 与 v11 的 todo_items 结构等价 → MIGRATION_9_11 为空（保数据升级）。
@@ -31,7 +32,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  */
 @Database(
     entities = [DiaryEntry::class, Habit::class, HabitRecord::class, CountdownEvent::class, TodoItem::class],
-    version = 13,
+    version = 14,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -99,6 +100,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_13_14 = object : Migration(13, 14) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE `todo_items` ADD COLUMN `alarmMode` INTEGER NOT NULL DEFAULT 0"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -106,7 +115,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "pocket_diary.db"
                 )
-                    .addMigrations(MIGRATION_9_11, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                    .addMigrations(MIGRATION_9_11, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }

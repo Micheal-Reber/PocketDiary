@@ -3,6 +3,7 @@ package com.example.diary.ui.todo
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -31,6 +32,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.diary.data.local.TodoItem
 import com.example.diary.data.repository.TodoRepository
+import com.example.diary.data.todo.TodoAlarmNotifier
 import com.example.diary.data.todo.TodoNotificationHelper
 import com.example.diary.ui.components.SwipeDeleteCard
 import com.example.diary.ui.theme.Spacing
@@ -58,12 +60,31 @@ fun TodoListScreen(
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(Unit) { TodoNotificationHelper.ensureChannel(context) }
+    LaunchedEffect(Unit) {
+        TodoNotificationHelper.ensureChannel(context)
+        TodoAlarmNotifier.ensureChannel(context)
+    }
 
     fun hasNotificationPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
+
+    // 设置页深链：按序尝试（缺 extra 秒关 / OEM 不识别该 action 时降级到应用信息页）
+    fun openSettingsSafely(vararg intents: Intent) {
+        for (base in intents) {
+            val i = Intent(base).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            try {
+                context.startActivity(i)
+                return
+            } catch (_: android.content.ActivityNotFoundException) {
+            } catch (_: SecurityException) {
+            }
+        }
+    }
+
+    fun appDetailsIntent(): Intent =
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
 
     // 保存带提醒的待办时申请通知权限；被拒不阻塞保存（闹钟照排），仅提示
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
@@ -77,9 +98,10 @@ fun TodoListScreen(
                     duration = SnackbarDuration.Long
                 )
                 if (result == SnackbarResult.ActionPerformed) {
-                    context.startActivity(
+                    openSettingsSafely(
                         Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                        appDetailsIntent()
                     )
                 }
             }
@@ -104,9 +126,36 @@ fun TodoListScreen(
                         duration = SnackbarDuration.Long
                     )
                     if (result == SnackbarResult.ActionPerformed) {
-                        context.startActivity(
+                        openSettingsSafely(
                             Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)
-                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                            appDetailsIntent()
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    // 14+ 全屏 Intent 被禁时闹钟无法锁屏拉起 → 降级为响一次通知，需告知 + 深链
+    fun ensureFullScreenIntentPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val nm = context.getSystemService(android.app.NotificationManager::class.java)
+            if (!nm.canUseFullScreenIntent()) {
+                scope.launch {
+                    val result = snackbarHostState.showSnackbar(
+                        "未授予全屏提醒权限，闹钟可能无法锁屏响铃",
+                        actionLabel = "去设置",
+                        duration = SnackbarDuration.Long
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        openSettingsSafely(
+                            // EXTRA_APP_PACKAGE 必带：缺了 Settings 秒开秒关（表现为点了没反应）
+                            Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                            appDetailsIntent()
                         )
                     }
                 }
@@ -201,19 +250,21 @@ fun TodoListScreen(
     if (showEditSheet) {
         TodoEditSheet(
             existingItem = editingItem,
-            onSave = { text, done, reminderAt, repeatRule ->
+            onSave = { text, done, reminderAt, repeatRule, alarmMode ->
                 scope.launch {
                     val base = editingItem
                     val toSave = if (base == null) {
-                        TodoItem(text = text, done = done, sortOrder = active.size, reminderAt = reminderAt, repeatRule = repeatRule)
+                        TodoItem(text = text, done = done, sortOrder = active.size, reminderAt = reminderAt, repeatRule = repeatRule, alarmMode = alarmMode)
                     } else {
-                        base.copy(text = text, done = done, reminderAt = reminderAt, repeatRule = repeatRule)
+                        base.copy(text = text, done = done, reminderAt = reminderAt, repeatRule = repeatRule, alarmMode = alarmMode)
                     }
                     repository.save(toSave)
                     if (toSave.reminderAt != null && !toSave.done) {
                         TodoNotificationHelper.ensureChannel(context)
+                        TodoAlarmNotifier.ensureChannel(context)
                         ensureNotificationPermissionForReminder()
                         ensureExactAlarmPermission()
+                        if (toSave.alarmMode == TodoItem.MODE_RING) ensureFullScreenIntentPermission()
                     }
                     showEditSheet = false
                 }
@@ -253,7 +304,8 @@ private fun TodoCard(item: TodoItem, isCompleted: Boolean, onToggle: () -> Unit,
                 if (item.reminderAt != null && !isCompleted) {
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        DateUtils.formatReminder(item.reminderAt, item.repeatRule),
+                        (if (item.alarmMode == TodoItem.MODE_RING) "闹钟 · " else "") +
+                            DateUtils.formatReminder(item.reminderAt, item.repeatRule),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )

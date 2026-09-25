@@ -37,7 +37,8 @@ import java.time.*
 fun ReminderTimeSheet(
     initialAt: Long?,
     initialRepeat: Int,
-    onConfirm: (Long, Int) -> Unit,
+    initialAlarmMode: Int,
+    onConfirm: (Long, Int, Int) -> Unit,
     onDismiss: () -> Unit
 ) {
     val initialDateTime = remember(initialAt) {
@@ -48,6 +49,7 @@ fun ReminderTimeSheet(
     var selectedTime by rememberSaveable { mutableStateOf(initialDateTime.toLocalTime().withSecond(0).withNano(0)) }
     var currentMonth by rememberSaveable { mutableStateOf(YearMonth.from(selectedDate)) }
     var repeatRule by rememberSaveable { mutableIntStateOf(initialRepeat) }
+    var alarmMode by rememberSaveable { mutableIntStateOf(initialAlarmMode) }
     var showTimePicker by remember { mutableStateOf(false) }
     var showRepeatMenu by remember { mutableStateOf(false) }
 
@@ -81,6 +83,33 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
                 }
             }
             }
+            Spacer(Modifier.height(16.dp))
+
+            // 提醒方式：普通通知 vs 全屏闹钟响铃
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("提醒方式", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ReminderModeChip(
+                        label = "通知",
+                        selected = alarmMode == TodoItem.MODE_NOTIFY,
+                        onClick = { alarmMode = TodoItem.MODE_NOTIFY }
+                    )
+                    ReminderModeChip(
+                        label = "闹钟",
+                        selected = alarmMode == TodoItem.MODE_RING,
+                        onClick = { alarmMode = TodoItem.MODE_RING }
+                    )
+                }
+            }
+            if (alarmMode == TodoItem.MODE_RING) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "到点锁屏全屏响铃，直至完成、稍后或关闭",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 12.sp
+                )
+            }
+
             Spacer(Modifier.height(16.dp))
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -197,7 +226,7 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
                         } else {
                             at
                         }
-                        onConfirm(finalAt, repeatRule)
+                        onConfirm(finalAt, repeatRule, alarmMode)
                     },
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier.weight(1f).height(48.dp)
@@ -232,6 +261,22 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
             dismissButton = {
                 TextButton(onClick = { showTimePicker = false }) { Text("取消") }
             }
+        )
+    }
+}
+
+@Composable
+private fun ReminderModeChip(label: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest,
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.clickable(onClick = onClick)
+    ) {
+        Text(
+            label,
+            color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface,
+            fontSize = 14.sp,
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
         )
     }
 }

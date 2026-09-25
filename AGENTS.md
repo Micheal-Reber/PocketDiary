@@ -9,10 +9,10 @@
 **PocketDiary** — 极简 Android 日记 App。纯本地存储、零联网依赖（无账号/云同步）。
 
 - **语言/UI**: Kotlin 1.9.24 + Jetpack Compose (BOM 2024.09.03, M3 1.3) + Material 3
-- **数据库**: Room v11（v9/v10 有手写迁移；v8 及更早仍破坏性回退会清数据）
+- **数据库**: Room v14（v9→11 / v10→11 / v11→12→13→14 有手写迁移；v8 及更早仍破坏性回退会清数据）
 - **偏好**: DataStore Preferences
 - **SDK**: minSdk 26 / target & compile 35 / JDK 17
-- **当前版本**: 1.8.2 (code 10)
+- **当前版本**: 1.9.0 (code 13)
 - **约束**: Kotlin 1.9.24 工具链 —— **不要**引入要求 Kotlin 2.x / Compose 1.8+ / M3 1.4 的依赖（如 Material 3 Expressive 组件）
 
 ## 构建与安装
@@ -45,12 +45,12 @@ app/src/main/java/com/example/diary/
 │   ├── backup/             # 数据导出/导入（手机迁移）：BackupData/ExportService/ImportService/BackupRepository
 │   ├── countdown/          # DateMath 正倒判定纯函数 + ShareCardRenderer 分享图 + TextureLibrary 纹理
 │   ├── image/              # BackgroundImageStore（日记背景，相对路径）/ EventImageStore（倒数日每事件背景）
-│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem（version 11）
+│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem（version 14）
 │   ├── location/           # LocationManager 封装（无 GMS）
 │   ├── photo/              # DiaryPhotoStore：日记图文混排两阶段生命周期
 │   ├── preferences/        # DataStore: 暗色模式 / 日记背景 / 壁纸取色 / 编辑器预览开关
 │   ├── repository/         # 薄仓库层（SaveResult 密封类处理日期冲突）
-│   └── todo/               # TodoReminderScheduler(AlarmManager) + TodoNotificationHelper
+│   └── todo/               # TodoReminderScheduler(AlarmManager/setAlarmClock) + TodoNotificationHelper + TodoAlarmNotifier(全屏响铃)
 └── ui/
     ├── components/         # SharedUi：SwipeDelete/Confirm/Search/UtcDatePicker/PresetChip（多屏共用）
     ├── countdown/          # 倒数日：列表/编辑/详情 三屏 + 共享件（双卡片风格：CLASSIC / PHOTO_CARD）
@@ -59,7 +59,7 @@ app/src/main/java/com/example/diary/
     ├── habits/             # 打卡日历 + 统计图表（LineChart 自研）
     ├── navigation/         # 底部五 Tab：日记/日历/倒数日/待办/设置 + 编辑器/统计/倒数日子路由
     ├── settings/           # 设置页（数据迁移 ZIP + 关于读 BuildConfig）
-    ├── todo/               # 待办：TodoListScreen(黑底+已完成折叠+黄FAB) + TodoEditSheet + ReminderTimeSheet
+    ├── todo/               # 待办：TodoListScreen(黑底+已完成折叠+黄FAB) + TodoEditSheet + ReminderTimeSheet + TodoRingActivity(响铃页)
     └── theme/              # Material 3 主题
 ```
 
@@ -80,8 +80,8 @@ app/src/main/java/com/example/diary/
 | 亮暗/开屏 | `Theme.kt` + `themes.xml` + `MainActivity.kt` | 独立于系统 |
 | 背景图缓存 | `data/image/BackgroundImageStore.kt` | 覆盖同名文件后必须 `clearCache()`；倒数日每事件图走 EventImageStore |
 | 待办列表/编辑 | `ui/todo/TodoListScreen.kt`(黑底+已完成折叠) + `TodoEditSheet.kt`(图1底板) + `ReminderTimeSheet.kt`(图2日历) | 勾选下沉/回升、设置提醒胶囊→日历、橙色完成、黄FAB；重构后无独立编辑页（Sheet直管） |
-| 待办数据层 | `data/local/TodoItem.kt` + `TodoDao.kt` + `TodoRepository.kt` | 单表 todo_items，字段：id/text/done/sortOrder/createdAt/reminderAt/repeatRule；DAO: observeAll/getAll/getDueReminders；**save/delete 内同步闹钟**（UI 不再直接调 Scheduler），`updateReminder` 已删 |
-| 待办提醒调度 | `data/todo/TodoReminderScheduler.kt` + `TodoNotificationHelper.kt` + `receiver/TodoAlarmReceiver.kt` + `BootCompletedReceiver.kt` | setExactAndAllowWhileIdle + requestCode=`id xor (id ushr 32)` 防截断；重复按日历日+1（DST 安全）；BOOT/MY_PACKAGE_REPLACED/TIME_SET/TIMEZONE_CHANGED 全量重排 + 补发错过的非重复通知；通知带 `open_todo_id` → 待办 Tab；精确闹钟不可用时 UI SnackBar 深链 |
+| 待办数据层 | `data/local/TodoItem.kt` + `TodoDao.kt` + `TodoRepository.kt` | 单表 todo_items，字段：id/text/done/sortOrder/createdAt/reminderAt/repeatRule/alarmMode(0=通知,1=闹钟响铃)；DAO: observeAll/getAll/getDueReminders；**save/delete 内同步闹钟**（UI 不再直接调 Scheduler），`updateReminder` 已删 |
+| 待办提醒调度 | `data/todo/TodoReminderScheduler.kt` + `TodoNotificationHelper.kt` + `TodoAlarmNotifier.kt` + `receiver/TodoAlarmReceiver.kt` + `BootCompletedReceiver.kt` | 通知模式 setExactAndAllowWhileIdle；**闹钟模式(alarmMode=1) 走 setAlarmClock（Doze 豁免）→ `TodoAlarmNotifier` 全屏 Intent 拉起 `TodoRingActivity` 循环铃声+震动**；requestCode=`id xor (id ushr 32)` 防截断；重复按日历日+1（DST 安全）；`snooze()` 5 分钟后重响（snoozed 标记不推进重复规则）；BOOT/MY_PACKAGE_REPLACED/TIME_SET/TIMEZONE_CHANGED 全量重排 + 补发错过的非重复通知；通知带 `open_todo_id` → 待办 Tab；精确闹钟/全屏 Intent 无权限时 UI SnackBar 深链 |
 
 ## CODE MAP
 
@@ -97,9 +97,11 @@ app/src/main/java/com/example/diary/
 | `AppShapes` / `Spacing` | val | ui/theme | 圆角/间距令牌（禁止字面量） |
 | `TodoRepository.save` | suspend | data/repository | 待办插入/更新 + **内部 schedule/cancel 闹钟**（带 context 构造时） |
 | `TodoDao.observeAll` | Flow<List<TodoItem>> | data/local | 待办列表实时观察（按 sortOrder 排序） |
-| `TodoReminderScheduler.schedule` | fun | data/todo | 精确闹钟；过期不排、done 取消；重复走 `nextDailyOccurrence` 日历日+1 |
+| `TodoReminderScheduler.schedule` | fun | data/todo | 精确闹钟（alarmMode=1 用 setAlarmClock）；过期不排、done 取消；重复走 `nextDailyOccurrence` 日历日+1 |
+| `TodoReminderScheduler.snooze` | fun | data/todo | 稍后提醒：默认 +5min，snoozed extra 让接收器只响铃不推进重复规则 |
 | `TodoReminderScheduler.requestCodeFor` | fun | data/todo | `(id xor (id ushr 32)).toInt()` —— 防 `toInt()` 截断撞号 |
-| `TodoNotificationHelper.show` | fun | data/todo | 高优通知（BigText，点穿透 `open_todo_id` 至待办 Tab） |
+| `TodoNotificationHelper.show` | fun | data/todo | 高优通知（BigText，点穿透 `open_todo_id` 至待办 Tab）——通知模式 |
+| `TodoAlarmNotifier.show` | fun | data/todo | 闹钟模式：`todo_alarm` 渠道（闹钟铃声+长震动+免打扰穿透）+ 全屏 Intent；silent=true 用于响铃页退后台的回入口 |
 | `SwipeDeleteCard` / `ConfirmDialog` / `SearchTextField` / `UtcDatePickerDialog` / `PresetChipRow` | fun | ui/components/SharedUi.kt | 列表滑删/确认弹窗/搜索框/UTC 日期/心情天气 chip 行（日记+待办+倒数日+编辑器共用；chip **无描边** `border = null`） |
 | `BackupRepository.export/importData` | suspend | data/backup | 迁移唯一入口（Uri SAF）；内部走 Export/ImportService |
 | `BackgroundImageStore.normalizeStoredPath` | fun | data/image | 绝对路径 → filesDir 相对（备份/导入用） |
@@ -111,7 +113,7 @@ app/src/main/java/com/example/diary/
 - **日期一律存 `yyyy-MM-dd` 字符串**（`LocalDate.toString()`），解析用 `LocalDate.parse`
 - 日记一天一篇：`diary_entries.date` 有 UNIQUE 索引；保存走 `DiaryRepository.saveEntry`
   - id==0 → 按日期查重后插入；id!=0 → 按 id 整条 UPDATE（改日期=搬移，冲突返回 `SaveResult.DateConflict`）
-- **schema 变更 → version +1**（v1.2→4；v1.7→8；v1.8→9 新增 reminderAt/repeatRule；当前 11）；同步 bump `versionCode`；**提供 Migration**（见 `AppDatabase` 的 MIGRATION_9_11/MIGRATION_10_11），仅无历史 schema 的旧版本才走 `fallbackToDestructiveMigration()`（会清数据，需告知用户）
+- **schema 变更 → version +1**（v1.2→4；v1.7→8；v1.8→9 新增 reminderAt/repeatRule；当前 14）；同步 bump `versionCode`；**提供 Migration**（见 `AppDatabase` 的 MIGRATION_* 链），仅无历史 schema 的旧版本才走 `fallbackToDestructiveMigration()`（会清数据，需告知用户）
 - DAO 查询只写必要字段；统计查询按需加载（切年只查月统计、切月只查日统计）
 - **新表只加不改旧表**：新增 `todo_items` 表不影响现有 Diary/Habit/Countdown 表
 
@@ -139,8 +141,8 @@ app/src/main/java/com/example/diary/
 6. **KSP/Room**：Room 处理器对 DAO 中引用已删除类型敏感，删实体字段后全局 grep 残留引用
 7. **嵌套密封类型引用**：`DateMath.CountState.Today` 必须带完整嵌套路径或 `import DateMath.CountState`——裸写 `DateMath.Today` 不解析（踩过）
 8. **Todo 列表交互**：彻底重构后为黑底+灰卡+折叠已完成（图3），勾选即下沉/回升，无拖拽；旧 `dragAndDrop/ SwipeToDismiss` 已移除
-9. **Todo 提醒**：`POST_NOTIFICATIONS` (33+) 需运行时申请、`SCHEDULE_EXACT_ALARM` 在 S+ 需 `canScheduleExactAlarms()` 检测否则降级 `setAndAllowWhileIdle` 并 SnackBar 深链；`BOOT_COMPLETED`/`MY_PACKAGE_REPLACED`/`TIME_SET`/`TIMEZONE_CHANGED` 重排 + 补发错过的非重复通知；过期非重复不排；**闹钟调度只走 `TodoRepository.save/delete`**，UI 勿再直接调 Scheduler
-10. **Room 版本号同步**：每次 schema 变更必须同时更新 `AppDatabase.version` 和 `build.gradle.kts` 的 `versionCode`，两者保持同步（v8=1.7, v9=1.8, v11=1.8.2/code 10）；升级路径写 `addMigrations`，勿只靠破坏性回退；schema JSON 在 `app/schemas/…/11.json` **必须入库**
+9. **Todo 提醒**：`POST_NOTIFICATIONS` (33+) 需运行时申请、`SCHEDULE_EXACT_ALARM` 在 S+ 需 `canScheduleExactAlarms()` 检测否则降级 `setAndAllowWhileIdle` 并 SnackBar 深链；14+ 闹钟模式需 `canUseFullScreenIntent()` 检测否则降级为响一次通知（`ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT` 深链）；`BOOT_COMPLETED`/`MY_PACKAGE_REPLACED`/`TIME_SET`/`TIMEZONE_CHANGED` 重排 + 补发错过的非重复通知（错过只补普通通知，不补响铃）；过期非重复不排；**闹钟调度只走 `TodoRepository.save/delete`**，UI 勿再直接调 Scheduler
+10. **Room 版本号同步**：每次 schema 变更必须同时更新 `AppDatabase.version` 和 `build.gradle.kts` 的 `versionCode`，两者保持同步（v9=1.8, v11=1.8.2/code 10, v14=1.9.0/code 13）；升级路径写 `addMigrations`，勿只靠破坏性回退；schema JSON 在 `app/schemas/…/14.json` **必须入库**
 11. **Robolectric**：4.11 最高官方 SDK 34，而 targetSdk=35——用 Robolectric 的测试类必须 `@Config(sdk = [34])`，否则 `Package targetSdkVersion=35 > maxSdkVersion=34` 初始化失败
 12. **备份安全**：导入必须先过版本闸门（`version < 1 || > CURRENT_VERSION` → Failure）；ZIP 解压防滑移（禁 `..`）；STORED 需 CRC 校验；日记背景路径入库前 `normalizeStoredPath`
 13. **Kotlin DSL 签名配置**：`build.gradle.kts` 里用 `java.util.Properties` 必须文件头 `import java.util.Properties`（脚本内 `java.util` 会 Unresolved）
@@ -150,5 +152,5 @@ app/src/main/java/com/example/diary/
 - **先方案后编码**：大改动先输出详细方案（含数据模型/UI/边界情况），用户确认（「开工」）后再动手
 - **测试驱动提交**：构建→安装到手机→用户实测确认→才 `git add/commit/push`
 - **密钥安全**：`pocketdiary.jks`、`keystore.properties` 已 gitignore；`build.gradle.kts` **只读** `keystore.properties`（不写死密码）。**注意：git 历史曾 4 次误提交密钥 blob（2f41123 等），工作树已删但历史仍可达——如需彻底清除需 `git filter-repo` 重写历史（须用户确认）**；建议换新 keystore。提交前 `git check-ignore` 复核
-- **KSP**：Room 走 `ksp`（非 kapt）；schema 导出 `app/schemas/…/11.json`（需入库以便迁移测试）
+- **KSP**：Room 走 `ksp`（非 kapt）；schema 导出 `app/schemas/…/14.json`（需入库以便迁移测试）
 - 提交信息：中文、一行概括（分号分隔多点）；推送目标 `origin main`

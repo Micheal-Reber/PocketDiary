@@ -14,6 +14,11 @@
         <item name="android:windowBackground">@color/window_background_light</item>
     </style>
 
+    <!-- 待办闹钟响铃页：深色 NoActionBar，避免锁屏上闪白底 -->
+    <style name="Theme.PocketDiary.Ring" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/window_background_dark</item>
+    </style>
+
     <!-- No-logo splash: transparent icon turns the mandatory Android 12+ system
          splash into a bare solid color beat (~first-frame duration). Background
          color follows the APP's dark-mode setting via runtime theme selection.

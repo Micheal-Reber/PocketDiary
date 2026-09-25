@@ -27,13 +27,14 @@ import com.example.diary.util.DateUtils
 @Composable
 fun TodoEditSheet(
     existingItem: TodoItem?,
-    onSave: (String, Boolean, Long?, Int) -> Unit,
+    onSave: (String, Boolean, Long?, Int, Int) -> Unit,
     onDismiss: () -> Unit
 ) {
     var text by rememberSaveable { mutableStateOf(existingItem?.text ?: "") }
     var done by rememberSaveable { mutableStateOf(existingItem?.done ?: false) }
     var reminderAt by rememberSaveable { mutableStateOf(existingItem?.reminderAt) }
     var repeatRule by rememberSaveable { mutableIntStateOf(existingItem?.repeatRule ?: TodoItem.REPEAT_NONE) }
+    var alarmMode by rememberSaveable { mutableIntStateOf(existingItem?.alarmMode ?: TodoItem.MODE_NOTIFY) }
     var showReminderSheet by remember { mutableStateOf(false) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -87,9 +88,11 @@ fun TodoEditSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // key 必须含 repeatRule：只 remember(reminderAt) 时改“每天”不刷新文案
-                val fmt = remember(reminderAt, repeatRule) {
-                    DateUtils.formatReminderAt(reminderAt, repeatRule)
+                // key 必须含 repeatRule/alarmMode：只 remember(reminderAt) 时改“每天/闹钟”不刷新文案
+                val fmt = remember(reminderAt, repeatRule, alarmMode) {
+                    DateUtils.formatReminderAt(reminderAt, repeatRule)?.let {
+                        if (alarmMode == TodoItem.MODE_RING) "$it · 闹钟" else it
+                    }
                 }
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -112,13 +115,13 @@ fun TodoEditSheet(
                             Text(
                                 "×",
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.clickable { reminderAt = null; repeatRule = TodoItem.REPEAT_NONE }
+                                    modifier = Modifier.clickable { reminderAt = null; repeatRule = TodoItem.REPEAT_NONE; alarmMode = TodoItem.MODE_NOTIFY }
                             )
                         }
                     }
                 }
                 TextButton(onClick = {
-                    if (canSave) onSave(text.trim(), done, reminderAt, repeatRule)
+                    if (canSave) onSave(text.trim(), done, reminderAt, repeatRule, alarmMode)
                 }, enabled = canSave) {
                     Text("完成", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
@@ -139,9 +142,11 @@ fun TodoEditSheet(
         ReminderTimeSheet(
             initialAt = reminderAt,
             initialRepeat = repeatRule,
-            onConfirm = { at, repeat ->
+            initialAlarmMode = alarmMode,
+            onConfirm = { at, repeat, mode ->
                 reminderAt = at
                 repeatRule = repeat
+                alarmMode = mode
                 showReminderSheet = false
             },
             onDismiss = { showReminderSheet = false }
