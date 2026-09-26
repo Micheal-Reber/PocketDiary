@@ -3,6 +3,7 @@ package com.example.diary.ui.countdown
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,6 +40,8 @@ import com.example.diary.ui.components.ConfirmDialog
 import com.example.diary.ui.components.SearchTextField
 import com.example.diary.ui.components.SearchToggleButton
 import com.example.diary.ui.navigation.BottomBarContentInset
+import com.example.diary.ui.navigation.glassStroke
+import com.example.diary.ui.navigation.glassTint
 import com.example.diary.ui.theme.Spacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
@@ -179,15 +183,18 @@ private fun EventCard(
         DateMath.compute(event.date, event.repeatRule, event.plusOne, today)
     }
     val accent = eventAccent(event.colorIndex, state)
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
     Card(
         shape = MaterialTheme.shapes.medium,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         border = if (event.highlighted) BorderStroke(2.dp, accent) else null,
         modifier = Modifier
             .then(if (compact) Modifier.height(120.dp) else Modifier.fillMaxWidth())
             .combinedClickable(onClick = onClick, onLongClick = { showDeleteConfirm = true })
+            .background(glassTint(dark), MaterialTheme.shapes.medium)
+            .border(1.dp, glassStroke(dark), MaterialTheme.shapes.medium)
     ) {
         Row(
             modifier = Modifier

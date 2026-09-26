@@ -43,6 +43,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
@@ -218,6 +219,7 @@ internal fun PhotoCardContent(
     endDate: String?,
     time: String?,
     textureIndex: Int = -1,
+    bottomInset: Dp = 0.dp,
     modifier: Modifier = Modifier
 ) {
     val textColor = if (fontDark) Color.Black else Color.White
@@ -240,7 +242,7 @@ internal fun PhotoCardContent(
         }
 
         Column(
-            Modifier.fillMaxSize(),
+            Modifier.fillMaxSize().padding(bottom = bottomInset),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -685,7 +687,8 @@ fun CountdownDetailScreen(
                         dateLine = e.date,
                         endDate = e.endDate,
                         time = e.time,
-                        textureIndex = e.textureIndex
+                        textureIndex = e.textureIndex,
+                        bottomInset = BottomBarContentInset
                     )
                 } else {
                     // ===== 经典全屏：支持 fontDark 字色切换 =====
