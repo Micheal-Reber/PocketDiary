@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 class TodoAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val id = intent.getLongExtra("todo_id", -1L)
+        Log.i("TodoAlarmReceiver", "onReceive id=$id action=${intent.action}")
         if (id == -1L) return
         val pendingResult = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
@@ -26,6 +27,7 @@ class TodoAlarmReceiver : BroadcastReceiver() {
                 val item = repo.get(id) ?: return@launch
                 if (item.done) return@launch
                 val snoozed = intent.getBooleanExtra("snoozed", false)
+                Log.i("TodoAlarmReceiver", "deliver todo=$id mode=${item.alarmMode} snoozed=$snoozed")
                 if (item.alarmMode == TodoItem.MODE_RING) {
                     TodoAlarmNotifier.show(context, item) // 闹钟模式：全屏响铃
                 } else {

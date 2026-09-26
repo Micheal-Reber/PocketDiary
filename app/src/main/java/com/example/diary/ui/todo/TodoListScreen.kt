@@ -171,6 +171,44 @@ fun TodoListScreen(
         }
     }
 
+    // MIUI/HyperOS 自启动默认拒绝，拒绝时闹钟广播唤不起 App（appop 10008 无公开 API，反射检测）
+    fun miuiAutoStartAllowed(): Boolean? = try {
+        val am = context.getSystemService(android.app.AppOpsManager::class.java)
+        val m = android.app.AppOpsManager::class.java.getMethod(
+            "checkOpNoThrow", Integer.TYPE, Integer.TYPE, String::class.java
+        )
+        when (m.invoke(am, 10008, android.os.Process.myUid(), context.packageName) as Int) {
+            android.app.AppOpsManager.MODE_ALLOWED -> true
+            android.app.AppOpsManager.MODE_IGNORED, android.app.AppOpsManager.MODE_ERRORED -> false
+            else -> null
+        }
+    } catch (_: Throwable) {
+        null
+    }
+
+    fun ensureMiuiAutoStart() {
+        if (!Build.MANUFACTURER.equals("xiaomi", ignoreCase = true)) return
+        if (miuiAutoStartAllowed() != false) return
+        scope.launch {
+            val result = snackbarHostState.showSnackbar(
+                "未开启自启动，闹钟到点可能无法响铃",
+                actionLabel = "去设置",
+                duration = SnackbarDuration.Long
+            )
+            if (result == SnackbarResult.ActionPerformed) {
+                openSettingsSafely(
+                    Intent().setComponent(
+                        android.content.ComponentName(
+                            "com.miui.securitycenter",
+                            "com.miui.permcenter.autostart.AutoStartManagementActivity"
+                        )
+                    ),
+                    appDetailsIntent()
+                )
+            }
+        }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState, Modifier.padding(bottom = BottomBarContentInset)) },
@@ -273,7 +311,10 @@ fun TodoListScreen(
                         TodoAlarmNotifier.ensureChannel(context)
                         ensureNotificationPermissionForReminder()
                         ensureExactAlarmPermission()
-                        if (toSave.alarmMode == TodoItem.MODE_RING) ensureFullScreenIntentPermission()
+                        if (toSave.alarmMode == TodoItem.MODE_RING) {
+                            ensureMiuiAutoStart()
+                            ensureFullScreenIntentPermission()
+                        }
                     }
                     showEditSheet = false
                 }
