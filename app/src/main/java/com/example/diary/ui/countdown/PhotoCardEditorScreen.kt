@@ -47,7 +47,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.image.EventImageStore
@@ -75,6 +77,7 @@ fun PhotoCardEditorScreen(
     var fontDark by remember { mutableStateOf(false) }
     var photoOffsetY by remember { mutableFloatStateOf(0f) }
     var photoScale by remember { mutableFloatStateOf(1f) }
+    var contentSize by remember { mutableStateOf(IntSize.Zero) }
     var pickerOpened by remember { mutableStateOf(false) }
     // 编辑会话标记：旋转/进程重建后为 true（保留草稿）；新进入为 false（清掉上次遗留草稿）
     var editingSession by rememberSaveable { mutableStateOf(false) }
@@ -88,6 +91,14 @@ fun PhotoCardEditorScreen(
             if (file.exists()) BackgroundImageStore.decode(context, file.absolutePath, maxDim = 1400)
             else null
         }
+    }
+
+    fun currentLimit(): Float {
+        val bmp = photoBitmap ?: return 0f
+        return photoOffsetLimitY(
+            contentSize.width.toFloat(), contentSize.height.toFloat(),
+            bmp.width, bmp.height, photoScale
+        )
     }
 
     val pickPhotoLauncher = rememberLauncherForActivityResult(
@@ -157,7 +168,7 @@ fun PhotoCardEditorScreen(
                 currentEvent.copy(
                     blurRadius = blurRadius,
                     fontDark = fontDark,
-                    photoOffsetY = photoOffsetY.coerceIn(-1f, 1f),
+                    photoOffsetY = photoOffsetY.coerceIn(-currentLimit(), currentLimit()),
                     photoScale = photoScale.coerceIn(1f, 3f),
                     textureIndex = if (EventImageStore.exists(context, eventId)) -1
                     else currentEvent.textureIndex
@@ -198,7 +209,10 @@ fun PhotoCardEditorScreen(
                     Text("图片缩放", style = MaterialTheme.typography.labelLarge)
                     Slider(
                         value = photoScale,
-                        onValueChange = { photoScale = it.coerceIn(1f, 3f) },
+                        onValueChange = {
+                            photoScale = it.coerceIn(1f, 3f)
+                            photoOffsetY = photoOffsetY.coerceIn(-currentLimit(), currentLimit())
+                        },
                         valueRange = 1f..3f,
                         steps = 19
                     )
@@ -247,7 +261,8 @@ fun PhotoCardEditorScreen(
                     .pointerInput(photoBitmap) {
                         detectTransformGestures { _, pan, zoom, _ ->
                             photoScale = (photoScale * zoom).coerceIn(1f, 3f)
-                            photoOffsetY = (photoOffsetY + pan.y / size.height).coerceIn(-1f, 1f)
+                            val limit = currentLimit()
+                            photoOffsetY = (photoOffsetY + pan.y / size.height).coerceIn(-limit, limit)
                         }
                     }
             ) {
@@ -265,7 +280,8 @@ fun PhotoCardEditorScreen(
                     endDate = currentEvent.endDate,
                     time = currentEvent.time,
                     textureIndex = currentEvent.textureIndex,
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    contentModifier = Modifier.onSizeChanged { contentSize = it }
                 )
             }
         }

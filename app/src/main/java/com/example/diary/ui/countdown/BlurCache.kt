@@ -198,6 +198,18 @@ fun BlurCardImage(
     }
 }
 
+/**
+ * 图片纵向可拖上限（偏移单位=图片高×比例）：图片顶/底与卡片对齐即为极限，
+ * 图片高≤卡内高时也能拖到贴边（再拖会露底色），等高则为 0。
+ */
+fun photoOffsetLimitY(contentW: Float, contentH: Float, bitmapW: Int, bitmapH: Int, scale: Float): Float {
+    if (contentW <= 0f || contentH <= 0f || bitmapW <= 0 || bitmapH <= 0) return 0f
+    val imageH = contentW * scale * bitmapH / bitmapW
+    if (imageH <= 0f) return 0f
+    val gap = if (imageH >= contentH) imageH - contentH else contentH - imageH
+    return gap / (2f * imageH)
+}
+
 @Composable
 private fun UncroppedCardImage(
     bitmap: ImageBitmap,
@@ -209,6 +221,11 @@ private fun UncroppedCardImage(
     BoxWithConstraints(modifier, contentAlignment = Alignment.Center) {
         val density = LocalDensity.current
         val scale = photoScale.coerceAtLeast(1f)
+        val limitY = with(density) {
+            photoOffsetLimitY(
+                maxWidth.toPx(), maxHeight.toPx(), bitmap.width, bitmap.height, scale
+            )
+        }
         val imageWidth = with(density) { (maxWidth.toPx() * scale).toDp() }
         val imageHeight = with(density) {
             (maxWidth.toPx() * bitmap.height.toFloat() / bitmap.width.toFloat() * scale).toDp()
@@ -221,7 +238,7 @@ private fun UncroppedCardImage(
                 .requiredWidth(imageWidth)
                 .requiredHeight(imageHeight)
                 .graphicsLayer {
-                    translationY = photoOffsetY.coerceIn(-1f, 1f) * size.height
+                    translationY = photoOffsetY.coerceIn(-limitY, limitY) * size.height
                 }
                 .then(if (blurRadius > 0.dp) Modifier.blur(blurRadius) else Modifier)
         )

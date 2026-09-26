@@ -224,6 +224,7 @@ internal fun PhotoCardContent(
     time: String?,
     textureIndex: Int = -1,
     bottomInset: Dp = 0.dp,
+    contentModifier: Modifier = Modifier,
     modifier: Modifier = Modifier
 ) {
     val textColor = if (fontDark) Color.Black else Color.White
@@ -258,7 +259,7 @@ internal fun PhotoCardContent(
                     .aspectRatio(1.25f)
                     .padding(vertical = Spacing.l)
             ) {
-                Box(Modifier.fillMaxSize().clip(MaterialTheme.shapes.large)) {
+                Box(Modifier.fillMaxSize().clip(MaterialTheme.shapes.large).then(contentModifier)) {
                     if (photoBitmap != null) {
                         BlurCardImage(
                             bitmap = photoBitmap,
