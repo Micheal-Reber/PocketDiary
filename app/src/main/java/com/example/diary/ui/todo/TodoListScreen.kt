@@ -8,6 +8,8 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,6 +24,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -36,6 +41,8 @@ import com.example.diary.data.todo.TodoAlarmNotifier
 import com.example.diary.data.todo.TodoNotificationHelper
 import com.example.diary.ui.components.SwipeDeleteCard
 import com.example.diary.ui.navigation.BottomBarContentInset
+import com.example.diary.ui.navigation.glassStroke
+import com.example.diary.ui.navigation.glassTint
 import com.example.diary.ui.theme.Spacing
 import com.example.diary.util.DateUtils
 import kotlinx.coroutines.launch
@@ -278,16 +285,26 @@ fun TodoListScreen(
 
 @Composable
 private fun TodoCard(item: TodoItem, isCompleted: Boolean, onToggle: () -> Unit, onClick: () -> Unit, onDelete: () -> Unit) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val tint = when {
+        !isCompleted -> glassTint(dark)
+        dark -> Brush.verticalGradient(
+            listOf(Color.Black.copy(alpha = 0.36f), Color.Black.copy(alpha = 0.28f))
+        )
+        else -> Brush.verticalGradient(
+            listOf(Color.White.copy(alpha = 0.44f), Color.White.copy(alpha = 0.35f))
+        )
+    }
     SwipeDeleteCard(
         onClick = onClick,
         onDelete = onDelete,
         confirmTitle = "删除待办",
         confirmMessage = "确定要删除“${item.text}”吗？",
-        containerColor = if (isCompleted) {
-            MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.6f)
-        } else {
-            MaterialTheme.colorScheme.surfaceContainerLow
-        }
+        containerColor = Color.Transparent,
+        cardModifier = Modifier
+            .background(MaterialTheme.colorScheme.background, MaterialTheme.shapes.medium)
+            .background(tint, MaterialTheme.shapes.medium)
+            .border(1.dp, glassStroke(dark), MaterialTheme.shapes.medium)
     ) {
         Row(
             Modifier.padding(horizontal = Spacing.l, vertical = Spacing.m),

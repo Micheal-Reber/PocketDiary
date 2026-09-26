@@ -8,10 +8,11 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -29,9 +31,12 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.math.roundToInt
 
-// 滑动删除阈值/上限（日记卡与待办卡共用，原先各复制一份）
-private const val SWIPE_DELETE_THRESHOLD = -150f
-private const val SWIPE_OFFSET_MAX = -250f
+/** 滑删触发/滑动上限（dp，按密度换算，替代原先写死的 px 常量）。 */
+private val SWIPE_DELETE_THRESHOLD_DP = 36.dp
+private val SWIPE_OFFSET_MAX_DP = 92.dp
+
+/** 滑删露出的圆形删除钮底色（待办黑底上的高亮红）。 */
+private val SWIPE_DELETE_RED = Color(0xFFF13B33)
 
 /** 通用确认弹窗（删除/放弃编辑等）；调用方自行控制 visible 与回调时序。 */
 @Composable
@@ -76,22 +81,33 @@ fun SwipeDeleteCard(
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var offsetX by remember { mutableStateOf(0f) }
+    val density = LocalDensity.current
+    val swipeThresholdPx = with(density) { -SWIPE_DELETE_THRESHOLD_DP.toPx() }
+    val swipeMaxPx = with(density) { -SWIPE_OFFSET_MAX_DP.toPx() }
 
     Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)) {
-        // matchParentSize 按 Card 最终尺寸铺满红底（仅左滑模式露出）
+        // 卡片左滑露出右侧红色圆形删除钮（仅左滑模式）
         if (enableSwipe) {
             Box(
                 Modifier
                     .matchParentSize()
-                    .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.medium)
-                    .padding(end = Spacing.xl),
+                    .padding(horizontal = Spacing.m, vertical = Spacing.xs),
                 contentAlignment = Alignment.CenterEnd
             ) {
-                Icon(
-                    Icons.Default.Delete, "删除",
-                    tint = MaterialTheme.colorScheme.onErrorContainer,
-                    modifier = Modifier.size(28.dp)
-                )
+                Box(
+                    Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(1f)
+                        .clip(CircleShape)
+                        .background(SWIPE_DELETE_RED),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Outlined.Delete, "删除",
+                        tint = Color.White,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
             }
         }
         Card(
@@ -107,11 +123,11 @@ fun SwipeDeleteCard(
                             .pointerInput(Unit) {
                                 detectHorizontalDragGestures(
                                     onDragEnd = {
-                                        if (offsetX < SWIPE_DELETE_THRESHOLD) showDeleteConfirm = true
+                                        if (offsetX < swipeThresholdPx) showDeleteConfirm = true
                                         offsetX = 0f
                                     },
                                     onHorizontalDrag = { _, dragAmount ->
-                                        offsetX = (offsetX + dragAmount).coerceIn(SWIPE_OFFSET_MAX, 0f)
+                                        offsetX = (offsetX + dragAmount).coerceIn(swipeMaxPx, 0f)
                                     }
                                 )
                             }

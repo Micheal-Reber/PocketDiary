@@ -10,9 +10,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -352,7 +352,7 @@ fun CountdownEditScreen(
                     onClick = { showDeleteDialog = true },
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Icon(Icons.Default.Delete, null, tint = MaterialTheme.colorScheme.error)
+                    Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.width(Spacing.xs))
                     Text("删除此事件", color = MaterialTheme.colorScheme.error)
                 }
