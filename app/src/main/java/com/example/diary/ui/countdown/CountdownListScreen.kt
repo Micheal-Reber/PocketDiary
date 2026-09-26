@@ -37,6 +37,7 @@ import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.ui.components.ConfirmDialog
 import com.example.diary.ui.components.SearchTextField
 import com.example.diary.ui.components.SearchToggleButton
+import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.theme.Spacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
@@ -98,6 +99,7 @@ fun CountdownListScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onCreate,
+                modifier = Modifier.padding(bottom = BottomBarContentInset),
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Default.Add, "新建倒数日", tint = MaterialTheme.colorScheme.onPrimary)
@@ -120,7 +122,7 @@ fun CountdownListScreen(
                 gridMode -> LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(Spacing.l),
+                    contentPadding = PaddingValues(top = Spacing.l, bottom = BottomBarContentInset),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.m),
                     verticalArrangement = Arrangement.spacedBy(Spacing.m)
                 ) {
@@ -140,7 +142,7 @@ fun CountdownListScreen(
                 }
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(Spacing.l),
+                    contentPadding = PaddingValues(top = Spacing.l, bottom = BottomBarContentInset),
                     verticalArrangement = Arrangement.spacedBy(Spacing.m)
                 ) {
                     items(events, key = { it.id }) { event ->

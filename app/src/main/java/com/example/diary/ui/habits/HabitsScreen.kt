@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.diary.data.repository.HabitRepository
+import com.example.diary.ui.navigation.BottomBarContentInset
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +71,7 @@ fun HabitsScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { viewModel.showAddHabitDialog() },
+                modifier = Modifier.padding(bottom = BottomBarContentInset),
                 containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(Icons.Default.Add, "添加习惯", tint = MaterialTheme.colorScheme.onPrimary)
@@ -76,7 +79,8 @@ fun HabitsScreen(
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding)
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(bottom = BottomBarContentInset)
         ) {
             item {
                 StatsSummaryRow(

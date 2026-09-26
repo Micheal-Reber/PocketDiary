@@ -1,6 +1,7 @@
 package com.example.diary.ui.navigation
 
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.AnimatedContentTransitionScope
@@ -8,8 +9,12 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
@@ -24,8 +29,11 @@ import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -55,6 +63,7 @@ import com.example.diary.ui.habits.HabitsViewModelFactory
 import com.example.diary.ui.habits.StatisticsScreen
 import com.example.diary.ui.settings.SettingsScreen
 import com.example.diary.ui.todo.TodoListScreen
+import com.example.diary.ui.theme.Spacing
 
 sealed class Screen(val route: String, val title: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Diary : Screen("diary", "日记", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook)
@@ -81,7 +90,7 @@ fun AppNavigation(
 ) {
     val context = LocalContext.current
     val navController = rememberNavController()
-val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
+    val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
     val habitRepository = remember { HabitRepository(database.habitDao()) }
     val countdownRepository = remember { CountdownRepository(database.countdownDao()) }
     val todoRepository = remember { TodoRepository(database.todoDao(), context) }
@@ -114,144 +123,150 @@ val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
         currentDestination?.hierarchy?.any { it.route == screen.route } == true
     }
 
-    Scaffold(
-        // 里层各 Tab 的 Scaffold/TopAppBar 已各自消化 statusBars，
-        // 外层不再重复垫状态栏，只留底栏高度，避免双重 top inset 导致顶部黑空隙
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar {
-                    bottomNavItems.forEach { screen ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-                        NavigationBarItem(
-                            icon = {
-                                Icon(
-                                    if (selected) screen.selectedIcon else screen.unselectedIcon,
-                                    contentDescription = screen.title
-                                )
+    val backdrop = rememberGlassBackdrop()
+
+    Box(Modifier.fillMaxSize()) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .onGloballyPositioned { backdrop.contentOriginInRoot = it.boundsInRoot().topLeft }
+                .glassBackdrop(backdrop)
+        ) {
+            Scaffold(
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            ) { innerPadding ->
+                // Subtle fade-through between tabs; the editor slides up gently.
+                NavHost(
+                    navController = navController,
+                    startDestination = Screen.Diary.route,
+                    modifier = Modifier.padding(innerPadding),
+                    enterTransition = { fadeIn(tween(220)) },
+                    exitTransition = { fadeOut(tween(150)) },
+                    popEnterTransition = { fadeIn(tween(220)) },
+                    popExitTransition = { fadeOut(tween(150)) }
+                ) {
+                    composable(Screen.Diary.route) {
+                        DiaryListScreen(
+                            diaryRepository = diaryRepository,
+                            themePreferences = themePreferences,
+                            onWriteDiary = { date ->
+                                // 可选参数 route：无日期用空串匹配 editor?date={date}
+                                navController.navigate("editor?date=${date ?: ""}")
                             },
-                            label = { Text(screen.title) },
-                            selected = selected,
-                            onClick = {
-                                navController.navigate(screen.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            }
+                            onEditDiary = { date -> navController.navigate("editor?date=$date") }
+                        )
+                    }
+                    composable(Screen.Calendar.route) {
+                        HabitsScreen(
+                            habitRepository = habitRepository,
+                            onOpenStatistics = { navController.navigate("statistics") },
+                            viewModel = habitsViewModel
+                        )
+                    }
+                    composable("statistics") {
+                        StatisticsScreen(
+                            habitsViewModel = habitsViewModel,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable(Screen.Countdown.route) {
+                        CountdownListScreen(
+                            repository = countdownRepository,
+                            onOpenDetail = { id -> navController.navigate("countdown_detail/$id") },
+                            onCreate = { navController.navigate("countdown_edit?id=0") }
+                        )
+                    }
+                    composable(
+                        route = "countdown_edit?id={id}",
+                        arguments = listOf(navArgument("id") {
+                            type = NavType.LongType; defaultValue = 0L
+                        }),
+                        enterTransition = SlideUpEnter,
+                        popExitTransition = SlideUpPopExit
+                    ) { backStackEntry ->
+                        val id = backStackEntry.arguments?.getLong("id") ?: 0L
+                        CountdownEditScreen(
+                            existingId = id.takeIf { it > 0L },
+                            repository = countdownRepository,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable(
+                        route = "countdown_detail/{id}",
+                        arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                        enterTransition = SlideUpEnter,
+                        popExitTransition = SlideUpPopExit
+                    ) { backStackEntry ->
+                        val id = backStackEntry.arguments?.getLong("id") ?: 0L
+                        CountdownDetailScreen(
+                            eventId = id,
+                            repository = countdownRepository,
+                            onBack = { navController.popBackStack() },
+                            onEdit = { navController.navigate("countdown_edit?id=$id") },
+                            onEditPhoto = { navController.navigate("countdown_photo_edit/$id") },
+                            onCreate = { navController.navigate("countdown_edit?id=0") }
+                        )
+                    }
+                    composable(
+                        route = "countdown_photo_edit/{id}",
+                        arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                        enterTransition = SlideUpEnter,
+                        popExitTransition = SlideUpPopExit
+                    ) { backStackEntry ->
+                        val id = backStackEntry.arguments?.getLong("id") ?: return@composable
+                        PhotoCardEditorScreen(
+                            eventId = id,
+                            repository = countdownRepository,
+                            onBack = { navController.popBackStack() }
+                        )
+                    }
+                    composable(Screen.Todo.route) {
+                        TodoListScreen(repository = todoRepository)
+                    }
+                    composable(Screen.Settings.route) {
+                        SettingsScreen(
+                            themePreferences = themePreferences,
+                            backupRepository = backupRepository,
+                        )
+                    }
+                    composable(
+                        route = "editor?date={date}",
+                        arguments = listOf(navArgument("date") { type = NavType.StringType; defaultValue = "" }),
+                        enterTransition = SlideUpEnter,
+                        popExitTransition = SlideUpPopExit
+                    ) { backStackEntry ->
+                        val dateStr = backStackEntry.arguments?.getString("date")?.ifEmpty { null }
+                        DiaryEditorScreen(
+                            initialDate = dateStr,
+                            diaryRepository = diaryRepository,
+                            onBack = { navController.popBackStack() }
                         )
                     }
                 }
             }
         }
-    ) { innerPadding ->
-        // Subtle fade-through between tabs; the editor slides up gently.
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Diary.route,
-            modifier = Modifier.padding(innerPadding),
-            enterTransition = { fadeIn(tween(220)) },
-            exitTransition = { fadeOut(tween(150)) },
-            popEnterTransition = { fadeIn(tween(220)) },
-            popExitTransition = { fadeOut(tween(150)) }
+
+        AnimatedVisibility(
+            visible = showBottomBar,
+            enter = fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 6 },
+            exit = fadeOut(tween(180)) + slideOutVertically(tween(200)) { it / 6 },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = Spacing.l)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = Spacing.l)
         ) {
-            composable(Screen.Diary.route) {
-                DiaryListScreen(
-                    diaryRepository = diaryRepository,
-                    themePreferences = themePreferences,
-                    onWriteDiary = { date ->
-                        // 可选参数 route：无日期用空串匹配 editor?date={date}
-                        navController.navigate("editor?date=${date ?: ""}")
-                    },
-                    onEditDiary = { date -> navController.navigate("editor?date=$date") }
-                )
-            }
-            composable(Screen.Calendar.route) {
-                HabitsScreen(
-                    habitRepository = habitRepository,
-                    onOpenStatistics = { navController.navigate("statistics") },
-                    viewModel = habitsViewModel
-                )
-            }
-            composable("statistics") {
-                StatisticsScreen(
-                    habitsViewModel = habitsViewModel,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable(Screen.Countdown.route) {
-                CountdownListScreen(
-                    repository = countdownRepository,
-                    onOpenDetail = { id -> navController.navigate("countdown_detail/$id") },
-                    onCreate = { navController.navigate("countdown_edit?id=0") }
-                )
-            }
-            composable(
-                route = "countdown_edit?id={id}",
-                arguments = listOf(navArgument("id") {
-                    type = NavType.LongType; defaultValue = 0L
-                }),
-                enterTransition = SlideUpEnter,
-                popExitTransition = SlideUpPopExit
-            ) { backStackEntry ->
-                val id = backStackEntry.arguments?.getLong("id") ?: 0L
-                CountdownEditScreen(
-                    existingId = id.takeIf { it > 0L },
-                    repository = countdownRepository,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable(
-                route = "countdown_detail/{id}",
-                arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                enterTransition = SlideUpEnter,
-                popExitTransition = SlideUpPopExit
-            ) { backStackEntry ->
-                val id = backStackEntry.arguments?.getLong("id") ?: 0L
-                CountdownDetailScreen(
-                    eventId = id,
-                    repository = countdownRepository,
-                    onBack = { navController.popBackStack() },
-                    onEdit = { navController.navigate("countdown_edit?id=$id") },
-                    onEditPhoto = { navController.navigate("countdown_photo_edit/$id") },
-                    onCreate = { navController.navigate("countdown_edit?id=0") }
-                )
-            }
-            composable(
-                route = "countdown_photo_edit/{id}",
-                arguments = listOf(navArgument("id") { type = NavType.LongType }),
-                enterTransition = SlideUpEnter,
-                popExitTransition = SlideUpPopExit
-            ) { backStackEntry ->
-                val id = backStackEntry.arguments?.getLong("id") ?: return@composable
-                PhotoCardEditorScreen(
-                    eventId = id,
-                    repository = countdownRepository,
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable(Screen.Todo.route) {
-                TodoListScreen(repository = todoRepository)
-            }
-            composable(Screen.Settings.route) {
-                SettingsScreen(
-                    themePreferences = themePreferences,
-                    backupRepository = backupRepository,
-                )
-            }
-            composable(
-                route = "editor?date={date}",
-                arguments = listOf(navArgument("date") { type = NavType.StringType; defaultValue = "" }),
-                enterTransition = SlideUpEnter,
-                popExitTransition = SlideUpPopExit
-            ) { backStackEntry ->
-                val dateStr = backStackEntry.arguments?.getString("date")?.ifEmpty { null }
-                DiaryEditorScreen(
-                    initialDate = dateStr,
-                    diaryRepository = diaryRepository,
-                    onBack = { navController.popBackStack() }
-                )
-            }
+            GlassBottomBar(
+                currentDestination = currentDestination,
+                onNavigate = { screen ->
+                    navController.navigate(screen.route) {
+                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                        launchSingleTop = true
+                        restoreState = true
+                    }
+                },
+                backdrop = backdrop
+            )
         }
     }
 }

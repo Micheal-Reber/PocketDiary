@@ -31,6 +31,7 @@ import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.backup.ImportResult
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.preferences.ThemePreferences
+import com.example.diary.ui.navigation.BottomBarContentInset
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -311,7 +312,7 @@ fun SettingsScreen(
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(BottomBarContentInset))
         }
     }
 }

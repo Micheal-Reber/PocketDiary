@@ -36,6 +36,7 @@ import com.example.diary.ui.components.SearchTextField
 import com.example.diary.ui.components.SearchToggleButton
 import com.example.diary.ui.components.SwipeDeleteCard
 import com.example.diary.ui.editor.markdownToPlainText
+import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
@@ -110,6 +111,7 @@ fun DiaryListScreen(
             },
             floatingActionButton = {
                 FloatingActionButton(onClick = { onWriteDiary(null) },
+                    modifier = Modifier.padding(bottom = BottomBarContentInset),
                     containerColor = MaterialTheme.colorScheme.primary) {
                     Icon(Icons.Default.Add, "写日记", tint = MaterialTheme.colorScheme.onPrimary)
                 }
@@ -172,7 +174,7 @@ fun DiaryListScreen(
                 }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(Spacing.l),
+                    contentPadding = PaddingValues(top = Spacing.l, bottom = BottomBarContentInset),
                     verticalArrangement = Arrangement.spacedBy(Spacing.m)
                 ) {
                     items(

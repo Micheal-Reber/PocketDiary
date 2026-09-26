@@ -35,6 +35,7 @@ import com.example.diary.data.repository.TodoRepository
 import com.example.diary.data.todo.TodoAlarmNotifier
 import com.example.diary.data.todo.TodoNotificationHelper
 import com.example.diary.ui.components.SwipeDeleteCard
+import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.theme.Spacing
 import com.example.diary.util.DateUtils
 import kotlinx.coroutines.launch
@@ -165,7 +166,7 @@ fun TodoListScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { SnackbarHost(snackbarHostState, Modifier.padding(bottom = BottomBarContentInset)) },
         topBar = {
             TopAppBar(
                 title = { Text("待办", fontWeight = FontWeight.Bold) },
@@ -175,6 +176,7 @@ fun TodoListScreen(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { editingItem = null; showEditSheet = true },
+                modifier = Modifier.padding(bottom = BottomBarContentInset),
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary
             ) {
@@ -195,7 +197,7 @@ fun TodoListScreen(
         } else {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = PaddingValues(horizontal = Spacing.l, vertical = Spacing.m),
+            contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, top = Spacing.m, bottom = BottomBarContentInset),
             verticalArrangement = Arrangement.spacedBy(Spacing.s)
         ) {
             items(active, key = { it.id }) { item ->
