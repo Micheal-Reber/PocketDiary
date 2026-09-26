@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
@@ -54,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
+import com.example.diary.ui.theme.Spacing
 import kotlin.math.roundToInt
 
 /** 悬浮玻璃底栏在各 Tab 页内容底部预留的高度（下间隙 16 + 胶囊 64 + 上间隙 16）。 */
@@ -190,6 +192,8 @@ fun GlassBottomBar(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
+                    .padding(horizontal = Spacing.s, vertical = Spacing.s)
+                    .clip(CircleShape)
                     .clickable { onNavigate(screen) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,

@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -75,13 +76,16 @@ import java.time.LocalDate
 // ── Helper composables (defined BEFORE main function so they're in scope) ──
 
 @Composable
-private fun ActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+private fun RowScope.ActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
         modifier = Modifier
-            .clip(MaterialTheme.shapes.small)
+            .weight(1f)
+            .fillMaxHeight()
+            .padding(horizontal = Spacing.xs, vertical = Spacing.s)
+            .clip(CircleShape)
             .clickable(onClick = onClick)
-            .padding(horizontal = Spacing.s, vertical = Spacing.xs)
     ) {
         Icon(icon, label, tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(24.dp))
