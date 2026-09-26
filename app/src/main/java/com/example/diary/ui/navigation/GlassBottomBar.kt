@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -61,6 +62,20 @@ val BottomBarContentInset = 96.dp
 private val BarHeight = 64.dp
 
 private val GlassBlurRadius = 20.dp
+
+internal fun glassTint(dark: Boolean): Brush =
+    if (dark) {
+        Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.60f), Color.Black.copy(alpha = 0.46f)))
+    } else {
+        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.74f), Color.White.copy(alpha = 0.58f)))
+    }
+
+internal fun glassStroke(dark: Boolean): Brush =
+    if (dark) {
+        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.10f)))
+    } else {
+        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.92f), Color.White.copy(alpha = 0.64f)))
+    }
 
 class GlassBackdropState(val layer: GraphicsLayer) {
     var active by mutableStateOf(false)
@@ -126,31 +141,12 @@ fun Modifier.glassBackdrop(state: GlassBackdropState): Modifier {
 }
 
 @Composable
-fun GlassBottomBar(
-    currentDestination: NavDestination?,
-    onNavigate: (Screen) -> Unit,
+fun GlassCapsule(
     backdrop: GlassBackdropState,
     modifier: Modifier = Modifier,
+    content: @Composable RowScope.() -> Unit,
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val tint = if (dark) {
-        Brush.verticalGradient(
-            listOf(Color.Black.copy(alpha = 0.60f), Color.Black.copy(alpha = 0.46f))
-        )
-    } else {
-        Brush.verticalGradient(
-            listOf(Color.White.copy(alpha = 0.74f), Color.White.copy(alpha = 0.58f))
-        )
-    }
-    val stroke = if (dark) {
-        Brush.verticalGradient(
-            listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.10f))
-        )
-    } else {
-        Brush.verticalGradient(
-            listOf(Color.White.copy(alpha = 0.92f), Color.White.copy(alpha = 0.64f))
-        )
-    }
 
     DisposableEffect(backdrop) {
         backdrop.active = true
@@ -166,10 +162,23 @@ fun GlassBottomBar(
             .height(BarHeight)
             .onGloballyPositioned { backdrop.barBoundsInRoot = it.boundsInRoot() }
             .clip(CircleShape)
-            .background(tint)
-            .border(1.dp, stroke, CircleShape),
+            .background(glassTint(dark))
+            .border(1.dp, glassStroke(dark), CircleShape),
         verticalAlignment = Alignment.CenterVertically,
-    ) {
+        content = content,
+    )
+}
+
+@Composable
+fun GlassBottomBar(
+    currentDestination: NavDestination?,
+    onNavigate: (Screen) -> Unit,
+    backdrop: GlassBackdropState,
+    modifier: Modifier = Modifier,
+) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+
+    GlassCapsule(backdrop, modifier) {
         bottomNavItems.forEach { screen ->
             val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
             val color = when {

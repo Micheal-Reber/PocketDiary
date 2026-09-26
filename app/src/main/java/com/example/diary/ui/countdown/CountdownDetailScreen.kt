@@ -38,6 +38,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -51,6 +53,10 @@ import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.image.EventImageStore
 import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.repository.CountdownRepository
+import com.example.diary.ui.navigation.BottomBarContentInset
+import com.example.diary.ui.navigation.GlassCapsule
+import com.example.diary.ui.navigation.glassBackdrop
+import com.example.diary.ui.navigation.rememberGlassBackdrop
 import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -69,10 +75,16 @@ import java.time.LocalDate
 
 @Composable
 private fun ActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        IconButton(onClick = onClick) {
-            Icon(icon, label, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(MaterialTheme.shapes.small)
+            .clickable(onClick = onClick)
+            .padding(horizontal = Spacing.s, vertical = Spacing.xs)
+    ) {
+        Icon(icon, label, tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(24.dp))
+        Spacer(Modifier.height(Spacing.xs))
         Text(label, style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -619,156 +631,175 @@ fun CountdownDetailScreen(
     var fontDarkPreview by remember(e.id) { mutableStateOf(e.fontDark) }
     LaunchedEffect(e.id) { showBackgroundSheet = false }
 
-    Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                title = {},
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = onEdit) {
-                        Icon(Icons.Default.Edit, "编辑")
-                    }
-                }
-            )
-        },
-        bottomBar = {
-            Surface(color = MaterialTheme.colorScheme.surface) {
-                Row(
-                    Modifier.fillMaxWidth().padding(vertical = Spacing.s),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    ActionItem(Icons.Default.IosShare, "分享") { shareCard() }
-                    ActionItem(Icons.Default.SaveAlt, "存为图片") { saveToGallery() }
-                    ActionItem(Icons.Default.Texture, "背景") { showBackgroundSheet = true }
-                    ActionItem(
-                        if (e.highlighted) Icons.Filled.Flag else Icons.Outlined.Flag,
-                        "高亮"
-                    ) {
-                        scope.launch { repository.save(e.copy(highlighted = !e.highlighted)) }
-                    }
-                    ActionItem(Icons.Default.Add, "新建") { onCreate() }
-                }
-            }
-        }
-    ) { padding ->
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .pointerInput(allEvents, e.id) {
-                    var totalDragX = 0f
-                    detectHorizontalDragGestures(
-                        onDragEnd = { switchBySwipe(totalDragX) },
-                        onDragCancel = { totalDragX = 0f }
-                    ) { change, dragAmount ->
-                        change.consume()
-                        totalDragX += dragAmount
-                    }
-                }
-        ) {
-            // ── 分支渲染：CLASSIC / PHOTO_CARD（照片卡无图也保留框）──
-            if (e.cardStyle == CountdownEvent.CARD_STYLE_PHOTO_CARD) {
-                // ===== 照片卡片：3:2 圆角框，有图则用图+模糊，无图用 TextureLibrary 纹理 =====
-                PhotoCardContent(
-                    eventId = e.id,
-                    photoBitmap = photoBitmap,
-                    blurRadius = blurRadiusPreview,
-                    fontDark = fontDarkPreview,
-                    photoOffsetY = e.photoOffsetY,
-                    photoScale = e.photoScale,
-                    eventName = e.name,
-                    bigNumber = bigNumberText(),
-                    accent = accent,
-                    dateLine = e.date,
-                    endDate = e.endDate,
-                    time = e.time,
-                    textureIndex = e.textureIndex
-                )
-            } else {
-                // ===== 经典全屏：支持 fontDark 字色切换 =====
-                ClassicFullscreenContent(
-                    photoBitmap = photoBitmap,
-                    textureIndex = e.textureIndex,
-                    accent = accent,
-                    eventName = e.name,
-                    stateLabel = stateLabel(state),
-                    bigNumber = bigNumberText(),
-                    dateLine = "${e.date} · ${weekdayLabel(anchor)}",
-                    endDate = e.endDate,
-                    time = e.time,
-                    fontDark = e.fontDark
-                )
-            }
+    val backdrop = rememberGlassBackdrop()
 
-            if (showBackgroundSheet) {
-                ModalBottomSheet(onDismissRequest = { showBackgroundSheet = false }) {
-                    Column(Modifier.padding(horizontal = Spacing.l).padding(bottom = Spacing.xxl)) {
-                        // 照片卡模式：模糊滑杆 + 字色切换 + 选图/恢复默认 (+无图时纹理选择器)
-                        if (e.cardStyle == CountdownEvent.CARD_STYLE_PHOTO_CARD) {
-                            PhotoCardBackgroundSheet(
-                                hasPhoto = photoBitmap != null,
-                                textureIndex = e.textureIndex,
-                                onTextureClick = { idx ->
-                                    showBackgroundSheet = false
-                                    scope.launch {
-                                        repository.save(e.copy(textureIndex = idx))
-                                        bgVersion++
+    Box(Modifier.fillMaxSize()) {
+        Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                TopAppBar(
+                    title = {},
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onEdit) {
+                            Icon(Icons.Default.Edit, "编辑")
+                        }
+                    }
+                )
+            },
+        ) { padding ->
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .onGloballyPositioned { backdrop.contentOriginInRoot = it.boundsInRoot().topLeft }
+                    .glassBackdrop(backdrop)
+                    .pointerInput(allEvents, e.id) {
+                        var totalDragX = 0f
+                        detectHorizontalDragGestures(
+                            onDragEnd = { switchBySwipe(totalDragX) },
+                            onDragCancel = { totalDragX = 0f }
+                        ) { change, dragAmount ->
+                            change.consume()
+                            totalDragX += dragAmount
+                        }
+                    }
+            ) {
+                // ── 分支渲染：CLASSIC / PHOTO_CARD（照片卡无图也保留框）──
+                if (e.cardStyle == CountdownEvent.CARD_STYLE_PHOTO_CARD) {
+                    // ===== 照片卡片：3:2 圆角框，有图则用图+模糊，无图用 TextureLibrary 纹理 =====
+                    PhotoCardContent(
+                        eventId = e.id,
+                        photoBitmap = photoBitmap,
+                        blurRadius = blurRadiusPreview,
+                        fontDark = fontDarkPreview,
+                        photoOffsetY = e.photoOffsetY,
+                        photoScale = e.photoScale,
+                        eventName = e.name,
+                        bigNumber = bigNumberText(),
+                        accent = accent,
+                        dateLine = e.date,
+                        endDate = e.endDate,
+                        time = e.time,
+                        textureIndex = e.textureIndex
+                    )
+                } else {
+                    // ===== 经典全屏：支持 fontDark 字色切换 =====
+                    ClassicFullscreenContent(
+                        photoBitmap = photoBitmap,
+                        textureIndex = e.textureIndex,
+                        accent = accent,
+                        eventName = e.name,
+                        stateLabel = stateLabel(state),
+                        bigNumber = bigNumberText(),
+                        dateLine = "${e.date} · ${weekdayLabel(anchor)}",
+                        endDate = e.endDate,
+                        time = e.time,
+                        fontDark = e.fontDark
+                    )
+                }
+
+                if (showBackgroundSheet) {
+                    ModalBottomSheet(onDismissRequest = { showBackgroundSheet = false }) {
+                        Column(Modifier.padding(horizontal = Spacing.l).padding(bottom = Spacing.xxl)) {
+                            // 照片卡模式：模糊滑杆 + 字色切换 + 选图/恢复默认 (+无图时纹理选择器)
+                            if (e.cardStyle == CountdownEvent.CARD_STYLE_PHOTO_CARD) {
+                                PhotoCardBackgroundSheet(
+                                    hasPhoto = photoBitmap != null,
+                                    textureIndex = e.textureIndex,
+                                    onTextureClick = { idx ->
+                                        showBackgroundSheet = false
+                                        scope.launch {
+                                            repository.save(e.copy(textureIndex = idx))
+                                            bgVersion++
+                                        }
+                                    },
+                                    onPickPhoto = { showBackgroundSheet = false; onEditPhoto() },
+                                    onResetPhoto = {
+                                        showBackgroundSheet = false
+                                        scope.launch {
+                                            EventImageStore.clear(context, e.id)
+                                            clearBlurCache(e.id)
+                                            repository.save(e.copy(textureIndex = -1))
+                                            bgVersion++
+                                        }
                                     }
-                                },
-                                onPickPhoto = { showBackgroundSheet = false; onEditPhoto() },
-                                onResetPhoto = {
-                                    showBackgroundSheet = false
-                                    scope.launch {
-                                        EventImageStore.clear(context, e.id)
-                                        clearBlurCache(e.id)
-                                        repository.save(e.copy(textureIndex = -1))
-                                        bgVersion++
+                                )
+                            } else {
+                                // 经典模式：字色切换 + 纹理选择 + 选图/恢复默认
+                                ClassicBackgroundSheet(
+                                    hasPhoto = photoBitmap != null,
+                                    textureIndex = e.textureIndex,
+                                    accent = accent,
+                                    fontDarkPreview = fontDarkPreview,
+                                    onFontDarkChange = { fontDarkPreview = it },
+                                    onConfirmFontDark = { scope.launch { repository.save(e.copy(fontDark = it)) } },
+                                    onPickPhoto = {
+                                        showBackgroundSheet = false
+                                        scope.launch {
+                                            repository.save(e.copy(textureIndex = -1))
+                                            onEditPhoto()
+                                        }
+                                    },
+                                    onResetPhoto = {
+                                        showBackgroundSheet = false
+                                        scope.launch {
+                                            EventImageStore.clear(context, e.id)
+                                            clearBlurCache(e.id)
+                                            repository.save(e.copy(textureIndex = -1))
+                                            bgVersion++
+                                        }
+                                    },
+                                    onTextureClick = { idx ->
+                                        showBackgroundSheet = false
+                                        scope.launch {
+                                            repository.save(e.copy(textureIndex = idx))
+                                            bgVersion++
+                                        }
                                     }
-                                }
-                            )
-                        } else {
-                            // 经典模式：字色切换 + 纹理选择 + 选图/恢复默认
-                            ClassicBackgroundSheet(
-                                hasPhoto = photoBitmap != null,
-                                textureIndex = e.textureIndex,
-                                accent = accent,
-                                fontDarkPreview = fontDarkPreview,
-                                onFontDarkChange = { fontDarkPreview = it },
-                                onConfirmFontDark = { scope.launch { repository.save(e.copy(fontDark = it)) } },
-                                onPickPhoto = {
-                                    showBackgroundSheet = false
-                                    scope.launch {
-                                        repository.save(e.copy(textureIndex = -1))
-                                        onEditPhoto()
-                                    }
-                                },
-                                onResetPhoto = {
-                                    showBackgroundSheet = false
-                                    scope.launch {
-                                        EventImageStore.clear(context, e.id)
-                                        clearBlurCache(e.id)
-                                        repository.save(e.copy(textureIndex = -1))
-                                        bgVersion++
-                                    }
-                                },
-                                onTextureClick = { idx ->
-                                    showBackgroundSheet = false
-                                    scope.launch {
-                                        repository.save(e.copy(textureIndex = idx))
-                                        bgVersion++
-                                    }
-                                }
-                            )
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+
+        GlassCapsule(
+            backdrop = backdrop,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = Spacing.l)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = Spacing.l),
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                ActionItem(Icons.Default.IosShare, "分享") { shareCard() }
+                ActionItem(Icons.Default.SaveAlt, "存为图片") { saveToGallery() }
+                ActionItem(Icons.Default.Texture, "背景") { showBackgroundSheet = true }
+                ActionItem(
+                    if (e.highlighted) Icons.Filled.Flag else Icons.Outlined.Flag,
+                    "高亮"
+                ) {
+                    scope.launch { repository.save(e.copy(highlighted = !e.highlighted)) }
+                }
+                ActionItem(Icons.Default.Add, "新建") { onCreate() }
+            }
+        }
+
+        SnackbarHost(
+            snackbar,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .padding(bottom = BottomBarContentInset)
+        )
     }
 }
