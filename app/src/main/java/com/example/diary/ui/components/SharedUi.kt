@@ -1,7 +1,9 @@
 package com.example.diary.ui.components
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -56,9 +58,11 @@ fun ConfirmDialog(
 }
 
 /**
- * 左滑露出红底删除 + 超过阈值弹确认框。卡片内容经 [content] 插槽注入
+ * 删除触发二选一：左滑露出红底 + 超阈值弹确认框（enableSwipe=true），
+ * 或长按直接弹确认框（enableSwipe=false）。卡片内容经 [content] 插槽注入
  * （Modifier 顺序固定：offset → 手势 → clickable，保证点击/拖拽不互抢）。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun SwipeDeleteCard(
     onClick: () -> Unit,
@@ -66,25 +70,29 @@ fun SwipeDeleteCard(
     confirmTitle: String,
     confirmMessage: String,
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
+    cardModifier: Modifier = Modifier,
+    enableSwipe: Boolean = true,
     content: @Composable () -> Unit,
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var offsetX by remember { mutableStateOf(0f) }
 
     Box(Modifier.fillMaxWidth().clip(MaterialTheme.shapes.medium)) {
-        // matchParentSize 按 Card 最终尺寸铺满红底
-        Box(
-            Modifier
-                .matchParentSize()
-                .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.medium)
-                .padding(end = Spacing.xl),
-            contentAlignment = Alignment.CenterEnd
-        ) {
-            Icon(
-                Icons.Default.Delete, "删除",
-                tint = MaterialTheme.colorScheme.onErrorContainer,
-                modifier = Modifier.size(28.dp)
-            )
+        // matchParentSize 按 Card 最终尺寸铺满红底（仅左滑模式露出）
+        if (enableSwipe) {
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .background(MaterialTheme.colorScheme.errorContainer, MaterialTheme.shapes.medium)
+                    .padding(end = Spacing.xl),
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Icon(
+                    Icons.Default.Delete, "删除",
+                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
         }
         Card(
             shape = MaterialTheme.shapes.medium,
@@ -92,19 +100,36 @@ fun SwipeDeleteCard(
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .offset { IntOffset(offsetX.roundToInt(), 0) }
-                .pointerInput(Unit) {
-                    detectHorizontalDragGestures(
-                        onDragEnd = {
-                            if (offsetX < SWIPE_DELETE_THRESHOLD) showDeleteConfirm = true
-                            offsetX = 0f
-                        },
-                        onHorizontalDrag = { _, dragAmount ->
-                            offsetX = (offsetX + dragAmount).coerceIn(SWIPE_OFFSET_MAX, 0f)
-                        }
-                    )
-                }
-                .clickable { onClick() }
+                .then(
+                    if (enableSwipe) {
+                        Modifier
+                            .offset { IntOffset(offsetX.roundToInt(), 0) }
+                            .pointerInput(Unit) {
+                                detectHorizontalDragGestures(
+                                    onDragEnd = {
+                                        if (offsetX < SWIPE_DELETE_THRESHOLD) showDeleteConfirm = true
+                                        offsetX = 0f
+                                    },
+                                    onHorizontalDrag = { _, dragAmount ->
+                                        offsetX = (offsetX + dragAmount).coerceIn(SWIPE_OFFSET_MAX, 0f)
+                                    }
+                                )
+                            }
+                    } else {
+                        Modifier
+                    }
+                )
+                .then(
+                    if (enableSwipe) {
+                        Modifier.clickable { onClick() }
+                    } else {
+                        Modifier.combinedClickable(
+                            onClick = onClick,
+                            onLongClick = { showDeleteConfirm = true }
+                        )
+                    }
+                )
+                .then(cardModifier)
         ) {
             content()
         }

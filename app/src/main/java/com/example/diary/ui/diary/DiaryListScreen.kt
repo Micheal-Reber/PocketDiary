@@ -2,6 +2,7 @@ package com.example.diary.ui.diary
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -18,6 +19,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -37,6 +39,8 @@ import com.example.diary.ui.components.SearchToggleButton
 import com.example.diary.ui.components.SwipeDeleteCard
 import com.example.diary.ui.editor.markdownToPlainText
 import com.example.diary.ui.navigation.BottomBarContentInset
+import com.example.diary.ui.navigation.glassStroke
+import com.example.diary.ui.navigation.glassTint
 import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
@@ -213,11 +217,17 @@ private fun DiaryCard(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     SwipeDeleteCard(
         onClick = onClick,
         onDelete = onDelete,
         confirmTitle = "删除日记",
-        confirmMessage = "确定要删除这篇日记吗？"
+        confirmMessage = "确定要删除这篇日记吗？",
+        containerColor = Color.Transparent,
+        enableSwipe = false,
+        cardModifier = Modifier
+            .background(glassTint(dark), MaterialTheme.shapes.medium)
+            .border(1.dp, glassStroke(dark), MaterialTheme.shapes.medium)
     ) {
         Column(modifier = Modifier.padding(Spacing.xl)) {
             // Heading is always the entry's date; mood rides on the right.
