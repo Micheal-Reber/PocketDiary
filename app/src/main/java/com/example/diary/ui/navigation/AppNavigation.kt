@@ -35,6 +35,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -46,6 +50,7 @@ import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.local.AppDatabase
+import com.example.diary.data.preferences.AppLockPreferences
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.data.repository.DiaryRepository
@@ -61,9 +66,13 @@ import com.example.diary.ui.habits.HabitsScreen
 import com.example.diary.ui.habits.HabitsViewModel
 import com.example.diary.ui.habits.HabitsViewModelFactory
 import com.example.diary.ui.habits.StatisticsScreen
+import com.example.diary.ui.lock.AppLockScreen
+import com.example.diary.ui.lock.LockMode
 import com.example.diary.ui.settings.SettingsScreen
 import com.example.diary.ui.todo.TodoListScreen
 import com.example.diary.ui.theme.Spacing
+import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 sealed class Screen(val route: String, val title: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
     data object Diary : Screen("diary", "日记", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook)
@@ -89,11 +98,15 @@ fun AppNavigation(
     initialOpenTodoId: Long? = null,
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val navController = rememberNavController()
     val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
     val habitRepository = remember { HabitRepository(database.habitDao()) }
     val countdownRepository = remember { CountdownRepository(database.countdownDao()) }
     val todoRepository = remember { TodoRepository(database.todoDao(), context) }
+    val appLockPreferences = remember { AppLockPreferences(context) }
+    var diaryUnlocked by remember { mutableStateOf(false) }
+    val lockMode by appLockPreferences.lockMode.collectAsStateWithLifecycle(initialValue = AppLockPreferences.MODE_EVERY_APP)
     val backupRepository = remember {
         BackupRepository(
             context = context,
@@ -123,6 +136,29 @@ fun AppNavigation(
         currentDestination?.hierarchy?.any { it.route == screen.route } == true
     }
 
+    // 「每次进入日记页面」模式：切到其他 Tab 即重新上锁（编辑器是日记内部跳转，不清除）
+    val currentRoute = currentDestination?.route
+    LaunchedEffect(currentRoute, lockMode) {
+        if (lockMode == AppLockPreferences.MODE_EVERY_DIARY &&
+            currentRoute != null && currentRoute != Screen.Diary.route &&
+            bottomNavItems.any { it.route == currentRoute }
+        ) {
+            diaryUnlocked = false
+        }
+    }
+
+    // 「每次进入软件」模式：退到后台（返回/清后台）即重新上锁
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                diaryUnlocked = false
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     val backdrop = rememberGlassBackdrop()
 
     Box(Modifier.fillMaxSize()) {
@@ -146,15 +182,37 @@ fun AppNavigation(
                     popExitTransition = { fadeOut(tween(150)) }
                 ) {
                     composable(Screen.Diary.route) {
-                        DiaryListScreen(
-                            diaryRepository = diaryRepository,
-                            themePreferences = themePreferences,
-                            onWriteDiary = { date ->
-                                // 可选参数 route：无日期用空串匹配 editor?date={date}
-                                navController.navigate("editor?date=${date ?: ""}")
-                            },
-                            onEditDiary = { date -> navController.navigate("editor?date=$date") }
-                        )
+                        val lockEnabled by appLockPreferences.lockEnabled.collectAsStateWithLifecycle(initialValue = false)
+                        val hasPassword by appLockPreferences.hasPassword.collectAsStateWithLifecycle(initialValue = false)
+                        val unlockedDate by appLockPreferences.unlockedDate.collectAsStateWithLifecycle(initialValue = null)
+                        val pinLength by appLockPreferences.pinLength.collectAsStateWithLifecycle(initialValue = 4)
+                        val unlockedToday = lockMode == AppLockPreferences.MODE_DAILY &&
+                            unlockedDate == LocalDate.now().toString()
+                        if (lockEnabled && hasPassword && !diaryUnlocked && !unlockedToday) {
+                            AppLockScreen(
+                                mode = LockMode.Unlock,
+                                lockPreferences = appLockPreferences,
+                                title = "输入密码查看日记",
+                                pinLength = pinLength,
+                                onVerified = {
+                                    diaryUnlocked = true
+                                    if (lockMode == AppLockPreferences.MODE_DAILY) {
+                                        scope.launch { appLockPreferences.markUnlockedToday() }
+                                    }
+                                },
+                                onPinSet = {}
+                            )
+                        } else {
+                            DiaryListScreen(
+                                diaryRepository = diaryRepository,
+                                themePreferences = themePreferences,
+                                onWriteDiary = { date ->
+                                    // 可选参数 route：无日期用空串匹配 editor?date={date}
+                                    navController.navigate("editor?date=${date ?: ""}")
+                                },
+                                onEditDiary = { date -> navController.navigate("editor?date=$date") }
+                            )
+                        }
                     }
                     composable(Screen.Calendar.route) {
                         HabitsScreen(
@@ -227,6 +285,7 @@ fun AppNavigation(
                         SettingsScreen(
                             themePreferences = themePreferences,
                             backupRepository = backupRepository,
+                            appLockPreferences = appLockPreferences,
                         )
                     }
                     composable(

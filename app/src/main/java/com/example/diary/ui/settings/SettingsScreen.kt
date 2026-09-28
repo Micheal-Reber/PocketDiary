@@ -14,8 +14,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Password
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,7 +35,10 @@ import com.example.diary.BuildConfig
 import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.backup.ImportResult
 import com.example.diary.data.image.BackgroundImageStore
+import com.example.diary.data.preferences.AppLockPreferences
 import com.example.diary.data.preferences.ThemePreferences
+import com.example.diary.ui.lock.AppLockScreen
+import com.example.diary.ui.lock.LockMode
 import com.example.diary.ui.navigation.BottomBarContentInset
 import kotlinx.coroutines.launch
 
@@ -39,6 +47,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     themePreferences: ThemePreferences,
     backupRepository: BackupRepository,
+    appLockPreferences: AppLockPreferences,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -63,6 +72,15 @@ fun SettingsScreen(
     // Export/Import launchers — busy 防双击；导入前二次确认（全量覆盖）
     var backupBusy by remember { mutableStateOf(false) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+
+    val lockEnabled by appLockPreferences.lockEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val hasLockPassword by appLockPreferences.hasPassword.collectAsStateWithLifecycle(initialValue = false)
+    val lockMode by appLockPreferences.lockMode.collectAsStateWithLifecycle(initialValue = AppLockPreferences.MODE_EVERY_APP)
+    val lockPinLength by appLockPreferences.pinLength.collectAsStateWithLifecycle(initialValue = 4)
+    // 全屏设置密码页（开启时若无密码 / 修改密码）
+    var showLockSetup by remember { mutableStateOf(false) }
+    var showLockModeDialog by remember { mutableStateOf(false) }
+    var backupExpanded by remember { mutableStateOf(false) }
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
@@ -92,16 +110,17 @@ fun SettingsScreen(
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("设置", fontWeight = FontWeight.Bold) },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+    Box(Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("设置", fontWeight = FontWeight.Bold) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
                 )
-            )
-        }
-    ) { padding ->
+            }
+        ) { padding ->
         // 导入确认弹窗（破坏性：清空现有数据）
         if (pendingImportUri != null) {
             AlertDialog(
@@ -228,9 +247,9 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.outlineVariant
             )
 
-            // Data Migration section
+            // Privacy section
             Text(
-                "数据迁移",
+                "隐私",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -238,36 +257,113 @@ fun SettingsScreen(
             )
 
             ListItem(
-                headlineContent = { Text("导出数据") },
-                supportingContent = {
-                    Text(if (backupBusy) "处理中..." else "备份所有日记、习惯、倒数日、照片和设置到 ZIP 文件")
-                },
+                headlineContent = { Text("日记密码锁") },
+                supportingContent = { Text("打开日记页面时需要输入密码") },
                 leadingContent = {
-                    Icon(Icons.Default.CloudUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Lock, contentDescription = null)
                 },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(enabled = !backupBusy) {
-                        exportLauncher.launch("PocketDiary备份.zip")
-                    }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                trailingContent = {
+                    Switch(
+                        checked = lockEnabled,
+                        onCheckedChange = { checked ->
+                            if (checked && !hasLockPassword) {
+                                showLockSetup = true
+                            } else {
+                                scope.launch { appLockPreferences.setLockEnabled(checked) }
+                            }
+                        }
+                    )
+                }
             )
 
-            ListItem(
-                headlineContent = { Text("导入数据") },
-                supportingContent = {
-                    Text(if (backupBusy) "处理中..." else "从 ZIP 备份恢复所有数据（清空现有数据后导入）")
-                },
-                leadingContent = {
-                    Icon(Icons.Default.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                },
+            if (lockEnabled && hasLockPassword) {
+                ListItem(
+                    headlineContent = { Text("修改密码") },
+                    supportingContent = { Text("先验证当前密码，再输入新密码两次") },
+                    leadingContent = {
+                        Icon(Icons.Default.Password, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable { showLockSetup = true }
+                )
+
+                ListItem(
+                    headlineContent = { Text("验证时机") },
+                    supportingContent = {
+                        Text(
+                            when (lockMode) {
+                                AppLockPreferences.MODE_EVERY_DIARY -> "每次进入日记页面都需输入"
+                                AppLockPreferences.MODE_DAILY -> "当天首次输入后，当天不再验证"
+                                else -> "每次进入软件需输入一次"
+                            }
+                        )
+                    },
+                    leadingContent = {
+                        Icon(Icons.Default.Schedule, contentDescription = null)
+                    },
+                    modifier = Modifier.clickable { showLockModeDialog = true }
+                )
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
+            // Data Migration section（默认折叠，点头部展开）
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = !backupBusy) {
-                        importLauncher.launch(arrayOf("application/zip"))
-                    }
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+                    .clickable { backupExpanded = !backupExpanded }
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Text(
+                    "数据迁移",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f)
+                )
+                Icon(
+                    if (backupExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (backupExpanded) "折叠" else "展开",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            if (backupExpanded) {
+                ListItem(
+                    headlineContent = { Text("导出数据") },
+                    supportingContent = {
+                        Text(if (backupBusy) "处理中..." else "备份所有日记、习惯、倒数日、照片和设置到 ZIP 文件")
+                    },
+                    leadingContent = {
+                        Icon(Icons.Default.CloudUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !backupBusy) {
+                            exportLauncher.launch("PocketDiary备份.zip")
+                        }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+
+                ListItem(
+                    headlineContent = { Text("导入数据") },
+                    supportingContent = {
+                        Text(if (backupBusy) "处理中..." else "从 ZIP 备份恢复所有数据（清空现有数据后导入）")
+                    },
+                    leadingContent = {
+                        Icon(Icons.Default.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = !backupBusy) {
+                            importLauncher.launch(arrayOf("application/zip"))
+                        }
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+            }
 
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -313,6 +409,67 @@ fun SettingsScreen(
             }
 
             Spacer(Modifier.height(BottomBarContentInset))
+        }
+        }
+
+        // 验证时机选择
+        if (showLockModeDialog) {
+            AlertDialog(
+                onDismissRequest = { showLockModeDialog = false },
+                title = { Text("验证时机") },
+                text = {
+                    Column {
+                        listOf(
+                            AppLockPreferences.MODE_EVERY_APP to "每次进入软件需输入一次，退出或清后台后重新验证",
+                            AppLockPreferences.MODE_EVERY_DIARY to "每次进入日记页面都需输入",
+                            AppLockPreferences.MODE_DAILY to "当天首次输入后，当天不再验证"
+                        ).forEach { (mode, desc) ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        scope.launch { appLockPreferences.setLockMode(mode) }
+                                        showLockModeDialog = false
+                                    }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                RadioButton(
+                                    selected = lockMode == mode,
+                                    onClick = {
+                                        scope.launch { appLockPreferences.setLockMode(mode) }
+                                        showLockModeDialog = false
+                                    }
+                                )
+                                Text(desc, modifier = Modifier.padding(start = 8.dp))
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showLockModeDialog = false }) { Text("完成") }
+                }
+            )
+        }
+
+        // 全屏设置/修改密码（玻璃数字键盘）：首设 SetPin，修改 Change（先验旧密码）
+        if (showLockSetup) {
+            AppLockScreen(
+                mode = if (hasLockPassword) LockMode.Change else LockMode.SetPin,
+                lockPreferences = appLockPreferences,
+                title = if (hasLockPassword) "修改密码" else "设置日记密码",
+                pinLength = lockPinLength,
+                onVerified = {},
+                onPinSet = { pin ->
+                    scope.launch {
+                        appLockPreferences.setPassword(pin)
+                        if (!lockEnabled) appLockPreferences.setLockEnabled(true)
+                    }
+                    showLockSetup = false
+                    showToast(context, if (hasLockPassword) "密码已修改" else "日记密码锁已开启")
+                },
+                onCancel = { showLockSetup = false }
+            )
         }
     }
 }

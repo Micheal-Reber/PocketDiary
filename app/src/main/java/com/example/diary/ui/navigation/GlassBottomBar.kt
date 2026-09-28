@@ -69,14 +69,15 @@ internal fun glassTint(dark: Boolean): Brush =
     if (dark) {
         Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.60f), Color.Black.copy(alpha = 0.46f)))
     } else {
-        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.74f), Color.White.copy(alpha = 0.58f)))
+        // 亮色背景近白，白叠白不可见 —— 改中性灰 tint 让玻璃片与底分离
+        Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.10f), Color.Black.copy(alpha = 0.05f)))
     }
 
 internal fun glassStroke(dark: Boolean): Brush =
     if (dark) {
         Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.26f), Color.White.copy(alpha = 0.10f)))
     } else {
-        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.92f), Color.White.copy(alpha = 0.64f)))
+        Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.16f), Color.Black.copy(alpha = 0.08f)))
     }
 
 class GlassBackdropState(val layer: GraphicsLayer) {

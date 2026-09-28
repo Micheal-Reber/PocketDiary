@@ -1,5 +1,6 @@
 package com.example.diary.ui.diary
 
+import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -15,18 +16,30 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalGraphicsContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -43,6 +56,7 @@ import com.example.diary.ui.navigation.glassStroke
 import com.example.diary.ui.navigation.glassTint
 import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,16 +95,47 @@ fun DiaryListScreen(
     }
     val hasCustomBg = bgBitmap != null
 
+    // 卡片衬底模糊：把「壁纸 + 黑纱」录进一层带 BlurEffect 的 GraphicsLayer，
+    // 卡片绘制时先贴一块模糊副本再画自己的底色/文字（真正的 backdrop 磨砂）
+    val graphicsContext = LocalGraphicsContext.current
+    val blurLayer = remember(graphicsContext) { graphicsContext.createGraphicsLayer() }
+    DisposableEffect(graphicsContext) {
+        onDispose { graphicsContext.releaseGraphicsLayer(blurLayer) }
+    }
+    val blurRadiusPx = with(LocalDensity.current) { 24.dp.toPx() }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val effect = remember(blurRadiusPx) { BlurEffect(blurRadiusPx, blurRadiusPx, TileMode.Clamp) }
+        SideEffect { blurLayer.renderEffect = effect }
+    }
+
     Box(Modifier.fillMaxSize()) {
         if (bgBitmap != null) {
-            Image(
-                bitmap = bgBitmap!!,
-                contentDescription = null,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-            // Scrim so cards/text keep their contrast on bright photos.
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.30f)))
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .drawWithContent {
+                        val contentScope = this
+                        drawContent()
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                            size.width > 0f && size.height > 0f
+                        ) {
+                            blurLayer.record(
+                                IntSize(size.width.roundToInt(), size.height.roundToInt())
+                            ) {
+                                contentScope.drawContent()
+                            }
+                        }
+                    }
+            ) {
+                Image(
+                    bitmap = bgBitmap!!,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+                // Scrim so cards/text keep their contrast on bright photos.
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.30f)))
+            }
         }
 
         Scaffold(
@@ -197,6 +242,7 @@ fun DiaryListScreen(
                                 is DisplayItem.Entry -> DiaryCard(
                                     entry = item.entry,
                                     highlightQuery = debouncedQuery,
+                                    blurLayer = if (hasCustomBg && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) blurLayer else null,
                                     onClick = { onEditDiary(item.entry.date) },
                                     onDelete = { scope.launch { diaryRepository.deleteEntry(item.entry.id) } }
                                 )
@@ -214,10 +260,12 @@ fun DiaryListScreen(
 private fun DiaryCard(
     entry: DiaryEntry,
     highlightQuery: String = "",
+    blurLayer: GraphicsLayer? = null,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val cardBounds = remember { mutableStateOf(Rect.Zero) }
     SwipeDeleteCard(
         onClick = onClick,
         onDelete = onDelete,
@@ -226,6 +274,14 @@ private fun DiaryCard(
         containerColor = Color.Transparent,
         enableSwipe = false,
         cardModifier = Modifier
+            .onGloballyPositioned { cardBounds.value = it.boundsInRoot() }
+            .drawWithContent {
+                val b = cardBounds.value
+                if (blurLayer != null && b.width > 0f && b.height > 0f) {
+                    translate(-b.left, -b.top) { drawLayer(blurLayer) }
+                }
+                drawContent()
+            }
             .background(glassTint(dark), MaterialTheme.shapes.medium)
             .border(1.dp, glassStroke(dark), MaterialTheme.shapes.medium)
     ) {
