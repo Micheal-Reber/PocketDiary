@@ -40,8 +40,11 @@ import com.example.diary.ui.components.ConfirmDialog
 import com.example.diary.ui.components.SearchTextField
 import com.example.diary.ui.components.SearchToggleButton
 import com.example.diary.ui.navigation.BottomBarContentInset
+import com.example.diary.ui.navigation.GlassFab
+import com.example.diary.ui.navigation.fabRecord
 import com.example.diary.ui.navigation.glassStroke
 import com.example.diary.ui.navigation.glassTint
+import com.example.diary.ui.navigation.rememberFabLayer
 import com.example.diary.ui.theme.Spacing
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
@@ -73,6 +76,7 @@ fun CountdownListScreen(
     }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val listFab = rememberFabLayer()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -101,16 +105,16 @@ fun CountdownListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            GlassFab(
                 onClick = onCreate,
-                modifier = Modifier.padding(bottom = BottomBarContentInset),
-                containerColor = MaterialTheme.colorScheme.primary
+                backdrop = listOf(listFab),
+                modifier = Modifier.padding(bottom = BottomBarContentInset)
             ) {
-                Icon(Icons.Default.Add, "新建倒数日", tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(Icons.Default.Add, "新建倒数日", tint = MaterialTheme.colorScheme.primary)
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
+        Column(Modifier.fillMaxSize().padding(padding).fabRecord(listFab)) {
             if (searchActive) {
                 SearchTextField(
                     value = searchQuery,
@@ -126,7 +130,7 @@ fun CountdownListScreen(
                 gridMode -> LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = Spacing.l, bottom = BottomBarContentInset),
+                    contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, top = Spacing.l, bottom = BottomBarContentInset),
                     horizontalArrangement = Arrangement.spacedBy(Spacing.m),
                     verticalArrangement = Arrangement.spacedBy(Spacing.m)
                 ) {
@@ -146,7 +150,7 @@ fun CountdownListScreen(
                 }
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = Spacing.l, bottom = BottomBarContentInset),
+                    contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, top = Spacing.l, bottom = BottomBarContentInset),
                     verticalArrangement = Arrangement.spacedBy(Spacing.m)
                 ) {
                     items(events, key = { it.id }) { event ->

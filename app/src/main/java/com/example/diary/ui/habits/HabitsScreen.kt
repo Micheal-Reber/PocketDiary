@@ -38,6 +38,9 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.diary.data.repository.HabitRepository
 import com.example.diary.ui.navigation.BottomBarContentInset
+import com.example.diary.ui.navigation.GlassFab
+import com.example.diary.ui.navigation.fabRecord
+import com.example.diary.ui.navigation.rememberFabLayer
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +59,8 @@ fun HabitsScreen(
     val calendarCheckInDates by viewModel.calendarCheckInDates.collectAsState()
     val todayCheckInCount by viewModel.todayCheckInCount.collectAsState()
 
+    val listFab = rememberFabLayer()
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -69,17 +74,17 @@ fun HabitsScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
+            GlassFab(
                 onClick = { viewModel.showAddHabitDialog() },
-                modifier = Modifier.padding(bottom = BottomBarContentInset),
-                containerColor = MaterialTheme.colorScheme.primary
+                backdrop = listOf(listFab),
+                modifier = Modifier.padding(bottom = BottomBarContentInset)
             ) {
-                Icon(Icons.Default.Add, "添加习惯", tint = MaterialTheme.colorScheme.onPrimary)
+                Icon(Icons.Default.Add, "添加习惯", tint = MaterialTheme.colorScheme.primary)
             }
         }
     ) { padding ->
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
+            modifier = Modifier.fillMaxSize().padding(padding).fabRecord(listFab),
             contentPadding = PaddingValues(bottom = BottomBarContentInset)
         ) {
             item {

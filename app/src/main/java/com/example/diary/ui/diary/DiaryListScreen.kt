@@ -52,8 +52,11 @@ import com.example.diary.ui.components.SearchToggleButton
 import com.example.diary.ui.components.SwipeDeleteCard
 import com.example.diary.ui.editor.markdownToPlainText
 import com.example.diary.ui.navigation.BottomBarContentInset
+import com.example.diary.ui.navigation.GlassFab
+import com.example.diary.ui.navigation.fabRecord
 import com.example.diary.ui.navigation.glassStroke
 import com.example.diary.ui.navigation.glassTint
+import com.example.diary.ui.navigation.rememberFabLayer
 import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -108,11 +111,15 @@ fun DiaryListScreen(
         SideEffect { blurLayer.renderEffect = effect }
     }
 
+    val photoFab = rememberFabLayer()
+    val listFab = rememberFabLayer()
+
     Box(Modifier.fillMaxSize()) {
         if (bgBitmap != null) {
             Box(
                 Modifier
                     .fillMaxSize()
+                    .fabRecord(photoFab)
                     .drawWithContent {
                         val contentScope = this
                         drawContent()
@@ -159,14 +166,16 @@ fun DiaryListScreen(
                 )
             },
             floatingActionButton = {
-                FloatingActionButton(onClick = { onWriteDiary(null) },
-                    modifier = Modifier.padding(bottom = BottomBarContentInset),
-                    containerColor = MaterialTheme.colorScheme.primary) {
-                    Icon(Icons.Default.Add, "写日记", tint = MaterialTheme.colorScheme.onPrimary)
+                GlassFab(
+                    onClick = { onWriteDiary(null) },
+                    backdrop = listOf(photoFab, listFab),
+                    modifier = Modifier.padding(bottom = BottomBarContentInset)
+                ) {
+                    Icon(Icons.Default.Add, "写日记", tint = MaterialTheme.colorScheme.primary)
                 }
             }
         ) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding)) {
+            Column(Modifier.fillMaxSize().padding(padding).fabRecord(listFab)) {
                 if (searchActive) {
                     SearchTextField(
                         value = searchQuery,
@@ -223,7 +232,7 @@ fun DiaryListScreen(
                 }
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(top = Spacing.l, bottom = BottomBarContentInset),
+                    contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, top = Spacing.l, bottom = BottomBarContentInset),
                     verticalArrangement = Arrangement.spacedBy(Spacing.m)
                 ) {
                     items(

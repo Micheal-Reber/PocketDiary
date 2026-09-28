@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -85,6 +86,46 @@ class GlassBackdropState(val layer: GraphicsLayer) {
     var barBoundsInRoot by mutableStateOf(Rect.Zero)
     var contentOriginInRoot by mutableStateOf(Offset.Zero)
 }
+
+// 每屏一个「内容区录制层」给加号用：录制节点不含 FAB（FAB 在 Scaffold 的
+// fab 槽），加号画这层不可能自环
+class FabLayer(val layer: GraphicsLayer) {
+    val originInRoot = mutableStateOf(Offset.Zero)
+}
+
+@Composable
+fun rememberFabLayer(): FabLayer {
+    val graphicsContext = LocalGraphicsContext.current
+    val layer = remember(graphicsContext) { graphicsContext.createGraphicsLayer() }
+    val radiusPx = with(LocalDensity.current) { GlassBlurRadius.toPx() }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val effect = remember(radiusPx) { BlurEffect(radiusPx, radiusPx, TileMode.Clamp) }
+        SideEffect { layer.renderEffect = effect }
+    }
+    DisposableEffect(graphicsContext) {
+        onDispose { graphicsContext.releaseGraphicsLayer(layer) }
+    }
+    return remember(layer) { FabLayer(layer) }
+}
+
+// 挂在屏内容根节点：每帧正常绘制后再把内容录进 fabLayer（供 GlassFab 取样）
+@Composable
+fun Modifier.fabRecord(fab: FabLayer): Modifier =
+    this
+        .onGloballyPositioned { fab.originInRoot.value = it.boundsInRoot().topLeft }
+        .drawWithContent {
+            val contentScope = this
+            drawContent()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                size.width > 0f && size.height > 0f
+            ) {
+                fab.layer.record(
+                    IntSize(size.width.roundToInt(), size.height.roundToInt())
+                ) {
+                    contentScope.drawContent()
+                }
+            }
+        }
 
 @Composable
 fun rememberGlassBackdrop(): GlassBackdropState {
@@ -216,4 +257,50 @@ fun GlassBottomBar(
             }
         }
     }
+}
+
+// 真液态玻璃加号：先贴一块本屏内容录制层的模糊副本（backdrop 列表），
+// 再画自己的玻璃底/高光/描边；录制层节点在 Scaffold 内容槽，不含加号本身
+@Composable
+fun GlassFab(
+    onClick: () -> Unit,
+    backdrop: List<FabLayer> = emptyList(),
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val bounds = remember { mutableStateOf(Rect.Zero) }
+    Box(
+        modifier
+            .size(56.dp)
+            .onGloballyPositioned { bounds.value = it.boundsInRoot() }
+            .clip(CircleShape)
+            .drawWithContent {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val b = bounds.value
+                    if (b.width > 0f && b.height > 0f) {
+                        for (fab in backdrop) {
+                            val o = fab.originInRoot.value
+                            translate(-(b.left - o.x), -(b.top - o.y)) {
+                                drawLayer(fab.layer)
+                            }
+                        }
+                    }
+                }
+                drawContent()
+            }
+            .background(glassTint(dark), CircleShape)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        Color.White.copy(alpha = if (dark) 0.20f else 0.50f),
+                        Color.White.copy(alpha = 0f)
+                    )
+                ),
+                CircleShape
+            )
+            .border(1.dp, glassStroke(dark), CircleShape)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) { content() }
 }
