@@ -45,6 +45,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -86,14 +87,20 @@ private fun RowScope.ActionItem(icon: androidx.compose.ui.graphics.vector.ImageV
             .weight(1f)
             .fillMaxHeight()
             .padding(horizontal = Spacing.xs, vertical = Spacing.s)
-            .clip(CircleShape)
-            .clickable(onClick = onClick)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
     ) {
         Icon(icon, label, tint = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.size(24.dp))
         Spacer(Modifier.height(Spacing.xs))
         Text(label, style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant)
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Visible)
     }
 }
 
@@ -170,7 +177,7 @@ private fun ClassicFullscreenContent(
         Spacer(Modifier.height(Spacing.xxl))
         Text(
             bigNumber,
-            fontSize = 140.sp,
+            fontSize = if (bigNumber == stringResource(R.string.cd_badge_today)) 96.sp else 140.sp,
             fontWeight = FontWeight.Black,
             color = accent,
             textAlign = TextAlign.Center

@@ -237,7 +237,7 @@
     <string name="cd_save_ok">Saved to Pictures/PocketDiary</string>
     <string name="cd_save_fail">Save failed</string>
     <string name="cd_action_share">Share</string>
-    <string name="cd_action_save">Save as image</string>
+    <string name="cd_action_save">Save</string>
     <string name="cd_action_bg">Background</string>
     <string name="cd_action_highlight">Highlight</string>
     <string name="cd_action_new">New</string>

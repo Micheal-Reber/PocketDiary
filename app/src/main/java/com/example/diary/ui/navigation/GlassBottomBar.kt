@@ -4,6 +4,7 @@ import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -231,8 +232,9 @@ fun GlassBottomBar(
     val density = LocalDensity.current
 
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        // 2dp 安全边距：给格子 CircleShape 在文字高度的内削留余量
-        val labelAvail = maxWidth / 5f - Spacing.s * 2 - 2.dp
+        // Keep a small horizontal inset so the longest English label can fit
+        // without ellipsis on narrow screens and larger accessibility fonts.
+        val labelAvail = maxWidth / 5f - Spacing.xs * 2
 
         GlassCapsule(backdrop) {
             bottomNavItems.forEach { screen ->
@@ -247,19 +249,22 @@ fun GlassBottomBar(
                 val fontSize = remember(label, fontWeight, labelAvail, density.fontScale) {
                     val natural = measurer.measure(
                         label,
-                        style = TextStyle(fontSize = 11.sp, fontWeight = fontWeight)
+                        style = TextStyle(fontSize = 10.sp, fontWeight = fontWeight)
                     ).size.width
                     val availPx = with(density) { labelAvail.toPx() }
-                    if (natural <= 0 || natural <= availPx) 11.sp
-                    else (11f * (availPx / natural)).coerceAtLeast(8f).sp
+                    if (natural <= 0 || natural <= availPx) 10.sp
+                    else (10f * (availPx / natural)).coerceAtLeast(8.5f).sp
                 }
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
                         .padding(horizontal = Spacing.s, vertical = Spacing.s)
-                        .clip(CircleShape)
-                        .clickable { onNavigate(screen) },
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { onNavigate(screen) }
+                        ),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
@@ -276,7 +281,8 @@ fun GlassBottomBar(
                         fontWeight = fontWeight,
                         color = color,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
+                        softWrap = false,
+                        overflow = TextOverflow.Visible,
                     )
                 }
             }
