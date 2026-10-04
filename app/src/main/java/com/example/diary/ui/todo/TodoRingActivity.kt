@@ -37,17 +37,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
+import com.example.diary.R
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.local.TodoItem
 import com.example.diary.data.repository.TodoRepository
 import com.example.diary.data.todo.TodoAlarmNotifier
 import com.example.diary.data.todo.TodoReminderScheduler
 import com.example.diary.ui.theme.DiaryTheme
+import com.example.diary.util.LocaleHelper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -67,6 +70,10 @@ class TodoRingActivity : ComponentActivity() {
     private var vibrator: Vibrator? = null
     private var currentItem: TodoItem? = null
     private lateinit var repository: TodoRepository
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -228,7 +235,7 @@ private fun RingContent(
                 }
                 Spacer(Modifier.height(24.dp))
                 Text(
-                    text = item?.text ?: "待办提醒",
+                    text = item?.text ?: stringResource(R.string.ring_fallback_title),
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
@@ -238,8 +245,8 @@ private fun RingContent(
                 Text(
                     text = when {
                         item == null -> ""
-                        item!!.done -> "已完成"
-                        else -> "到点了"
+                        item!!.done -> stringResource(R.string.ring_done_label)
+                        else -> stringResource(R.string.ring_due_label)
                     },
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 15.sp
@@ -254,7 +261,7 @@ private fun RingContent(
                 .fillMaxWidth()
                 .height(56.dp)
         ) {
-            Text("完成", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(R.string.common_done), fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(12.dp))
         OutlinedButton(
@@ -268,7 +275,7 @@ private fun RingContent(
                 .fillMaxWidth()
                 .height(52.dp)
         ) {
-            Text("稍后提醒（5 分钟）", fontSize = 16.sp)
+            Text(stringResource(R.string.ring_snooze), fontSize = 16.sp)
         }
         Spacer(Modifier.height(12.dp))
         OutlinedButton(
@@ -278,7 +285,7 @@ private fun RingContent(
                 .fillMaxWidth()
                 .height(52.dp)
         ) {
-            Text("关闭铃声", fontSize = 16.sp)
+            Text(stringResource(R.string.ring_stop), fontSize = 16.sp)
         }
         Spacer(Modifier.height(24.dp))
     }

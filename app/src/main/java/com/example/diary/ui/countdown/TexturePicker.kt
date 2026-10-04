@@ -21,7 +21,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.diary.R
 import com.example.diary.data.countdown.TextureLibrary
 import com.example.diary.ui.theme.Spacing
 
@@ -131,7 +133,7 @@ private fun NoneCell(
             }
         }
         Text(
-            "无",
+            stringResource(R.string.cd_texture_none),
             style = MaterialTheme.typography.labelSmall,
             color = if (selected) MaterialTheme.colorScheme.primary
             else MaterialTheme.colorScheme.onSurfaceVariant

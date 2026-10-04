@@ -28,39 +28,39 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.example.diary.R
 import com.example.diary.data.local.Habit
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.format.TextStyle
-import java.util.Locale
 
 @Composable
 internal fun MonthHeader(month: YearMonth, onPrevious: () -> Unit, onNext: () -> Unit) {
+    val months = stringArrayResource(R.array.month_full)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         Arrangement.SpaceBetween, Alignment.CenterVertically
     ) {
-        IconButton(onClick = onPrevious) { Icon(Icons.Default.ChevronLeft, "上一月") }
-        Text("${month.year}年 ${month.monthValue}月", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        IconButton(onClick = onNext) { Icon(Icons.Default.ChevronRight, "下一月") }
+        IconButton(onClick = onPrevious) { Icon(Icons.Default.ChevronLeft, stringResource(R.string.stat_prev_month)) }
+        Text(stringResource(R.string.stat_ym_fmt, month.year, month.monthValue, months[month.monthValue - 1]), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        IconButton(onClick = onNext) { Icon(Icons.Default.ChevronRight, stringResource(R.string.stat_next_month)) }
     }
 }
 
 @Composable
 internal fun WeekdayHeader() {
-    // Always render Monday-first (the user-facing choice this app committed
-    // to) but localize the abbreviation so a system set to English shows "Mon"
-    // not "周一". Locale.getDefault() follows the user's system locale, which
-    // is the right default for a personal diary.
-    val locale = Locale.getDefault()
+    // Monday-first, headers from the localized weekday_headers array so the
+    // in-app language switch (not the system locale) drives them.
+    val headers = stringArrayResource(R.array.weekday_headers)
     Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
-        listOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY).forEach { day ->
+        listOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY, DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY).forEachIndexed { index, _ ->
             Text(
-                day.getDisplayName(TextStyle.SHORT, locale),
+                headers[index],
                 Modifier.weight(1f), textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant

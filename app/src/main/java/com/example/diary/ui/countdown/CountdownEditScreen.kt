@@ -20,8 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.diary.R
 import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.ui.components.ConfirmDialog
@@ -120,14 +122,14 @@ fun CountdownEditScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text(if (existingId == null) "新建倒数日" else "编辑倒数日") },
+                title = { Text(if (existingId == null) stringResource(R.string.cd_edit_new) else stringResource(R.string.cd_edit_edit)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
-                    TextButton(onClick = { persist() }, enabled = canSave) { Text("保存") }
+                    TextButton(onClick = { persist() }, enabled = canSave) { Text(stringResource(R.string.cd_save)) }
                 }
             )
         },
@@ -139,7 +141,7 @@ fun CountdownEditScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = Spacing.l, vertical = Spacing.m)
-                ) { Text("保存", modifier = Modifier.padding(vertical = Spacing.xs)) }
+                ) { Text(stringResource(R.string.cd_save), modifier = Modifier.padding(vertical = Spacing.xs)) }
             }
         }
     ) { padding ->
@@ -154,7 +156,7 @@ fun CountdownEditScreen(
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
-                label = { Text("事件名称") },
+                label = { Text(stringResource(R.string.cd_name)) },
                 singleLine = true,
                 shape = MaterialTheme.shapes.small,
                 modifier = Modifier.fillMaxWidth()
@@ -162,10 +164,10 @@ fun CountdownEditScreen(
 
             // 目标日
             ListItem(
-                headlineContent = { Text("目标日") },
-                supportingContent = { Text("未来日期为倒数，过去日期为正数；$dateStr${weekdaySuffix(dateStr)}") },
+                headlineContent = { Text(stringResource(R.string.cd_target)) },
+                supportingContent = { Text(stringResource(R.string.cd_target_support, dateStr + weekdaySuffix(context, dateStr))) },
                 trailingContent = {
-                    TextButton(onClick = { showDatePicker = true }) { Text("选择") }
+                    TextButton(onClick = { showDatePicker = true }) { Text(stringResource(R.string.cd_choose)) }
                 },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                 modifier = Modifier.clip(MaterialTheme.shapes.small)
@@ -173,12 +175,12 @@ fun CountdownEditScreen(
 
             // 卡片风格选择器（双预览卡）
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
-                Text("卡片风格", style = MaterialTheme.typography.labelMedium,
+                Text(stringResource(R.string.cd_card_style), style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.m)) {
                     // 经典全屏预览
                     StylePreviewCard(
-                        label = "经典全屏",
+                        label = stringResource(R.string.cd_style_classic),
                         selected = cardStyle == CountdownEvent.CARD_STYLE_CLASSIC,
                         onClick = { cardStyle = CountdownEvent.CARD_STYLE_CLASSIC },
                         accent = MaterialTheme.colorScheme.primary,
@@ -187,7 +189,7 @@ fun CountdownEditScreen(
                     )
                     // 照片卡片预览
                     StylePreviewCard(
-                        label = "照片卡片",
+                        label = stringResource(R.string.cd_style_photo),
                         selected = cardStyle == CountdownEvent.CARD_STYLE_PHOTO_CARD,
                         onClick = { cardStyle = CountdownEvent.CARD_STYLE_PHOTO_CARD },
                         accent = MaterialTheme.colorScheme.primary,
@@ -207,30 +209,30 @@ fun CountdownEditScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("置顶显示在列表最前")
+                Text(stringResource(R.string.cd_pin_label))
                 Switch(checked = pinned, onCheckedChange = { pinned = it })
             }
 
             // 重复规则
             Column {
-                Text("重复规则", style = MaterialTheme.typography.labelMedium,
+                Text(stringResource(R.string.cd_repeat), style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.height(Spacing.xs))
                 Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
                     FilterChip(
                         selected = repeatRule == CountdownEvent.REPEAT_NONE,
                         onClick = { repeatRule = CountdownEvent.REPEAT_NONE },
-                        label = { Text("不重复") }
+                        label = { Text(stringResource(R.string.cd_repeat_none)) }
                     )
                     FilterChip(
                         selected = repeatRule == CountdownEvent.REPEAT_YEARLY,
                         onClick = { repeatRule = CountdownEvent.REPEAT_YEARLY },
-                        label = { Text("每年") }
+                        label = { Text(stringResource(R.string.cd_repeat_yearly)) }
                     )
                     FilterChip(
                         selected = repeatRule == CountdownEvent.REPEAT_MONTHLY,
                         onClick = { repeatRule = CountdownEvent.REPEAT_MONTHLY },
-                        label = { Text("每月") }
+                        label = { Text(stringResource(R.string.cd_repeat_monthly)) }
                     )
                 }
             }
@@ -246,7 +248,7 @@ fun CountdownEditScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("进阶设置")
+                    Text(stringResource(R.string.cd_advanced))
                     Icon(if (advancedOpen) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
                 }
             }
@@ -254,13 +256,13 @@ fun CountdownEditScreen(
             if (advancedOpen) {
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
                     ListItem(
-                        headlineContent = { Text("结束日") },
-                        supportingContent = { Text(endDateStr.ifBlank { "未设置" }) },
+                        headlineContent = { Text(stringResource(R.string.cd_end_date_item)) },
+                        supportingContent = { Text(endDateStr.ifBlank { stringResource(R.string.cd_not_set) }) },
                         trailingContent = {
                             Row {
-                                TextButton(onClick = { showEndDatePicker = true }) { Text("选择") }
+                                TextButton(onClick = { showEndDatePicker = true }) { Text(stringResource(R.string.cd_choose)) }
                                 if (endDateStr.isNotBlank()) {
-                                    TextButton(onClick = { endDateStr = "" }) { Text("清除") }
+                                    TextButton(onClick = { endDateStr = "" }) { Text(stringResource(R.string.cd_clear)) }
                                 }
                             }
                         },
@@ -270,8 +272,8 @@ fun CountdownEditScreen(
                     OutlinedTextField(
                         value = timeText,
                         onValueChange = { timeText = it },
-                        label = { Text("精确时间（HH:mm，可选）") },
-                        placeholder = { Text("如 20:00") },
+                        label = { Text(stringResource(R.string.cd_time_label)) },
+                        placeholder = { Text(stringResource(R.string.cd_time_hint)) },
                         isError = !timeValid,
                         singleLine = true,
                         shape = MaterialTheme.shapes.small,
@@ -284,9 +286,9 @@ fun CountdownEditScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column {
-                            Text("+1日")
+                            Text(stringResource(R.string.cd_plus_one))
                             Text(
-                                "计数含首尾当天整体 +1",
+                                stringResource(R.string.cd_plus_one_hint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -299,24 +301,24 @@ fun CountdownEditScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("高亮旗标")
+                        Text(stringResource(R.string.cd_highlight))
                         Switch(checked = highlighted, onCheckedChange = { highlighted = it })
                     }
 
                     // 颜色色板：首格「自动」
                     Column {
-                        Text("颜色", style = MaterialTheme.typography.labelMedium,
+                        Text(stringResource(R.string.cd_color), style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("应用于卡片徽章、高亮描边与详情页数字",
+                        Text(stringResource(R.string.cd_color_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("自动：倒数 = 蓝 · 正数 = 橙",
+                        Text(stringResource(R.string.cd_color_auto_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline)
                         Spacer(Modifier.height(Spacing.s))
                         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
                             PaletteDot(
-                                color = null, label = "自动",
+                                color = null, label = stringResource(R.string.palette_auto),
                                 selected = colorIndex == CountdownPalette.AUTO,
                                 onClick = { colorIndex = CountdownPalette.AUTO }
                             )
@@ -333,7 +335,7 @@ fun CountdownEditScreen(
                     // 纹理选择器：CLASSIC 始终显示；PHOTO_CARD 选过纹理后也显示
                     if (cardStyle == CountdownEvent.CARD_STYLE_CLASSIC || textureIndex >= 0) {
                         Column(Modifier.padding(top = Spacing.m)) {
-                            Text("内置纹理", style = MaterialTheme.typography.labelMedium,
+                            Text(stringResource(R.string.cd_texture_title), style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(Spacing.s))
                             TexturePickerRow(
@@ -354,7 +356,7 @@ fun CountdownEditScreen(
                 ) {
                     Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.width(Spacing.xs))
-                    Text("删除此事件", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.cd_delete_event), color = MaterialTheme.colorScheme.error)
                 }
             }
             Spacer(Modifier.height(Spacing.xl))
@@ -376,8 +378,8 @@ fun CountdownEditScreen(
         }
         if (showDeleteDialog && existingId != null) {
             ConfirmDialog(
-                title = "删除「$name」？",
-                message = "不可恢复。",
+                title = stringResource(R.string.cd_delete_title, name),
+                message = stringResource(R.string.cd_delete_edit_message),
                 onConfirm = {
                     showDeleteDialog = false
                     scope.launch {
@@ -393,8 +395,8 @@ fun CountdownEditScreen(
     }
 }
 
-private fun weekdaySuffix(dateStr: String): String =
-    runCatching { " · ${weekdayLabel(LocalDate.parse(dateStr))}" }.getOrDefault("")
+private fun weekdaySuffix(context: android.content.Context, dateStr: String): String =
+    runCatching { " · ${weekdayLabel(context, LocalDate.parse(dateStr))}" }.getOrDefault("")
 
 @Composable
 private fun PaletteDot(color: Color?, label: String?, selected: Boolean, onClick: () -> Unit) {
@@ -463,9 +465,9 @@ private fun StylePreviewCard(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("照片卡", style = MaterialTheme.typography.labelMedium,
+                        Text(stringResource(R.string.cd_preview_photo), style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text("横图背景", style = MaterialTheme.typography.bodySmall,
+                        Text(stringResource(R.string.cd_preview_photo_sub), style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.outline)
                     }
                 }
@@ -478,11 +480,11 @@ private fun StylePreviewCard(
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("经典", style = MaterialTheme.typography.labelMedium,
+                    Text(stringResource(R.string.cd_preview_classic), style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("99", fontSize = 32.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
                         color = accent)
-                    Text("天", style = MaterialTheme.typography.bodySmall,
+                    Text(stringResource(R.string.cd_unit_days), style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }

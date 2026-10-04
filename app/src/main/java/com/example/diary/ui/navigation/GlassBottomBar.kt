@@ -49,6 +49,7 @@ import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalGraphicsContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
@@ -56,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
+import com.example.diary.R
 import com.example.diary.ui.theme.Spacing
 import kotlin.math.roundToInt
 
@@ -242,12 +244,12 @@ fun GlassBottomBar(
             ) {
                 Icon(
                     if (selected) screen.selectedIcon else screen.unselectedIcon,
-                    contentDescription = screen.title,
+                    contentDescription = stringResource(screen.titleRes),
                     tint = color,
                     modifier = Modifier.size(24.dp).offset(y = 1.dp),
                 )
                 Text(
-                    screen.title,
+                    stringResource(screen.titleRes),
                     modifier = Modifier.offset(y = (-1).dp),
                     fontSize = 11.sp,
                     fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,

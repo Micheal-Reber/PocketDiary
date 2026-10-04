@@ -33,9 +33,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.diary.R
 import com.example.diary.data.repository.HabitRepository
 import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.navigation.GlassFab
@@ -64,10 +66,10 @@ fun HabitsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("日历", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.tab_calendar), fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = { viewModel.showManageHabits() }) {
-                        Icon(Icons.Default.Edit, "管理习惯")
+                        Icon(Icons.Default.Edit, stringResource(R.string.habit_manage_title))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -79,7 +81,7 @@ fun HabitsScreen(
                 backdrop = listOf(listFab),
                 modifier = Modifier.padding(bottom = BottomBarContentInset)
             ) {
-                Icon(Icons.Default.Add, "添加习惯", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.Add, stringResource(R.string.habit_add_title), tint = MaterialTheme.colorScheme.primary)
             }
         }
     ) { padding ->
@@ -138,7 +140,7 @@ fun HabitsScreen(
                                 )
                                 Spacer(Modifier.width(4.dp))
                                 Text(
-                                    "${habit.emoji} ${habit.name} ${days}天",
+                                    stringResource(R.string.habit_days_count, "${habit.emoji} ${habit.name}", days),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )

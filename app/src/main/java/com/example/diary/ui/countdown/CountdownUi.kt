@@ -1,10 +1,12 @@
 package com.example.diary.ui.countdown
 
+import android.content.Context
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.example.diary.R
 import com.example.diary.data.countdown.DateMath
 import com.example.diary.data.countdown.DateMath.CountState
 import com.example.diary.data.countdown.TextureLibrary
@@ -28,8 +30,6 @@ object CountdownPalette {
         Color(0xFF9B51E0), // 7 紫
         Color(0xFFEB5FA7)  // 8 粉
     )
-    /** 编辑页色板展示顺序的中文标签。 */
-    val labels = listOf("红", "橙", "黄", "绿", "青", "蓝", "紫", "粉")
 }
 
 private val AutoCountdownBlue = CountdownPalette.colors[5]
@@ -43,25 +43,22 @@ fun eventAccent(colorIndex: Int, state: DateMath.CountState): Color = when {
     else -> AutoCountdownBlue
 }
 
-/** 星期中文短标（周一..周日）。 */
-fun weekdayLabel(date: LocalDate): String =
-    when (date.dayOfWeek.value) {
-        1 -> "周一"; 2 -> "周二"; 3 -> "周三"; 4 -> "周四"
-        5 -> "周五"; 6 -> "周六"; else -> "周日"
-    }
+/** 星期短标（周一..周日）。 */
+fun weekdayLabel(context: Context, date: LocalDate): String =
+    context.resources.getStringArray(R.array.weekday_full)[date.dayOfWeek.value - 1]
 
 /** 卡片/详情副标题短语（不带事件名）：还有 N 天 / 已经 N 天 / 就是今天。 */
-fun stateLabel(state: DateMath.CountState): String = when (state) {
-    is CountState.Today -> "就是今天"
-    is CountState.Countdown -> "还有 ${state.days} 天"
-    is CountState.Countup -> "已经 ${state.days} 天"
+fun stateLabel(context: Context, state: DateMath.CountState): String = when (state) {
+    is CountState.Today -> context.getString(R.string.cd_state_today)
+    is CountState.Countdown -> context.getString(R.string.cd_state_remaining, state.days)
+    is CountState.Countup -> context.getString(R.string.cd_state_elapsed, state.days)
 }
 
 /** 照片卡顶栏短语（日历页风，不含天数）：还有 / 已经 / 今天。 */
-fun headerStatePhrase(state: DateMath.CountState): String = when (state) {
-    is CountState.Today -> "今天"
-    is CountState.Countdown -> "还有"
-    is CountState.Countup -> "已经"
+fun headerStatePhrase(context: Context, state: DateMath.CountState): String = when (state) {
+    is CountState.Today -> context.getString(R.string.cd_header_today)
+    is CountState.Countdown -> context.getString(R.string.cd_header_remaining)
+    is CountState.Countup -> context.getString(R.string.cd_header_elapsed)
 }
 
 /** 内置过程式纹理数量（详情页背景选项），同步 TextureLibrary.TEXTURE_COUNT。 */

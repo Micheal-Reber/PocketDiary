@@ -13,6 +13,7 @@ import com.example.diary.MainActivity
 import com.example.diary.R
 import com.example.diary.data.local.TodoItem
 import com.example.diary.ui.todo.TodoRingActivity
+import com.example.diary.util.LocaleHelper
 
 /**
  * 闹钟响铃模式的通知：专属渠道（闹钟铃声+长震动+免打扰穿透），
@@ -20,35 +21,34 @@ import com.example.diary.ui.todo.TodoRingActivity
  */
 object TodoAlarmNotifier {
     const val CHANNEL_ID = "todo_alarm"
-    const val CHANNEL_NAME = "待办闹钟"
 
     /** 与 TodoNotificationHelper.show 相同的 id 混合，二选一发同一条 */
     private fun notificationId(todoId: Long): Int = (todoId xor (todoId ushr 32)).toInt()
 
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (nm.getNotificationChannel(CHANNEL_ID) == null) {
-                val alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
-                val alarmAudio = android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_ALARM)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-                val ch = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
-                    description = "待办到点闹钟响铃"
-                    setSound(alarmSound, alarmAudio)
-                    enableVibration(true)
-                    setVibrationPattern(longArrayOf(0, 500, 500, 500, 500))
-                    setBypassDnd(true)
-                    lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
-                }
-                nm.createNotificationChannel(ch)
+            val ctx = LocaleHelper.wrap(context)
+            val nm = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val alarmSound = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+            val alarmAudio = android.media.AudioAttributes.Builder()
+                .setUsage(android.media.AudioAttributes.USAGE_ALARM)
+                .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+            val ch = NotificationChannel(CHANNEL_ID, ctx.getString(R.string.notif_channel_alarm), NotificationManager.IMPORTANCE_HIGH).apply {
+                description = ctx.getString(R.string.notif_channel_alarm_desc)
+                setSound(alarmSound, alarmAudio)
+                enableVibration(true)
+                setVibrationPattern(longArrayOf(0, 500, 500, 500, 500))
+                setBypassDnd(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
             }
+            nm.createNotificationChannel(ch)
         }
     }
 
     fun show(context: Context, item: TodoItem, silent: Boolean = false) {
+        val context = LocaleHelper.wrap(context)
         ensureChannel(context)
         val id = notificationId(item.id)
 
@@ -70,7 +70,7 @@ object TodoAlarmNotifier {
         )
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle("闹钟")
+            .setContentTitle(context.getString(R.string.notif_alarm_title))
             .setContentText(item.text)
             .setStyle(NotificationCompat.BigTextStyle().bigText(item.text))
             .setPriority(NotificationCompat.PRIORITY_MAX)

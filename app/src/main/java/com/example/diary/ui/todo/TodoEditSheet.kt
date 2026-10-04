@@ -13,9 +13,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.diary.R
 import com.example.diary.data.local.TodoItem
 import com.example.diary.util.DateUtils
 
@@ -38,6 +41,7 @@ fun TodoEditSheet(
     var showReminderSheet by remember { mutableStateOf(false) }
 
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
     val canSave = text.trim().isNotBlank()
 
     ModalBottomSheet(
@@ -65,7 +69,7 @@ fun TodoEditSheet(
                 TextField(
                     value = text,
                     onValueChange = { if (it.length <= 200) text = it },
-                    placeholder = { Text("输入待办...", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    placeholder = { Text(stringResource(R.string.todo_input_hint), color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     singleLine = true,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
@@ -90,8 +94,8 @@ fun TodoEditSheet(
             ) {
                 // key 必须含 repeatRule/alarmMode：只 remember(reminderAt) 时改“每天/闹钟”不刷新文案
                 val fmt = remember(reminderAt, repeatRule, alarmMode) {
-                    DateUtils.formatReminderAt(reminderAt, repeatRule)?.let {
-                        if (alarmMode == TodoItem.MODE_RING) "$it · 闹钟" else it
+                    DateUtils.formatReminderAt(context, reminderAt, repeatRule)?.let {
+                        if (alarmMode == TodoItem.MODE_RING) it + context.getString(R.string.todo_ring_suffix) else it
                     }
                 }
                 Surface(
@@ -106,7 +110,7 @@ fun TodoEditSheet(
                         Icon(Icons.Outlined.Alarm, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            if (fmt == null) "设置提醒" else fmt,
+                            if (fmt == null) stringResource(R.string.todo_set_reminder) else fmt,
                             color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.bodyMedium
                         )
@@ -123,7 +127,7 @@ fun TodoEditSheet(
                 TextButton(onClick = {
                     if (canSave) onSave(text.trim(), done, reminderAt, repeatRule, alarmMode)
                 }, enabled = canSave) {
-                    Text("完成", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    Text(stringResource(R.string.common_done), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 }
             }
             Spacer(Modifier.height(8.dp))

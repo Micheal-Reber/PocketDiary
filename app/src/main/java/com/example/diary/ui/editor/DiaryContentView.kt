@@ -25,9 +25,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.diary.R
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.photo.DiaryPhotoStore
 
@@ -87,7 +89,7 @@ fun DiaryContentView(
                     bmp?.let { imageBitmap ->
                         Image(
                             bitmap = imageBitmap,
-                            contentDescription = "日记图片",
+                            contentDescription = stringResource(R.string.diary_image_desc),
                             contentScale = ContentScale.Crop,
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -111,7 +113,7 @@ fun DiaryContentView(
                                 bmp?.let { imageBitmap ->
                                     Image(
                                         bitmap = imageBitmap,
-                                        contentDescription = "日记图片",
+                                        contentDescription = stringResource(R.string.diary_image_desc),
                                         contentScale = ContentScale.FillWidth,
                                         modifier = Modifier.fillMaxWidth()
                                     )

@@ -34,6 +34,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalGraphicsContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -43,6 +44,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.diary.R
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.preferences.ThemePreferences
@@ -149,11 +151,11 @@ fun DiaryListScreen(
             containerColor = if (hasCustomBg) Color.Transparent else MaterialTheme.colorScheme.background,
             topBar = {
                 TopAppBar(
-                    title = { Text("日记", fontWeight = FontWeight.Bold) },
+                    title = { Text(stringResource(R.string.diary_title), fontWeight = FontWeight.Bold) },
                     actions = {
                         SearchToggleButton(
                             searchActive = searchActive,
-                            contentDescriptionBase = "日记",
+                            contentDescriptionBase = stringResource(R.string.diary_title),
                             onToggle = {
                                 searchActive = !searchActive
                                 if (!searchActive) searchQuery = ""
@@ -171,7 +173,7 @@ fun DiaryListScreen(
                     backdrop = listOf(photoFab, listFab),
                     modifier = Modifier.padding(bottom = BottomBarContentInset)
                 ) {
-                    Icon(Icons.Default.Add, "写日记", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Default.Add, stringResource(R.string.diary_fab), tint = MaterialTheme.colorScheme.primary)
                 }
             }
         ) { padding ->
@@ -180,12 +182,12 @@ fun DiaryListScreen(
                     SearchTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = "搜索日记内容...",
+                        placeholder = stringResource(R.string.diary_search_hint),
                         focusRequester = searchFocusRequester
                     )
                     if (debouncedQuery.isNotBlank()) {
                         Text(
-                            "找到 ${entries.size} 篇日记",
+                            stringResource(R.string.diary_search_count, entries.size),
                             style = MaterialTheme.typography.labelMedium,
                             color = if (hasCustomBg) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = Spacing.l, vertical = Spacing.xs)
@@ -197,7 +199,7 @@ fun DiaryListScreen(
             if (searchQuery.isNotBlank()) {
                 // Search miss — distinct from the no-diaries state.
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("未找到相关日记", style = MaterialTheme.typography.bodyLarge,
+                    Text(stringResource(R.string.diary_no_results), style = MaterialTheme.typography.bodyLarge,
                         color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
@@ -210,10 +212,10 @@ fun DiaryListScreen(
                         modifier = Modifier.size(64.dp)
                     )
                     Spacer(Modifier.height(Spacing.l))
-                    Text("还没有日记", style = MaterialTheme.typography.titleMedium,
+                    Text(stringResource(R.string.diary_empty_title), style = MaterialTheme.typography.titleMedium,
                         color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(Spacing.xs))
-                    Text("点击右下角 + 开始写第一篇", style = MaterialTheme.typography.bodySmall,
+                    Text(stringResource(R.string.diary_empty_hint), style = MaterialTheme.typography.bodySmall,
                         color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline)
                 }
             }
@@ -278,8 +280,8 @@ private fun DiaryCard(
     SwipeDeleteCard(
         onClick = onClick,
         onDelete = onDelete,
-        confirmTitle = "删除日记",
-        confirmMessage = "确定要删除这篇日记吗？",
+        confirmTitle = stringResource(R.string.diary_delete_title),
+        confirmMessage = stringResource(R.string.diary_delete_message),
         containerColor = Color.Transparent,
         enableSwipe = false,
         cardModifier = Modifier

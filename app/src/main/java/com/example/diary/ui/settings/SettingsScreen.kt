@@ -3,6 +3,7 @@ package com.example.diary.ui.settings
 import android.content.Intent
 import android.net.Uri
 import android.provider.DocumentsContract
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Password
@@ -27,19 +29,24 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.diary.BuildConfig
+import com.example.diary.R
 import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.backup.ImportResult
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.preferences.AppLockPreferences
+import com.example.diary.data.preferences.LanguagePreferences
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.ui.lock.AppLockScreen
 import com.example.diary.ui.lock.LockMode
 import com.example.diary.ui.navigation.BottomBarContentInset
+import com.example.diary.ui.theme.Spacing
+import com.example.diary.util.LocaleHelper
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -48,6 +55,7 @@ fun SettingsScreen(
     themePreferences: ThemePreferences,
     backupRepository: BackupRepository,
     appLockPreferences: AppLockPreferences,
+    languagePreferences: LanguagePreferences,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -81,6 +89,8 @@ fun SettingsScreen(
     var showLockSetup by remember { mutableStateOf(false) }
     var showLockModeDialog by remember { mutableStateOf(false) }
     var backupExpanded by remember { mutableStateOf(false) }
+    var langDialog by remember { mutableStateOf(false) }
+    val currentLang by languagePreferences.language.collectAsStateWithLifecycle(initialValue = LocaleHelper.SYSTEM)
 
     val exportLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/zip")
@@ -91,9 +101,9 @@ fun SettingsScreen(
                 try {
                     val result = backupRepository.export(uri)
                     result.onSuccess {
-                        showToast(context, "导出成功")
+                        showToast(context, context.getString(R.string.settings_export_success))
                     }.onFailure { e ->
-                        showToast(context, "导出失败: ${e.message}")
+                        showToast(context, context.getString(R.string.settings_export_failed, e.message))
                     }
                 } finally {
                     backupBusy = false
@@ -114,7 +124,7 @@ fun SettingsScreen(
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("设置", fontWeight = FontWeight.Bold) },
+                    title = { Text(stringResource(R.string.settings_title), fontWeight = FontWeight.Bold) },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     )
@@ -125,8 +135,8 @@ fun SettingsScreen(
         if (pendingImportUri != null) {
             AlertDialog(
                 onDismissRequest = { pendingImportUri = null },
-                title = { Text("导入将清空现有数据？") },
-                text = { Text("日记、习惯、倒数日、待办与图片都会被备份内容覆盖，此操作不可撤销。") },
+                title = { Text(stringResource(R.string.settings_import_confirm_title)) },
+                text = { Text(stringResource(R.string.settings_import_confirm_body)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -139,13 +149,19 @@ fun SettingsScreen(
                                         is ImportResult.Success -> {
                                             showToast(
                                                 context,
-                                                "导入成功: ${result.diaryEntriesImported}篇日记, ${result.habitsImported}个习惯, " +
-                                                    "${result.habitRecordsImported}条打卡, ${result.countdownEventsImported}个倒数日, " +
-                                                    "${result.todosImported}条待办, ${result.imagesImported}张图片"
+                                                context.getString(
+                                                    R.string.settings_import_success,
+                                                    result.diaryEntriesImported,
+                                                    result.habitsImported,
+                                                    result.habitRecordsImported,
+                                                    result.countdownEventsImported,
+                                                    result.todosImported,
+                                                    result.imagesImported
+                                                )
                                             )
                                         }
                                         is ImportResult.Failure -> {
-                                            showToast(context, "导入失败: ${result.message}")
+                                            showToast(context, context.getString(R.string.settings_import_failed, result.message))
                                         }
                                     }
                                 } finally {
@@ -154,10 +170,51 @@ fun SettingsScreen(
                             }
                         },
                         enabled = !backupBusy
-                    ) { Text("确认导入") }
+                    ) { Text(stringResource(R.string.settings_import_confirm)) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { pendingImportUri = null }) { Text("取消") }
+                    TextButton(onClick = { pendingImportUri = null }) { Text(stringResource(R.string.common_cancel)) }
+                }
+            )
+        }
+
+        if (langDialog) {
+            AlertDialog(
+                onDismissRequest = { langDialog = false },
+                title = { Text(stringResource(R.string.settings_language)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
+                        listOf(
+                            LocaleHelper.SYSTEM to R.string.lang_system,
+                            LocaleHelper.ZH to R.string.lang_zh,
+                            LocaleHelper.EN to R.string.lang_en,
+                        ).forEach { (value, labelRes) ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        langDialog = false
+                                        if (value != currentLang) {
+                                            scope.launch {
+                                                languagePreferences.setLanguage(value)
+                                                (context as? Activity)?.recreate()
+                                            }
+                                        }
+                                    }
+                                    .padding(vertical = Spacing.xs),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                RadioButton(selected = value == currentLang, onClick = null)
+                                Spacer(Modifier.width(Spacing.s))
+                                Text(stringResource(labelRes))
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { langDialog = false }) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
                 }
             )
         }
@@ -170,7 +227,7 @@ fun SettingsScreen(
         ) {
             // Appearance section
             Text(
-                "外观",
+                stringResource(R.string.settings_section_appearance),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -178,8 +235,8 @@ fun SettingsScreen(
             )
 
             ListItem(
-                headlineContent = { Text("暗色模式") },
-                supportingContent = { Text("切换深色/浅色主题") },
+                headlineContent = { Text(stringResource(R.string.settings_dark_mode)) },
+                supportingContent = { Text(stringResource(R.string.settings_dark_mode_desc)) },
                 leadingContent = {
                     Icon(Icons.Default.DarkMode, contentDescription = null)
                 },
@@ -194,11 +251,11 @@ fun SettingsScreen(
             )
 
             ListItem(
-                headlineContent = { Text("壁纸取色") },
+                headlineContent = { Text(stringResource(R.string.settings_dynamic_color)) },
                 supportingContent = {
                     Text(
-                        if (dynamicColor) "跟随系统壁纸配色（Material You）"
-                        else "使用应用默认墨绿配色"
+                        if (dynamicColor) stringResource(R.string.settings_dynamic_color_on)
+                        else stringResource(R.string.settings_dynamic_color_off)
                     )
                 },
                 leadingContent = {
@@ -215,11 +272,11 @@ fun SettingsScreen(
             )
 
             ListItem(
-                headlineContent = { Text("日记背景") },
+                headlineContent = { Text(stringResource(R.string.settings_background)) },
                 supportingContent = {
                     Text(
-                        if (bgPath != null) "已自定义，点击更换照片"
-                        else "使用默认背景，点击选择照片"
+                        if (bgPath != null) stringResource(R.string.settings_background_custom)
+                        else stringResource(R.string.settings_background_default)
                     )
                 },
                 leadingContent = {
@@ -232,7 +289,7 @@ fun SettingsScreen(
                                 BackgroundImageStore.clear(context)
                                 themePreferences.setDiaryBackgroundPath(null)
                             }
-                        }) { Text("恢复默认") }
+                        }) { Text(stringResource(R.string.settings_restore_default)) }
                     }
                 },
                 modifier = Modifier.clickable {
@@ -242,6 +299,23 @@ fun SettingsScreen(
                 }
             )
 
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_language)) },
+                supportingContent = {
+                    Text(
+                        when (currentLang) {
+                            LocaleHelper.ZH -> stringResource(R.string.lang_zh)
+                            LocaleHelper.EN -> stringResource(R.string.lang_en)
+                            else -> stringResource(R.string.lang_system)
+                        }
+                    )
+                },
+                leadingContent = {
+                    Icon(Icons.Default.Language, contentDescription = null)
+                },
+                modifier = Modifier.clickable { langDialog = true }
+            )
+
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 color = MaterialTheme.colorScheme.outlineVariant
@@ -249,7 +323,7 @@ fun SettingsScreen(
 
             // Privacy section
             Text(
-                "隐私",
+                stringResource(R.string.settings_section_privacy),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -257,8 +331,8 @@ fun SettingsScreen(
             )
 
             ListItem(
-                headlineContent = { Text("日记密码锁") },
-                supportingContent = { Text("打开日记页面时需要输入密码") },
+                headlineContent = { Text(stringResource(R.string.settings_lock)) },
+                supportingContent = { Text(stringResource(R.string.settings_lock_desc)) },
                 leadingContent = {
                     Icon(Icons.Default.Lock, contentDescription = null)
                 },
@@ -278,8 +352,8 @@ fun SettingsScreen(
 
             if (lockEnabled && hasLockPassword) {
                 ListItem(
-                    headlineContent = { Text("修改密码") },
-                    supportingContent = { Text("先验证当前密码，再输入新密码两次") },
+                    headlineContent = { Text(stringResource(R.string.settings_change_pin)) },
+                    supportingContent = { Text(stringResource(R.string.settings_change_pin_desc)) },
                     leadingContent = {
                         Icon(Icons.Default.Password, contentDescription = null)
                     },
@@ -287,13 +361,13 @@ fun SettingsScreen(
                 )
 
                 ListItem(
-                    headlineContent = { Text("验证时机") },
+                    headlineContent = { Text(stringResource(R.string.settings_lock_mode)) },
                     supportingContent = {
                         Text(
                             when (lockMode) {
-                                AppLockPreferences.MODE_EVERY_DIARY -> "每次进入日记页面都需输入"
-                                AppLockPreferences.MODE_DAILY -> "当天首次输入后，当天不再验证"
-                                else -> "每次进入软件需输入一次"
+                                AppLockPreferences.MODE_EVERY_DIARY -> stringResource(R.string.settings_lock_mode_every_diary)
+                                AppLockPreferences.MODE_DAILY -> stringResource(R.string.settings_lock_mode_daily)
+                                else -> stringResource(R.string.settings_lock_mode_every_app)
                             }
                         )
                     },
@@ -318,7 +392,7 @@ fun SettingsScreen(
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 Text(
-                    "数据迁移",
+                    stringResource(R.string.settings_migration),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -326,16 +400,16 @@ fun SettingsScreen(
                 )
                 Icon(
                     if (backupExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (backupExpanded) "折叠" else "展开",
+                    contentDescription = if (backupExpanded) stringResource(R.string.settings_collapse) else stringResource(R.string.settings_expand),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
 
             if (backupExpanded) {
                 ListItem(
-                    headlineContent = { Text("导出数据") },
+                    headlineContent = { Text(stringResource(R.string.settings_export)) },
                     supportingContent = {
-                        Text(if (backupBusy) "处理中..." else "备份所有日记、习惯、倒数日、照片和设置到 ZIP 文件")
+                        Text(if (backupBusy) stringResource(R.string.settings_busy) else stringResource(R.string.settings_export_desc))
                     },
                     leadingContent = {
                         Icon(Icons.Default.CloudUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -343,15 +417,15 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable(enabled = !backupBusy) {
-                            exportLauncher.launch("PocketDiary备份.zip")
+                            exportLauncher.launch(context.getString(R.string.settings_backup_filename))
                         }
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 )
 
                 ListItem(
-                    headlineContent = { Text("导入数据") },
+                    headlineContent = { Text(stringResource(R.string.settings_import)) },
                     supportingContent = {
-                        Text(if (backupBusy) "处理中..." else "从 ZIP 备份恢复所有数据（清空现有数据后导入）")
+                        Text(if (backupBusy) stringResource(R.string.settings_busy) else stringResource(R.string.settings_import_desc))
                     },
                     leadingContent = {
                         Icon(Icons.Default.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
@@ -372,7 +446,7 @@ fun SettingsScreen(
 
             // About section
             Text(
-                "关于",
+                stringResource(R.string.settings_section_about),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
@@ -382,7 +456,7 @@ fun SettingsScreen(
             ListItem(
                 headlineContent = { Text("PocketDiary") },
                 supportingContent = {
-                    Text("版本 ${BuildConfig.VERSION_NAME} · 简洁好用的日记本")
+                    Text(stringResource(R.string.settings_about_version, BuildConfig.VERSION_NAME))
                 },
                 leadingContent = {
                     Icon(Icons.Default.Info, contentDescription = null)
@@ -416,14 +490,14 @@ fun SettingsScreen(
         if (showLockModeDialog) {
             AlertDialog(
                 onDismissRequest = { showLockModeDialog = false },
-                title = { Text("验证时机") },
+                title = { Text(stringResource(R.string.settings_lock_mode)) },
                 text = {
                     Column {
                         listOf(
-                            AppLockPreferences.MODE_EVERY_APP to "每次进入软件需输入一次，退出或清后台后重新验证",
-                            AppLockPreferences.MODE_EVERY_DIARY to "每次进入日记页面都需输入",
-                            AppLockPreferences.MODE_DAILY to "当天首次输入后，当天不再验证"
-                        ).forEach { (mode, desc) ->
+                            AppLockPreferences.MODE_EVERY_APP to R.string.settings_lock_mode_every_app_full,
+                            AppLockPreferences.MODE_EVERY_DIARY to R.string.settings_lock_mode_every_diary,
+                            AppLockPreferences.MODE_DAILY to R.string.settings_lock_mode_daily
+                        ).forEach { (mode, descRes) ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -441,13 +515,13 @@ fun SettingsScreen(
                                         showLockModeDialog = false
                                     }
                                 )
-                                Text(desc, modifier = Modifier.padding(start = 8.dp))
+                                Text(stringResource(descRes), modifier = Modifier.padding(start = 8.dp))
                             }
                         }
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { showLockModeDialog = false }) { Text("完成") }
+                    TextButton(onClick = { showLockModeDialog = false }) { Text(stringResource(R.string.common_done)) }
                 }
             )
         }
@@ -457,7 +531,7 @@ fun SettingsScreen(
             AppLockScreen(
                 mode = if (hasLockPassword) LockMode.Change else LockMode.SetPin,
                 lockPreferences = appLockPreferences,
-                title = if (hasLockPassword) "修改密码" else "设置日记密码",
+                title = if (hasLockPassword) stringResource(R.string.settings_change_pin) else stringResource(R.string.settings_set_pin),
                 pinLength = lockPinLength,
                 onVerified = {},
                 onPinSet = { pin ->
@@ -466,7 +540,11 @@ fun SettingsScreen(
                         if (!lockEnabled) appLockPreferences.setLockEnabled(true)
                     }
                     showLockSetup = false
-                    showToast(context, if (hasLockPassword) "密码已修改" else "日记密码锁已开启")
+                    showToast(
+                        context,
+                        if (hasLockPassword) context.getString(R.string.settings_pin_changed)
+                        else context.getString(R.string.settings_lock_enabled)
+                    )
                 },
                 onCancel = { showLockSetup = false }
             )

@@ -1,3 +1,316 @@
 <resources>
     <string name="app_name">Pocket Diary</string>
+    <string name="settings_language">语言</string>
+    <string name="lang_system">跟随系统</string>
+    <string name="lang_zh">简体中文</string>
+    <string name="lang_en">English</string>
+    <string name="common_cancel">取消</string>
+    <string name="common_done">完成</string>
+    <string name="settings_title">设置</string>
+    <string name="settings_section_appearance">外观</string>
+    <string name="settings_dark_mode">暗色模式</string>
+    <string name="settings_dark_mode_desc">切换深色/浅色主题</string>
+    <string name="settings_dynamic_color">壁纸取色</string>
+    <string name="settings_dynamic_color_on">跟随系统壁纸配色（Material You）</string>
+    <string name="settings_dynamic_color_off">使用应用默认墨绿配色</string>
+    <string name="settings_background">日记背景</string>
+    <string name="settings_background_custom">已自定义，点击更换照片</string>
+    <string name="settings_background_default">使用默认背景，点击选择照片</string>
+    <string name="settings_restore_default">恢复默认</string>
+    <string name="settings_section_privacy">隐私</string>
+    <string name="settings_lock">日记密码锁</string>
+    <string name="settings_lock_desc">打开日记页面时需要输入密码</string>
+    <string name="settings_change_pin">修改密码</string>
+    <string name="settings_change_pin_desc">先验证当前密码，再输入新密码两次</string>
+    <string name="settings_set_pin">设置日记密码</string>
+    <string name="settings_lock_mode">验证时机</string>
+    <string name="settings_lock_mode_every_app">每次进入软件需输入一次</string>
+    <string name="settings_lock_mode_every_app_full">每次进入软件需输入一次，退出或清后台后重新验证</string>
+    <string name="settings_lock_mode_every_diary">每次进入日记页面都需输入</string>
+    <string name="settings_lock_mode_daily">当天首次输入后，当天不再验证</string>
+    <string name="settings_migration">数据迁移</string>
+    <string name="settings_expand">展开</string>
+    <string name="settings_collapse">折叠</string>
+    <string name="settings_export">导出数据</string>
+    <string name="settings_export_desc">备份所有日记、习惯、倒数日、照片和设置到 ZIP 文件</string>
+    <string name="settings_import">导入数据</string>
+    <string name="settings_import_desc">从 ZIP 备份恢复所有数据（清空现有数据后导入）</string>
+    <string name="settings_busy">处理中…</string>
+    <string name="settings_backup_filename">PocketDiary备份.zip</string>
+    <string name="settings_export_success">导出成功</string>
+    <string name="settings_export_failed">导出失败: %1$s</string>
+    <string name="settings_import_success">导入成功: %1$d篇日记, %2$d个习惯, %3$d条打卡, %4$d个倒数日, %5$d条待办, %6$d张图片</string>
+    <string name="settings_import_failed">导入失败: %1$s</string>
+    <string name="settings_import_confirm_title">导入将清空现有数据？</string>
+    <string name="settings_import_confirm_body">日记、习惯、倒数日、待办与图片都会被备份内容覆盖，此操作不可撤销。</string>
+    <string name="settings_import_confirm">确认导入</string>
+    <string name="settings_section_about">关于</string>
+    <string name="settings_about_version">版本 %1$s · 简洁好用的日记本</string>
+    <string name="settings_pin_changed">密码已修改</string>
+    <string name="settings_lock_enabled">日记密码锁已开启</string>
+    <string name="tab_diary">日记</string>
+    <string name="tab_calendar">日历</string>
+    <string name="tab_countdown">倒数日</string>
+    <string name="tab_todo">待办</string>
+    <string name="tab_settings">设置</string>
+    <string name="nav_lock_title">输入密码查看日记</string>
+    <string name="common_delete">删除</string>
+    <string name="common_ok">确定</string>
+    <string name="common_clear">清空</string>
+    <string name="search_close">关闭搜索</string>
+    <string name="search_open">搜索%1$s</string>
+    <string name="diary_title">日记</string>
+    <string name="diary_fab">写日记</string>
+    <string name="diary_search_hint">搜索日记内容...</string>
+    <string name="diary_search_count">找到 %1$d 篇日记</string>
+    <string name="diary_no_results">未找到相关日记</string>
+    <string name="diary_empty_title">还没有日记</string>
+    <string name="diary_empty_hint">点击右下角 + 开始写第一篇</string>
+    <string name="diary_delete_title">删除日记</string>
+    <string name="diary_delete_message">确定要删除这篇日记吗？</string>
+    <string name="editor_title">日记</string>
+    <string name="editor_back">返回</string>
+    <string name="editor_toggle_editing">切换到编辑</string>
+    <string name="editor_toggle_preview">预览</string>
+    <string name="editor_delete_entry">删除整篇</string>
+    <string name="editor_delete_title">删除日记</string>
+    <string name="editor_insert_photo">插入图片</string>
+    <string name="editor_fetch_location">获取位置</string>
+    <string name="editor_save">保存</string>
+    <string name="editor_import_failed">图片导入失败</string>
+    <string name="editor_location_failed">暂未获取到位置,请稍后再试或检查定位权限</string>
+    <string name="editor_location_permission">需要位置权限才能获取位置和天气</string>
+    <string name="editor_date_conflict">该日期已有一篇日记</string>
+    <string name="editor_save_failed">保存失败,请重试</string>
+    <string name="editor_preview_empty">（暂无内容）</string>
+    <string name="editor_placeholder">写下今天的心情...</string>
+    <string name="editor_photo_count">已插入图片 %1$d/%2$d</string>
+    <string name="editor_delete_photo">删除图片</string>
+    <string name="editor_delete_message">确定要删除这篇日记吗？此操作不可撤销。</string>
+    <string name="editor_discard_title">放弃编辑？</string>
+    <string name="editor_discard_message">当前修改尚未保存,是否放弃并退出？</string>
+    <string name="editor_discard_confirm">放弃</string>
+    <string name="editor_discard_dismiss">继续编辑</string>
+    <string name="mood_happy">开心</string>
+    <string name="mood_okay">一般</string>
+    <string name="mood_sad">难过</string>
+    <string name="mood_angry">生气</string>
+    <string name="mood_anxious">焦虑</string>
+    <string name="weather_sunny">晴</string>
+    <string name="weather_cloudy">多云</string>
+    <string name="weather_overcast">阴</string>
+    <string name="weather_rain">雨</string>
+    <string name="weather_heavyrain">暴雨</string>
+    <string name="weather_snow">雪</string>
+    <string name="weather_fog">雾</string>
+    <string name="lock_hint_old">输入当前密码</string>
+    <string name="lock_hint_new">输入 4-6 位新密码</string>
+    <string name="lock_hint_confirm">再次输入确认</string>
+    <string name="lock_error_wrong">密码错误</string>
+    <string name="lock_error_length">请输入 4-6 位密码</string>
+    <string name="lock_error_min">至少 4 位</string>
+    <string name="lock_error_mismatch">两次输入不一致，请重新设置</string>
+    <string name="lock_error_cooldown">尝试次数过多，%1$d 秒后可重试</string>
+    <string name="lock_cooldown_title">尝试次数过多</string>
+    <string name="lock_cooldown_text">%1$d 秒后可重试（%2$d）</string>
+    <string name="notif_channel_todo">待办提醒</string>
+    <string name="notif_channel_todo_desc">待办到期提醒</string>
+    <string name="notif_channel_alarm">待办闹钟</string>
+    <string name="notif_channel_alarm_desc">待办到点闹钟响铃</string>
+    <string name="notif_alarm_title">闹钟</string>
+    <string name="notif_missed_title">错过的提醒</string>
+    <string name="notif_default_title">待办提醒</string>
+    <string name="todo_title">待办</string>
+    <string name="todo_fab">新建待办</string>
+    <string name="todo_empty_title">还没有待办事项</string>
+    <string name="todo_empty_hint">点击右下角 + 添加第一项</string>
+    <string name="todo_completed">已完成 %1$d</string>
+    <string name="todo_delete_title">删除待办</string>
+    <string name="todo_delete_message">确定要删除“%1$s”吗？</string>
+    <string name="todo_ring_prefix">闹钟 · </string>
+    <string name="todo_ring_suffix"> · 闹钟</string>
+    <string name="todo_input_hint">输入待办...</string>
+    <string name="todo_set_reminder">设置提醒</string>
+    <string name="snack_go_settings">去设置</string>
+    <string name="todo_perm_notification">未授予通知权限，待办提醒可能无法显示</string>
+    <string name="todo_perm_exact">未授予精确闹钟权限，提醒可能不准确</string>
+    <string name="todo_perm_fullscreen">未授予全屏提醒权限，闹钟可能无法锁屏响铃</string>
+    <string name="todo_perm_autostart">未开启自启动，闹钟到点可能无法响铃</string>
+    <string name="reminder_title">设置提醒时间</string>
+    <string name="reminder_time">提醒时间</string>
+    <string name="reminder_mode">提醒方式</string>
+    <string name="reminder_notify">通知</string>
+    <string name="reminder_ring">闹钟</string>
+    <string name="reminder_ring_hint">到点锁屏全屏响铃，直至完成、稍后或关闭</string>
+    <string name="reminder_repeat">重复提醒</string>
+    <string name="reminder_every_day">每天</string>
+    <string name="reminder_never">不重复</string>
+    <string name="reminder_rollover">所选时间已过，确定后将顺延至下一天同一时刻</string>
+    <string name="reminder_pick_time">选择时间</string>
+    <string name="reminder_switch_dial">切换拨盘</string>
+    <string name="reminder_switch_input">切换输入</string>
+    <string name="ring_fallback_title">待办提醒</string>
+    <string name="ring_done_label">已完成</string>
+    <string name="ring_due_label">到点了</string>
+    <string name="ring_snooze">稍后提醒（5 分钟）</string>
+    <string name="ring_stop">关闭铃声</string>
+    <string-array name="weekday_headers">
+        <item>一</item>
+        <item>二</item>
+        <item>三</item>
+        <item>四</item>
+        <item>五</item>
+        <item>六</item>
+        <item>日</item>
+    </string-array>
+    <string name="cd_title">倒数日</string>
+    <string name="cd_badge_today">今</string>
+    <string name="cd_unit_days">天</string>
+    <string name="cd_state_today">就是今天</string>
+    <string name="cd_state_remaining">还有 %1$d 天</string>
+    <string name="cd_state_elapsed">已经 %1$d 天</string>
+    <string name="cd_header_today">今天</string>
+    <string name="cd_header_remaining">还有</string>
+    <string name="cd_header_elapsed">已经</string>
+    <string name="cd_view_list">列表视图</string>
+    <string name="cd_view_grid">网格视图</string>
+    <string name="cd_search_base">事件</string>
+    <string name="cd_fab">新建倒数日</string>
+    <string name="cd_search_hint">搜索事件名称...</string>
+    <string name="cd_search_empty">未找到相关事件</string>
+    <string name="cd_empty">还没有倒数日\n点击右下角 + 添加重要日子</string>
+    <string name="cd_pinned">已置顶</string>
+    <string name="cd_delete_title">删除「%1$s」？</string>
+    <string name="cd_delete_message">该事件的背景图也会一并删除，不可恢复。</string>
+    <string name="cd_edit_new">新建倒数日</string>
+    <string name="cd_edit_edit">编辑倒数日</string>
+    <string name="cd_back">返回</string>
+    <string name="cd_save">保存</string>
+    <string name="cd_name">事件名称</string>
+    <string name="cd_target">目标日</string>
+    <string name="cd_target_support">未来日期为倒数，过去日期为正数；%1$s</string>
+    <string name="cd_choose">选择</string>
+    <string name="cd_card_style">卡片风格</string>
+    <string name="cd_style_classic">经典全屏</string>
+    <string name="cd_style_photo">照片卡片</string>
+    <string name="cd_pin_label">置顶显示在列表最前</string>
+    <string name="cd_repeat">重复规则</string>
+    <string name="cd_repeat_none">不重复</string>
+    <string name="cd_repeat_yearly">每年</string>
+    <string name="cd_repeat_monthly">每月</string>
+    <string name="cd_advanced">进阶设置</string>
+    <string name="cd_end_date_item">结束日</string>
+    <string name="cd_not_set">未设置</string>
+    <string name="cd_clear">清除</string>
+    <string name="cd_time_label">精确时间（HH:mm，可选）</string>
+    <string name="cd_time_hint">如 20:00</string>
+    <string name="cd_plus_one">+1日</string>
+    <string name="cd_plus_one_hint">计数含首尾当天整体 +1</string>
+    <string name="cd_highlight">高亮旗标</string>
+    <string name="cd_color">颜色</string>
+    <string name="cd_color_hint">应用于卡片徽章、高亮描边与详情页数字</string>
+    <string name="cd_color_auto_hint">自动：倒数 = 蓝 · 正数 = 橙</string>
+    <string name="palette_auto">自动</string>
+    <string name="cd_texture_title">内置纹理</string>
+    <string name="cd_delete_event">删除此事件</string>
+    <string name="cd_delete_edit_message">不可恢复。</string>
+    <string name="cd_preview_classic">经典</string>
+    <string name="cd_preview_photo">照片卡</string>
+    <string name="cd_preview_photo_sub">横图背景</string>
+    <string name="cd_end_date">结束 %1$s</string>
+    <string name="cd_target_label">目标日: %1$s</string>
+    <string name="cd_has_photo">当前有照片背景</string>
+    <string name="cd_no_photo">当前无照片背景</string>
+    <string name="cd_adjust_photo">调整图片位置和显示效果</string>
+    <string name="cd_choose_photo">选择背景图片</string>
+    <string name="cd_reset_bg">恢复默认背景</string>
+    <string name="cd_text_color">文字颜色</string>
+    <string name="cd_dark_text">黑字（适合浅色背景/纹理）</string>
+    <string name="cd_white_text">白字（适合深色背景/纹理）</string>
+    <string name="cd_pick_photo">从相册选择照片</string>
+    <string name="cd_reset_no_bg">恢复默认（无背景）</string>
+    <string name="cd_share_fail">生成分享图失败</string>
+    <string name="cd_share_title">分享倒数日</string>
+    <string name="cd_save_min_android">保存到相册需 Android 10 及以上</string>
+    <string name="cd_save_ok">已保存到相册 Pictures/PocketDiary</string>
+    <string name="cd_save_fail">保存失败</string>
+    <string name="cd_action_share">分享</string>
+    <string name="cd_action_save">存为图片</string>
+    <string name="cd_action_bg">背景</string>
+    <string name="cd_action_highlight">高亮</string>
+    <string name="cd_action_new">新建</string>
+    <string name="cd_edit">编辑</string>
+    <string name="cd_pc_title">调整背景图片</string>
+    <string name="cd_blur">背景模糊</string>
+    <string name="cd_scale">图片缩放</string>
+    <string name="cd_font_black">黑字</string>
+    <string name="cd_font_white">白字</string>
+    <string name="cd_switch_font">切换文字颜色</string>
+    <string name="cd_choose_bg">选择背景图片</string>
+    <string name="cd_change_bg">更换背景图片</string>
+    <string name="cd_drag_hint">拖动图片调整位置，双指缩放图片</string>
+    <string-array name="weekday_full">
+        <item>周一</item>
+        <item>周二</item>
+        <item>周三</item>
+        <item>周四</item>
+        <item>周五</item>
+        <item>周六</item>
+        <item>周日</item>
+    </string-array>
+    <string name="habit_checkin_title">%1$d月%2$d日 打卡</string>
+    <string name="habit_empty_first">还没有习惯，请先添加</string>
+    <string name="habit_add_title">添加习惯</string>
+    <string name="habit_name_label">习惯名称</string>
+    <string name="habit_name_hint">如：早起、跑步、喝水</string>
+    <string name="habit_emoji_label">图标 (emoji)</string>
+    <string name="habit_add">添加</string>
+    <string name="habit_manage_title">管理习惯</string>
+    <string name="habit_empty">还没有习惯</string>
+    <string name="habit_days_count">%1$s %2$d天</string>
+    <string name="stat_title">统计</string>
+    <string name="stat_summary">今日打卡 %1$d/%2$d · 点击查看统计</string>
+    <string name="stat_select_hint">请勾选要查看的记录</string>
+    <string name="stat_empty">添加习惯后开始统计</string>
+    <string name="stat_empty_hint">去「日历」右上角 ＋ 新建习惯</string>
+    <string name="stat_week_n">第%1$d周</string>
+    <string name="stat_this_week">本周</string>
+    <string name="stat_last_10_weeks">最近十周的数据</string>
+    <string name="stat_day_n">%1$d日</string>
+    <string name="stat_month_n">%1$d月</string>
+    <string name="stat_this_month">本月</string>
+    <string name="stat_month_12">12月</string>
+    <string name="stat_month_prefix">该月共</string>
+    <string name="stat_year_prefix">该年共</string>
+    <string name="stat_days_suffix">天</string>
+    <string name="stat_prev_year">上一年</string>
+    <string name="stat_next_year">下一年</string>
+    <string name="stat_year_fmt">%1$d年</string>
+    <string name="stat_prev_month">上一月</string>
+    <string name="stat_next_month">下一月</string>
+    <string name="stat_ym_fmt">%1$d年%2$d月</string>
+    <string name="stat_weekly">周频率</string>
+    <string name="stat_monthly">月视图</string>
+    <string name="stat_yearly">年视图</string>
+    <string name="chart_no_data">暂无数据</string>
+    <string name="diary_image_desc">日记图片</string>
+    <string name="cd_texture_none">无</string>
+    <string name="common_back">返回</string>
+    <string name="reminder_repeat_daily">每天</string>
+    <string name="backup_version_gate">备份版本 %1$d 不兼容（当前支持 1..%2$d）</string>
+    <string name="cd_share_target">目标日: %1$s</string>
+    <string-array name="month_full">
+        <item>一月</item>
+        <item>二月</item>
+        <item>三月</item>
+        <item>四月</item>
+        <item>五月</item>
+        <item>六月</item>
+        <item>七月</item>
+        <item>八月</item>
+        <item>九月</item>
+        <item>十月</item>
+        <item>十一月</item>
+        <item>十二月</item>
+    </string-array>
 </resources>

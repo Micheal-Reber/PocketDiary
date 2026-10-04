@@ -7,6 +7,7 @@ import android.graphics.DashPathEffect
 import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.RectF
+import com.example.diary.R
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.image.EventImageStore
 import androidx.compose.ui.graphics.asAndroidBitmap
@@ -226,7 +227,7 @@ object ShareCardRenderer {
             typeface = TypefaceCompat.bold()
             textAlign = Paint.Align.CENTER
         }
-        canvas.drawText("目标日: $dateLine", PHOTO_CARD_WIDTH / 2f, bodyBottom + 72f, foot)
+        canvas.drawText(context.getString(R.string.cd_share_target, dateLine), PHOTO_CARD_WIDTH / 2f, bodyBottom + 72f, foot)
 
         val footMuted = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = if (hasPhoto) {

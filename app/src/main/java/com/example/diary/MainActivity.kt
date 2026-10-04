@@ -2,6 +2,7 @@ package com.example.diary
 
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,6 +17,7 @@ import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.ui.navigation.AppNavigation
 import com.example.diary.ui.theme.DiaryTheme
+import com.example.diary.util.LocaleHelper
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 
@@ -25,6 +27,10 @@ class MainActivity : ComponentActivity() {
     private val themePreferences by lazy { ThemePreferences(this) }
     private val appWindowBackground = ColorDrawable()
     private var windowBackgroundInstalled = false
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // The app's dark/light mode is INDEPENDENT of the system (settings

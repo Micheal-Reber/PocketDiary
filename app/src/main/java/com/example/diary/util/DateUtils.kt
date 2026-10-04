@@ -1,5 +1,7 @@
 package com.example.diary.util
 
+import android.content.Context
+import com.example.diary.R
 import com.example.diary.data.local.TodoItem
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -10,19 +12,19 @@ object DateUtils {
     private val dateFmt = java.time.format.DateTimeFormatter.ofPattern("yyyy/MM/dd")
     private val timeFmt = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
 
-    fun formatReminder(at: Long, repeat: Int): String {
+    fun formatReminder(context: Context, at: Long, repeat: Int): String {
         val base = reminderFmt.format(java.util.Date(at))
-        return if (repeat == TodoItem.REPEAT_DAILY) "$base · 每天" else base
+        return if (repeat == TodoItem.REPEAT_DAILY) "$base · ${context.getString(R.string.reminder_repeat_daily)}" else base
     }
 
     fun formatDate(date: java.time.LocalDate): String = date.format(dateFmt)
 
     fun formatTime(time: java.time.LocalTime): String = time.format(timeFmt)
 
-    fun formatReminderAt(reminderAt: Long?, repeatRule: Int): String? {
+    fun formatReminderAt(context: Context, reminderAt: Long?, repeatRule: Int): String? {
         return reminderAt?.let {
             val base = reminderFmt.format(java.util.Date(it))
-            if (TodoItem.REPEAT_DAILY == repeatRule) "$base · 每天" else base
+            if (TodoItem.REPEAT_DAILY == repeatRule) "$base · ${context.getString(R.string.reminder_repeat_daily)}" else base
         }
     }
 }

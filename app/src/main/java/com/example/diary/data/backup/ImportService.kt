@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.ParcelFileDescriptor
 import androidx.room.withTransaction
+import com.example.diary.R
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.preferences.ThemePreferences
@@ -100,7 +101,7 @@ class ImportService(
             // 版本闸门：未来格式 / 非法 version 拒绝，避免静默全量覆盖
             if (backupData.version < 1 || backupData.version > BackupData.CURRENT_VERSION) {
                 return@withContext ImportResult.Failure(
-                    "备份版本 ${backupData.version} 不兼容（当前支持 1..${BackupData.CURRENT_VERSION}）"
+                    context.getString(R.string.backup_version_gate, backupData.version, BackupData.CURRENT_VERSION)
                 )
             }
 

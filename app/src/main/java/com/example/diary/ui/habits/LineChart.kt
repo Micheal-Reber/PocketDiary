@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -25,6 +26,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.diary.R
 import kotlin.math.ceil
 
 val HabitColorPalette = listOf(
@@ -68,7 +70,7 @@ fun LineChart(
             modifier.height(340.dp).fillMaxWidth(),
             contentAlignment = Alignment.Center
         ) {
-            Text("暂无数据", color = MaterialTheme.colorScheme.outline)
+            Text(stringResource(R.string.chart_no_data), color = MaterialTheme.colorScheme.outline)
         }
         return
     }

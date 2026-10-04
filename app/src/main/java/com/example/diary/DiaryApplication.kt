@@ -1,11 +1,22 @@
 package com.example.diary
 
 import android.app.Application
+import com.example.diary.data.preferences.LanguagePreferences
+import com.example.diary.util.LocaleHelper
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
 
-/**
- * Application class. The Room database singleton is owned by `MainActivity`
- * (the only consumer — passed into [com.example.diary.ui.navigation.AppNavigation]).
- * Keep this class as a hook for future process-wide initialization (e.g.,
- * crash reporting, logging).
- */
-class DiaryApplication : Application()
+class DiaryApplication : Application() {
+
+    override fun onCreate() {
+        super.onCreate()
+        val language = runBlocking {
+            try {
+                LanguagePreferences(this@DiaryApplication).language.first()
+            } catch (e: Exception) {
+                LocaleHelper.SYSTEM
+            }
+        }
+        LocaleHelper.prime(language)
+    }
+}

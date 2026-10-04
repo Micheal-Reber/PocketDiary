@@ -38,10 +38,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.diary.R
 import com.example.diary.data.preferences.AppLockPreferences
 import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.navigation.glassStroke
@@ -66,6 +69,7 @@ fun AppLockScreen(
     onCancel: (() -> Unit)? = null,
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var entry by remember { mutableStateOf("") }
     var errorText by remember { mutableStateOf<String?>(null) }
     // SetPin: new→confirm；Change: old→new→confirm
@@ -75,8 +79,8 @@ fun AppLockScreen(
     var hint by remember {
         mutableStateOf(
             when (stage) {
-                "old" -> "输入当前密码"
-                "new" -> "输入 4-6 位新密码"
+                "old" -> context.getString(R.string.lock_hint_old)
+                "new" -> context.getString(R.string.lock_hint_new)
                 else -> null
             }
         )
@@ -99,9 +103,9 @@ fun AppLockScreen(
         if (fails >= MAX_FAILS) {
             fails = 0
             cooldownLeft = COOLDOWN_SECONDS
-            errorText = "尝试次数过多，${COOLDOWN_SECONDS} 秒后可重试"
+            errorText = context.getString(R.string.lock_error_cooldown, COOLDOWN_SECONDS)
         } else {
-            errorText = "密码错误"
+            errorText = context.getString(R.string.lock_error_wrong)
         }
     }
 
@@ -109,7 +113,7 @@ fun AppLockScreen(
     fun verifyCurrent(onSuccess: () -> Unit) {
         if (verifying || cooldownLeft > 0) return
         if (entry.length !in 4..6) {
-            errorText = "请输入 4-6 位密码"
+            errorText = context.getString(R.string.lock_error_length)
             entry = ""
             return
         }
@@ -133,11 +137,11 @@ fun AppLockScreen(
             mode == LockMode.Unlock -> verifyCurrent(onVerified)
             stage == "old" -> verifyCurrent {
                 stage = "new"
-                hint = "输入 4-6 位新密码"
+                hint = context.getString(R.string.lock_hint_new)
             }
             else -> {
                 if (entry.length < 4) {
-                    errorText = "至少 4 位"
+                    errorText = context.getString(R.string.lock_error_min)
                     return
                 }
                 val first = firstPin
@@ -145,15 +149,15 @@ fun AppLockScreen(
                     firstPin = entry
                     entry = ""
                     errorText = null
-                    hint = "再次输入确认"
+                    hint = context.getString(R.string.lock_hint_confirm)
                     stage = "confirm"
                 } else if (entry == first) {
                     onPinSet(entry)
                 } else {
                     firstPin = null
                     entry = ""
-                    errorText = "两次输入不一致，请重新设置"
-                    hint = "输入 4-6 位新密码"
+                    errorText = context.getString(R.string.lock_error_mismatch)
+                    hint = context.getString(R.string.lock_hint_new)
                     stage = "new"
                 }
             }
@@ -205,7 +209,7 @@ fun AppLockScreen(
                 }
                 Spacer(Modifier.height(Spacing.xl))
                 Text(
-                    text = if (cooldownLeft > 0) "尝试次数过多" else title,
+                    text = if (cooldownLeft > 0) stringResource(R.string.lock_cooldown_title) else title,
                     color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 26.sp,
                     fontWeight = FontWeight.Bold,
@@ -213,7 +217,7 @@ fun AppLockScreen(
                 )
                 Spacer(Modifier.height(Spacing.s))
                 Text(
-                    text = if (cooldownLeft > 0) "${COOLDOWN_SECONDS} 秒后可重试（$cooldownLeft）"
+                    text = if (cooldownLeft > 0) stringResource(R.string.lock_cooldown_text, COOLDOWN_SECONDS, cooldownLeft)
                     else errorText ?: hint.orEmpty(),
                     color = if (errorText != null && cooldownLeft == 0) MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -272,7 +276,7 @@ fun AppLockScreen(
                     dark = dark,
                     onClick = { if (entry.isNotEmpty()) entry = entry.dropLast(1) }
                 ) {
-                    Icon(Icons.Outlined.Backspace, contentDescription = "删除", modifier = Modifier.size(30.dp))
+                    Icon(Icons.Outlined.Backspace, contentDescription = stringResource(R.string.common_delete), modifier = Modifier.size(30.dp))
                 }
                 GlassKey(enabled = keyEnabled, dark = dark, onClick = { onDigit("0") }) {
                     Text("0", fontSize = 30.sp, fontWeight = FontWeight.Medium)
@@ -280,7 +284,7 @@ fun AppLockScreen(
                 GlassKey(enabled = keyEnabled, dark = dark, onClick = { handleConfirm() }) {
                     Icon(
                         Icons.Outlined.Check,
-                        contentDescription = "确定",
+                        contentDescription = stringResource(R.string.common_ok),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(30.dp)
                     )
@@ -298,7 +302,7 @@ fun AppLockScreen(
         ) {
             if (onCancel != null) {
                 Text(
-                    "取消",
+                    stringResource(R.string.common_cancel),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 16.sp,
                     modifier = Modifier

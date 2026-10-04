@@ -36,8 +36,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.diary.R
 import com.example.diary.data.local.DailyStat
 import com.example.diary.data.local.Habit
 import com.example.diary.data.local.MonthlyStat
@@ -80,9 +84,9 @@ internal fun StatsSummaryRow(
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("统计", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.stat_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(
-                    "今日打卡 $todayCount/$habitCount · 点击查看统计",
+                    stringResource(R.string.stat_summary, todayCount, habitCount),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -118,8 +122,9 @@ internal fun StatisticsSection(
     onNextStatMonth: () -> Unit
 ) {
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+        val context = LocalContext.current
         Text(
-            "请勾选要查看的记录",
+            stringResource(R.string.stat_select_hint),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary,
@@ -135,10 +140,10 @@ internal fun StatisticsSection(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("添加习惯后开始统计", color = MaterialTheme.colorScheme.outline)
+                    Text(stringResource(R.string.stat_empty), color = MaterialTheme.colorScheme.outline)
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        "去「日历」右上角 ＋ 新建习惯",
+                        stringResource(R.string.stat_empty_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f)
                     )
@@ -166,11 +171,11 @@ internal fun StatisticsSection(
                             ChartLine("${habit.emoji} ${habit.name}", habitColor(habit.colorIndex), values)
                         }
                     }
-                    val xLabels = remember { (1..9).map { "第${it}周" } + "本周" }
+                    val xLabels = remember { (1..9).map { context.getString(R.string.stat_week_n, it) } + context.getString(R.string.stat_this_week) }
                     LineChart(lines, xLabels, highlightXIndex = 9)
 
                     Text(
-                        "最近十周的数据",
+                        stringResource(R.string.stat_last_10_weeks),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -193,7 +198,7 @@ internal fun StatisticsSection(
                             ChartLine("${habit.emoji} ${habit.name}", habitColor(habit.colorIndex), values)
                         }
                     }
-                    val xLabels = remember(daysInMonth) { (1..daysInMonth).map { "${it}日" } }
+                    val xLabels = remember(daysInMonth) { (1..daysInMonth).map { context.getString(R.string.stat_day_n, it) } }
 
                     LineChart(
                         lines, xLabels,
@@ -219,7 +224,9 @@ internal fun StatisticsSection(
                         }
                     }
                     val xLabels = remember(isCurrentYear) {
-                        (1..11).map { "${it}月" } + listOf(if (isCurrentYear) "本月" else "12月")
+                        (1..11).map { context.getString(R.string.stat_month_n, it) } + listOf(
+                            if (isCurrentYear) context.getString(R.string.stat_this_month) else context.getString(R.string.stat_month_12)
+                        )
                     }
 
                     LineChart(
@@ -250,9 +257,10 @@ internal fun StatisticsSection(
             totals = totalsByHabit,
             countPrefix = when (statView) {
                 StatView.WEEKLY -> ""
-                StatView.MONTHLY -> "该月共"
-                StatView.YEARLY -> "该年共"
+                StatView.MONTHLY -> stringResource(R.string.stat_month_prefix)
+                StatView.YEARLY -> stringResource(R.string.stat_year_prefix)
             },
+            countSuffix = stringResource(R.string.stat_days_suffix),
             onToggleHabit = onToggleHabit
         )
     }
@@ -264,6 +272,7 @@ private fun HabitChecklist(
     selectedHabitIds: Set<Long>,
     totals: Map<Long, Int>,
     countPrefix: String,
+    countSuffix: String,
     onToggleHabit: (Long) -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
@@ -285,7 +294,7 @@ private fun HabitChecklist(
                             modifier = Modifier.weight(1f)
                         )
                         Text(
-                            "$countPrefix${totals[habit.id] ?: 0}天",
+                            "$countPrefix${totals[habit.id] ?: 0}$countSuffix",
                             style = MaterialTheme.typography.bodyMedium.copy(
                                 // Tabular figures keep the counts column-aligned
                                 // across rows in the checklist grid.
@@ -309,32 +318,33 @@ private fun YearNavigationRow(year: Int, onPrevious: () -> Unit, onNext: () -> U
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onPrevious, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.ChevronLeft, "上一年", modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.ChevronLeft, stringResource(R.string.stat_prev_year), modifier = Modifier.size(22.dp))
         }
-        Text("${year}年", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.stat_year_fmt, year), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.ChevronRight, "下一年", modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.ChevronRight, stringResource(R.string.stat_next_year), modifier = Modifier.size(22.dp))
         }
     }
 }
 
 @Composable
 private fun MonthNavigationRow(month: YearMonth, onPrevious: () -> Unit, onNext: () -> Unit) {
+    val months = stringArrayResource(R.array.month_full)
     Row(
         Modifier.fillMaxWidth().padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onPrevious, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.ChevronLeft, "上一月", modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.ChevronLeft, stringResource(R.string.stat_prev_month), modifier = Modifier.size(22.dp))
         }
         Text(
-            "${month.year}年${month.monthValue}月",
+            stringResource(R.string.stat_ym_fmt, month.year, month.monthValue, months[month.monthValue - 1]),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
         IconButton(onClick = onNext, modifier = Modifier.size(32.dp)) {
-            Icon(Icons.Default.ChevronRight, "下一月", modifier = Modifier.size(22.dp))
+            Icon(Icons.Default.ChevronRight, stringResource(R.string.stat_next_month), modifier = Modifier.size(22.dp))
         }
     }
 }

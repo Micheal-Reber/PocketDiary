@@ -23,10 +23,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringArrayResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.diary.R
 import com.example.diary.data.local.TodoItem
 import com.example.diary.util.DateUtils
 import com.example.diary.ui.theme.Spacing
@@ -69,11 +72,11 @@ fun ReminderTimeSheet(
                 .navigationBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
-            Text("设置提醒时间", color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text(stringResource(R.string.reminder_title), color = MaterialTheme.colorScheme.onSurface, fontWeight = FontWeight.Bold, fontSize = 18.sp, modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(20.dp))
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
+Text(stringResource(R.string.reminder_time), color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(color = MaterialTheme.colorScheme.primary, shape = RoundedCornerShape(8.dp)) {
                     Text(DateUtils.formatDate(selectedDate), color = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontSize = 14.sp)
@@ -87,15 +90,15 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
 
             // 提醒方式：普通通知 vs 全屏闹钟响铃
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("提醒方式", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
+                Text(stringResource(R.string.reminder_mode), color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ReminderModeChip(
-                        label = "通知",
+                        label = stringResource(R.string.reminder_notify),
                         selected = alarmMode == TodoItem.MODE_NOTIFY,
                         onClick = { alarmMode = TodoItem.MODE_NOTIFY }
                     )
                     ReminderModeChip(
-                        label = "闹钟",
+                        label = stringResource(R.string.reminder_ring),
                         selected = alarmMode == TodoItem.MODE_RING,
                         onClick = { alarmMode = TodoItem.MODE_RING }
                     )
@@ -104,7 +107,7 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
             if (alarmMode == TodoItem.MODE_RING) {
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    "到点锁屏全屏响铃，直至完成、稍后或关闭",
+                    stringResource(R.string.reminder_ring_hint),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     fontSize = 12.sp
                 )
@@ -113,15 +116,15 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
             Spacer(Modifier.height(16.dp))
 
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("重复提醒", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
+                Text(stringResource(R.string.reminder_repeat), color = MaterialTheme.colorScheme.onSurface, fontSize = 16.sp)
                 Box {
                     Row(Modifier.clickable { showRepeatMenu = true }.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (repeatRule == TodoItem.REPEAT_DAILY) "每天" else "不重复", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
+                        Text(if (repeatRule == TodoItem.REPEAT_DAILY) stringResource(R.string.reminder_every_day) else stringResource(R.string.reminder_never), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp)
                         Icon(Icons.Filled.ArrowDropDown, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                     }
                     DropdownMenu(expanded = showRepeatMenu, onDismissRequest = { showRepeatMenu = false }) {
-                        DropdownMenuItem(text = { Text("不重复") }, onClick = { repeatRule = TodoItem.REPEAT_NONE; showRepeatMenu = false })
-                        DropdownMenuItem(text = { Text("每天") }, onClick = { repeatRule = TodoItem.REPEAT_DAILY; showRepeatMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.reminder_never)) }, onClick = { repeatRule = TodoItem.REPEAT_NONE; showRepeatMenu = false })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.reminder_every_day)) }, onClick = { repeatRule = TodoItem.REPEAT_DAILY; showRepeatMenu = false })
                     }
                 }
             }
@@ -138,7 +141,7 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
             val willRollOver = previewAt <= System.currentTimeMillis() && repeatRule == TodoItem.REPEAT_NONE
             if (willRollOver) {
                 Text(
-                    "所选时间已过，确定后将顺延至下一天同一时刻",
+                    stringResource(R.string.reminder_rollover),
                     color = MaterialTheme.colorScheme.error,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(bottom = Spacing.xs)
@@ -160,7 +163,8 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
             }
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                listOf("一","二","三","四","五","六","日").forEach {
+                val weekdayHeaders = stringArrayResource(R.array.weekday_headers)
+                weekdayHeaders.forEach {
                     Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, textAlign = TextAlign.Center)
                     }
@@ -214,7 +218,7 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest, contentColor = MaterialTheme.colorScheme.onSurface),
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier.weight(1f).height(48.dp)
-                ) { Text("取消", fontSize = 16.sp) }
+                ) { Text(stringResource(R.string.common_cancel), fontSize = 16.sp) }
                 Button(
                     onClick = {
                         val at = LocalDateTime.of(selectedDate, selectedTime)
@@ -230,7 +234,7 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
                     },
                     shape = RoundedCornerShape(24.dp),
                     modifier = Modifier.weight(1f).height(48.dp)
-                ) { Text("确定", fontSize = 16.sp, fontWeight = FontWeight.Bold) }
+                ) { Text(stringResource(R.string.common_ok), fontSize = 16.sp, fontWeight = FontWeight.Bold) }
             }
             Spacer(Modifier.height(12.dp))
         }
@@ -243,9 +247,9 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
             onDismissRequest = { showTimePicker = false },
             title = {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("选择时间")
+                    Text(stringResource(R.string.reminder_pick_time))
                     IconButton(onClick = { isTextInput = !isTextInput }) {
-                        Icon(if (isTextInput) Icons.Filled.Schedule else Icons.Filled.Edit, contentDescription = if (isTextInput) "切换拨盘" else "切换输入")
+                        Icon(if (isTextInput) Icons.Filled.Schedule else Icons.Filled.Edit, contentDescription = if (isTextInput) stringResource(R.string.reminder_switch_dial) else stringResource(R.string.reminder_switch_input))
                     }
                 }
             },
@@ -256,10 +260,10 @@ Text("提醒时间", color = MaterialTheme.colorScheme.onSurface, fontSize = 16.
                 TextButton(onClick = {
                     selectedTime = LocalTime.of(timePickerState.hour, timePickerState.minute)
                     showTimePicker = false
-                }) { Text("确定") }
+                }) { Text(stringResource(R.string.common_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showTimePicker = false }) { Text("取消") }
+                TextButton(onClick = { showTimePicker = false }) { Text(stringResource(R.string.common_cancel)) }
             }
         )
     }

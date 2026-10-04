@@ -42,12 +42,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import com.example.diary.R
 import com.example.diary.data.countdown.DateMath
 import com.example.diary.data.countdown.DateMath.CountState
 import com.example.diary.data.countdown.ShareCardRenderer
@@ -174,7 +176,7 @@ private fun ClassicFullscreenContent(
             textAlign = TextAlign.Center
         )
         Text(
-            if (bigNumber == "今") "" else "天",
+            if (bigNumber == stringResource(R.string.cd_badge_today)) "" else stringResource(R.string.cd_unit_days),
             style = MaterialTheme.typography.titleLarge,
             color = subTextColor
         )
@@ -192,7 +194,7 @@ private fun ClassicFullscreenContent(
             )
             if (!endDate.isNullOrBlank()) {
                 Spacer(Modifier.height(Spacing.xs))
-                Text("结束 ${endDate}", style = MaterialTheme.typography.bodyMedium,
+                Text(stringResource(R.string.cd_end_date, endDate), style = MaterialTheme.typography.bodyMedium,
                     color = dateTextColor)
             }
             if (!time.isNullOrBlank()) {
@@ -320,9 +322,9 @@ internal fun PhotoCardContent(
                                     textAlign = TextAlign.Center,
                                     maxLines = 1
                                 )
-                                if (bigNumber != "今") {
+                                if (bigNumber != stringResource(R.string.cd_badge_today)) {
                                     Text(
-                                        "天",
+                                        stringResource(R.string.cd_unit_days),
                                         style = MaterialTheme.typography.titleMedium,
                                         color = textColor.copy(alpha = 0.8f)
                                     )
@@ -347,7 +349,7 @@ internal fun PhotoCardContent(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    "目标日: $dateLine",
+                                    stringResource(R.string.cd_target_label, dateLine),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Medium,
                                     color = if (hasPhoto) textColor else footerTextNoPhoto,
@@ -355,7 +357,7 @@ internal fun PhotoCardContent(
                                 )
                                 if (!endDate.isNullOrBlank() || !time.isNullOrBlank()) {
                                     val extra = buildList {
-                                        if (!endDate.isNullOrBlank()) add("结束 ${endDate}")
+                                        if (!endDate.isNullOrBlank()) add(stringResource(R.string.cd_end_date, endDate))
                                         if (!time.isNullOrBlank()) add(time!!)
                                     }.joinToString(" · ")
                                     Spacer(Modifier.height(2.dp))
@@ -385,14 +387,14 @@ private fun PhotoCardBackgroundSheet(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
         Text(
-            if (hasPhoto) "已设置照片背景" else "尚未设置照片背景",
+            if (hasPhoto) stringResource(R.string.cd_has_photo) else stringResource(R.string.cd_no_photo),
             style = MaterialTheme.typography.bodyLarge
         )
         OutlinedButton(onClick = onPickPhoto, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.PhotoCamera, null, modifier = Modifier.padding(end = Spacing.xs))
-            Text(if (hasPhoto) "调整图片位置和显示效果" else "选择背景图片")
+            Text(if (hasPhoto) stringResource(R.string.cd_adjust_photo) else stringResource(R.string.cd_choose_photo))
         }
-        Text("内置纹理", style = MaterialTheme.typography.labelMedium,
+        Text(stringResource(R.string.cd_texture_title), style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
         TexturePickerRow(
             selectedIndex = textureIndex,
@@ -401,7 +403,7 @@ private fun PhotoCardBackgroundSheet(
         )
         if (hasPhoto) {
             TextButton(onClick = onResetPhoto, modifier = Modifier.fillMaxWidth()) {
-                Text("恢复默认背景")
+                Text(stringResource(R.string.cd_reset_bg))
             }
         }
     }
@@ -427,7 +429,7 @@ private fun ClassicBackgroundSheet(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.s)
         ) {
-            Text("文字颜色")
+            Text(stringResource(R.string.cd_text_color))
             androidx.compose.material3.Switch(
                 checked = fontDarkPreview,
                 onCheckedChange = { newVal ->
@@ -437,14 +439,14 @@ private fun ClassicBackgroundSheet(
             )
         }
         Text(
-            if (fontDarkPreview) "黑字（适合浅色背景/纹理）" else "白字（适合深色背景/纹理）",
+            if (fontDarkPreview) stringResource(R.string.cd_dark_text) else stringResource(R.string.cd_white_text),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.fillMaxWidth().padding(bottom = Spacing.l)
         )
 
         ListItem(
-            headlineContent = { Text("从相册选择照片") },
+            headlineContent = { Text(stringResource(R.string.cd_pick_photo)) },
             leadingContent = { Icon(Icons.Default.PhotoCamera, null) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier
@@ -452,7 +454,7 @@ private fun ClassicBackgroundSheet(
                 .clickable(onClick = onPickPhoto)
         )
         ListItem(
-            headlineContent = { Text("恢复默认（无背景）") },
+            headlineContent = { Text(stringResource(R.string.cd_reset_no_bg)) },
             leadingContent = { Icon(Icons.Default.Close, null) },
             colors = ListItemDefaults.colors(containerColor = Color.Transparent),
             modifier = Modifier
@@ -461,7 +463,7 @@ private fun ClassicBackgroundSheet(
         )
         if (!hasPhoto) {
             Text(
-                "内置纹理",
+                stringResource(R.string.cd_texture_title),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(bottom = Spacing.s)
@@ -539,14 +541,14 @@ fun CountdownDetailScreen(
     }
 
     fun bigNumberText(): String = when (state) {
-        is CountState.Today -> "今"
+        is CountState.Today -> context.getString(R.string.cd_badge_today)
         is CountState.Countdown -> "${state.days}"
         is CountState.Countup -> "${state.days}"
     }
 
     suspend fun renderCard(): File? {
         val extra = buildList {
-            if (!e.endDate.isNullOrBlank()) add("结束 ${e.endDate}")
+            if (!e.endDate.isNullOrBlank()) add(context.getString(R.string.cd_end_date, e.endDate))
             if (!e.time.isNullOrBlank()) add(e.time)
         }
         val bmp = if (e.cardStyle == CountdownEvent.CARD_STYLE_PHOTO_CARD) {
@@ -556,7 +558,7 @@ fun CountdownDetailScreen(
                 eventName = e.name,
                 accentArgb = accent.toArgb(),
                 bigNumber = bigNumberText(),
-                unit = if (state is CountState.Today) "" else "天",
+                unit = if (state is CountState.Today) "" else context.getString(R.string.cd_unit_days),
                 dateLine = e.date,
                 extraLines = extra,
                 blurRadius = e.blurRadius,
@@ -568,11 +570,11 @@ fun CountdownDetailScreen(
             ShareCardRenderer.render(
                 name = e.name,
                 accentArgb = accent.toArgb(),
-                headline = stateLabel(state),
+                headline = stateLabel(context, state),
                 bigNumber = bigNumberText(),
-                unit = if (state is CountState.Today) "" else "天",
+                unit = if (state is CountState.Today) "" else context.getString(R.string.cd_unit_days),
                 footLines = buildList {
-                    add("${e.date} · ${weekdayLabel(anchor)}")
+                    add("${e.date} · ${weekdayLabel(context, anchor)}")
                     addAll(extra)
                 },
                 fontDark = e.fontDark
@@ -589,7 +591,7 @@ fun CountdownDetailScreen(
         scope.launch {
             val file = withContext(Dispatchers.IO) { runCatching { renderCard() }.getOrNull() }
             if (file == null) {
-                snackbar.showSnackbar("生成分享图失败", duration = SnackbarDuration.Short)
+                snackbar.showSnackbar(context.getString(R.string.cd_share_fail), duration = SnackbarDuration.Short)
                 return@launch
             }
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
@@ -598,13 +600,13 @@ fun CountdownDetailScreen(
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            context.startActivity(Intent.createChooser(intent, "分享倒数日"))
+            context.startActivity(Intent.createChooser(intent, context.getString(R.string.cd_share_title)))
         }
     }
 
     fun saveToGallery() {
         if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.Q) {
-            scope.launch { snackbar.showSnackbar("保存到相册需 Android 10 及以上") }
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.cd_save_min_android)) }
             return
         }
         scope.launch {
@@ -628,7 +630,7 @@ fun CountdownDetailScreen(
                     uri != null
                 }.getOrDefault(false)
             }
-            snackbar.showSnackbar(if (ok) "已保存到相册 Pictures/PocketDiary" else "保存失败",
+            snackbar.showSnackbar(if (ok) context.getString(R.string.cd_save_ok) else context.getString(R.string.cd_save_fail),
                 duration = SnackbarDuration.Short)
         }
     }
@@ -648,12 +650,12 @@ fun CountdownDetailScreen(
                     title = {},
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back))
                         }
                     },
                     actions = {
                         IconButton(onClick = onEdit) {
-                            Icon(Icons.Default.Edit, "编辑")
+                            Icon(Icons.Default.Edit, stringResource(R.string.cd_edit))
                         }
                     }
                 )
@@ -702,9 +704,9 @@ fun CountdownDetailScreen(
                         textureIndex = e.textureIndex,
                         accent = accent,
                         eventName = e.name,
-                        stateLabel = stateLabel(state),
+                        stateLabel = stateLabel(context, state),
                         bigNumber = bigNumberText(),
-                        dateLine = "${e.date} · ${weekdayLabel(anchor)}",
+                        dateLine = "${e.date} · ${weekdayLabel(context, anchor)}",
                         endDate = e.endDate,
                         time = e.time,
                         fontDark = e.fontDark
@@ -789,16 +791,16 @@ fun CountdownDetailScreen(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
-                ActionItem(Icons.Default.IosShare, "分享") { shareCard() }
-                ActionItem(Icons.Default.SaveAlt, "存为图片") { saveToGallery() }
-                ActionItem(Icons.Default.Texture, "背景") { showBackgroundSheet = true }
+                ActionItem(Icons.Default.IosShare, stringResource(R.string.cd_action_share)) { shareCard() }
+                ActionItem(Icons.Default.SaveAlt, stringResource(R.string.cd_action_save)) { saveToGallery() }
+                ActionItem(Icons.Default.Texture, stringResource(R.string.cd_action_bg)) { showBackgroundSheet = true }
                 ActionItem(
                     if (e.highlighted) Icons.Filled.Flag else Icons.Outlined.Flag,
-                    "高亮"
+                    stringResource(R.string.cd_action_highlight)
                 ) {
                     scope.launch { repository.save(e.copy(highlighted = !e.highlighted)) }
                 }
-                ActionItem(Icons.Default.Add, "新建") { onCreate() }
+                ActionItem(Icons.Default.Add, stringResource(R.string.cd_action_new)) { onCreate() }
             }
         }
 

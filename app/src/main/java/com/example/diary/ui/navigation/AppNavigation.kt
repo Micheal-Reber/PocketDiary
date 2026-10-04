@@ -35,10 +35,12 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.annotation.StringRes
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -48,9 +50,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.diary.R
 import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.preferences.AppLockPreferences
+import com.example.diary.data.preferences.LanguagePreferences
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.data.repository.DiaryRepository
@@ -74,12 +78,12 @@ import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
-sealed class Screen(val route: String, val title: String, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
-    data object Diary : Screen("diary", "日记", Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook)
-    data object Calendar : Screen("calendar", "日历", Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth)
-    data object Countdown : Screen("countdown", "倒数日", Icons.Filled.HourglassTop, Icons.Outlined.HourglassTop)
-    data object Todo : Screen("todo", "待办", Icons.Filled.CheckCircle, Icons.Outlined.CheckCircleOutline)
-    data object Settings : Screen("settings", "设置", Icons.Filled.Settings, Icons.Outlined.Settings)
+sealed class Screen(val route: String, @StringRes val titleRes: Int, val selectedIcon: ImageVector, val unselectedIcon: ImageVector) {
+    data object Diary : Screen("diary", R.string.tab_diary, Icons.AutoMirrored.Filled.MenuBook, Icons.AutoMirrored.Outlined.MenuBook)
+    data object Calendar : Screen("calendar", R.string.tab_calendar, Icons.Filled.CalendarMonth, Icons.Outlined.CalendarMonth)
+    data object Countdown : Screen("countdown", R.string.tab_countdown, Icons.Filled.HourglassTop, Icons.Outlined.HourglassTop)
+    data object Todo : Screen("todo", R.string.tab_todo, Icons.Filled.CheckCircle, Icons.Outlined.CheckCircleOutline)
+    data object Settings : Screen("settings", R.string.tab_settings, Icons.Filled.Settings, Icons.Outlined.Settings)
 }
 
 val bottomNavItems = listOf(Screen.Diary, Screen.Calendar, Screen.Countdown, Screen.Todo, Screen.Settings)
@@ -105,6 +109,7 @@ fun AppNavigation(
     val countdownRepository = remember { CountdownRepository(database.countdownDao()) }
     val todoRepository = remember { TodoRepository(database.todoDao(), context) }
     val appLockPreferences = remember { AppLockPreferences(context) }
+    val languagePreferences = remember { LanguagePreferences(context) }
     var diaryUnlocked by remember { mutableStateOf(false) }
     val lockMode by appLockPreferences.lockMode.collectAsStateWithLifecycle(initialValue = AppLockPreferences.MODE_EVERY_APP)
     val backupRepository = remember {
@@ -192,7 +197,7 @@ fun AppNavigation(
                             AppLockScreen(
                                 mode = LockMode.Unlock,
                                 lockPreferences = appLockPreferences,
-                                title = "输入密码查看日记",
+                                title = stringResource(R.string.nav_lock_title),
                                 pinLength = pinLength,
                                 onVerified = {
                                     diaryUnlocked = true
@@ -286,6 +291,7 @@ fun AppNavigation(
                             themePreferences = themePreferences,
                             backupRepository = backupRepository,
                             appLockPreferences = appLockPreferences,
+                            languagePreferences = languagePreferences,
                         )
                     }
                     composable(

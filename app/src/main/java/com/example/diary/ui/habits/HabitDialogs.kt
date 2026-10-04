@@ -29,7 +29,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.example.diary.R
 import com.example.diary.data.local.Habit
 import java.time.LocalDate
 
@@ -43,10 +45,10 @@ internal fun CheckInDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("${date.monthValue}月${date.dayOfMonth}日 打卡") },
+        title = { Text(stringResource(R.string.habit_checkin_title, date.monthValue, date.dayOfMonth)) },
         text = {
             if (habits.isEmpty()) {
-                Text("还没有习惯，请先添加", color = MaterialTheme.colorScheme.outline)
+                Text(stringResource(R.string.habit_empty_first), color = MaterialTheme.colorScheme.outline)
             } else {
                 Column {
                     habits.forEach { habit ->
@@ -67,7 +69,7 @@ internal fun CheckInDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_done)) } }
     )
 }
 
@@ -78,13 +80,13 @@ internal fun AddHabitDialog(onDismiss: () -> Unit, onConfirm: (String, String) -
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("添加习惯") },
+        title = { Text(stringResource(R.string.habit_add_title)) },
         text = {
             Column {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it },
-                    label = { Text("习惯名称") },
-                    placeholder = { Text("如：早起、跑步、喝水") },
+                    label = { Text(stringResource(R.string.habit_name_label)) },
+                    placeholder = { Text(stringResource(R.string.habit_name_hint)) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true
                 )
                 Spacer(Modifier.height(12.dp))
@@ -105,7 +107,7 @@ internal fun AddHabitDialog(onDismiss: () -> Unit, onConfirm: (String, String) -
                             input.substring(0, input.offsetByCodePoints(0, 4))
                         }
                     },
-                    label = { Text("图标 (emoji)") },
+                    label = { Text(stringResource(R.string.habit_emoji_label)) },
                     // widthIn lets the box grow for long emoji strings (rare but
                     // legal — a 2-emoji string is allowed by the cap) and keeps
                     // a sensible min so it doesn't shrink to nothing.
@@ -120,9 +122,9 @@ internal fun AddHabitDialog(onDismiss: () -> Unit, onConfirm: (String, String) -
                 // Both fields must be non-blank; an emoji-less habit would render
                 // as a blank circle on the calendar.
                 enabled = name.isNotBlank() && emoji.isNotBlank()
-            ) { Text("添加") }
+            ) { Text(stringResource(R.string.habit_add)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     )
 }
 
@@ -134,10 +136,10 @@ internal fun ManageHabitsDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("管理习惯") },
+        title = { Text(stringResource(R.string.habit_manage_title)) },
         text = {
             if (habits.isEmpty()) {
-                Text("还没有习惯", color = MaterialTheme.colorScheme.outline)
+                Text(stringResource(R.string.habit_empty), color = MaterialTheme.colorScheme.outline)
             } else {
                 Column {
                     habits.forEach { habit ->
@@ -148,13 +150,13 @@ internal fun ManageHabitsDialog(
                         ) {
                             Text("${habit.emoji} ${habit.name}", style = MaterialTheme.typography.bodyLarge)
                             IconButton(onClick = { onDelete(habit) }) {
-                                Icon(Icons.Outlined.Delete, "删除", tint = MaterialTheme.colorScheme.error)
+                                Icon(Icons.Outlined.Delete, stringResource(R.string.common_delete), tint = MaterialTheme.colorScheme.error)
                             }
                         }
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("完成") } }
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_done)) } }
     )
 }

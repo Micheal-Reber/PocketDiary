@@ -49,8 +49,10 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.example.diary.R
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.image.EventImageStore
 import com.example.diary.data.countdown.DateMath
@@ -153,7 +155,7 @@ fun PhotoCardEditorScreen(
         java.time.LocalDate.now()
     )
     val bigNumber = when (state) {
-        is DateMath.CountState.Today -> "今"
+        is DateMath.CountState.Today -> stringResource(R.string.cd_badge_today)
         is DateMath.CountState.Countdown -> "${state.days}"
         is DateMath.CountState.Countup -> "${state.days}"
     }
@@ -181,17 +183,17 @@ fun PhotoCardEditorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("调整背景图片") },
+                title = { Text(stringResource(R.string.cd_pc_title)) },
                 navigationIcon = {
                     IconButton(onClick = { discardAndBack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back))
                     }
                 },
                 actions = {
                     TextButton(onClick = { saveAndBack() }) {
                         Icon(Icons.Default.Check, null)
                         Spacer(Modifier.size(4.dp))
-                        Text("完成")
+                        Text(stringResource(R.string.common_done))
                     }
                 }
             )
@@ -199,14 +201,14 @@ fun PhotoCardEditorScreen(
         bottomBar = {
             Surface(color = MaterialTheme.colorScheme.surface) {
                 Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
-                    Text("背景模糊", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.cd_blur), style = MaterialTheme.typography.labelLarge)
                     Slider(
                         value = blurRadius.toFloat(),
                         onValueChange = { blurRadius = it.roundToInt() },
                         valueRange = 0f..CountdownEvent.BLUR_MAX.toFloat(),
                         steps = CountdownEvent.BLUR_MAX - 1
                     )
-                    Text("图片缩放", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.cd_scale), style = MaterialTheme.typography.labelLarge)
                     Slider(
                         value = photoScale,
                         onValueChange = {
@@ -221,9 +223,9 @@ fun PhotoCardEditorScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(if (fontDark) "黑字" else "白字", style = MaterialTheme.typography.labelLarge)
+                        Text(if (fontDark) stringResource(R.string.cd_font_black) else stringResource(R.string.cd_font_white), style = MaterialTheme.typography.labelLarge)
                         TextButton(onClick = { fontDark = !fontDark }) {
-                            Text("切换文字颜色")
+                            Text(stringResource(R.string.cd_switch_font))
                         }
                     }
                     Button(
@@ -236,7 +238,7 @@ fun PhotoCardEditorScreen(
                     ) {
                         Icon(Icons.Default.PhotoCamera, null)
                         Spacer(Modifier.size(8.dp))
-                        Text(if (photoBitmap == null) "选择背景图片" else "更换背景图片")
+                        Text(if (photoBitmap == null) stringResource(R.string.cd_choose_bg) else stringResource(R.string.cd_change_bg))
                     }
                 }
             }
@@ -249,7 +251,7 @@ fun PhotoCardEditorScreen(
                 .background(MaterialTheme.colorScheme.background)
         ) {
             Text(
-                "拖动图片调整位置，双指缩放图片",
+                stringResource(R.string.cd_drag_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)

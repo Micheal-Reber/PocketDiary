@@ -28,6 +28,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.diary.R
 import com.example.diary.data.local.TodoItem
 import com.example.diary.data.repository.TodoRepository
 import com.example.diary.data.todo.TodoAlarmNotifier
@@ -104,8 +106,8 @@ fun TodoListScreen(
         if (!granted) {
             scope.launch {
                 val result = snackbarHostState.showSnackbar(
-                    "未授予通知权限，待办提醒可能无法显示",
-                    actionLabel = "去设置",
+                    context.getString(R.string.todo_perm_notification),
+                    actionLabel = context.getString(R.string.snack_go_settings),
                     duration = SnackbarDuration.Long
                 )
                 if (result == SnackbarResult.ActionPerformed) {
@@ -132,8 +134,8 @@ fun TodoListScreen(
             if (!am.canScheduleExactAlarms()) {
                 scope.launch {
                     val result = snackbarHostState.showSnackbar(
-                        "未授予精确闹钟权限，提醒可能不准确",
-                        actionLabel = "去设置",
+                        context.getString(R.string.todo_perm_exact),
+                        actionLabel = context.getString(R.string.snack_go_settings),
                         duration = SnackbarDuration.Long
                     )
                     if (result == SnackbarResult.ActionPerformed) {
@@ -155,8 +157,8 @@ fun TodoListScreen(
             if (!nm.canUseFullScreenIntent()) {
                 scope.launch {
                     val result = snackbarHostState.showSnackbar(
-                        "未授予全屏提醒权限，闹钟可能无法锁屏响铃",
-                        actionLabel = "去设置",
+                        context.getString(R.string.todo_perm_fullscreen),
+                        actionLabel = context.getString(R.string.snack_go_settings),
                         duration = SnackbarDuration.Long
                     )
                     if (result == SnackbarResult.ActionPerformed) {
@@ -194,8 +196,8 @@ fun TodoListScreen(
         if (miuiAutoStartAllowed() != false) return
         scope.launch {
             val result = snackbarHostState.showSnackbar(
-                "未开启自启动，闹钟到点可能无法响铃",
-                actionLabel = "去设置",
+                context.getString(R.string.todo_perm_autostart),
+                actionLabel = context.getString(R.string.snack_go_settings),
                 duration = SnackbarDuration.Long
             )
             if (result == SnackbarResult.ActionPerformed) {
@@ -219,7 +221,7 @@ fun TodoListScreen(
         snackbarHost = { SnackbarHost(snackbarHostState, Modifier.padding(bottom = BottomBarContentInset)) },
         topBar = {
             TopAppBar(
-                title = { Text("待办", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.todo_title), fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },
@@ -229,7 +231,7 @@ fun TodoListScreen(
                 backdrop = listOf(listFab),
                 modifier = Modifier.padding(bottom = BottomBarContentInset)
             ) {
-                Icon(Icons.Filled.Add, "新建待办", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.Add, stringResource(R.string.todo_fab), tint = MaterialTheme.colorScheme.primary)
             }
         }
     ) { padding ->
@@ -238,9 +240,9 @@ fun TodoListScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
                     Spacer(Modifier.height(Spacing.l))
-                    Text("还没有待办事项", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.todo_empty_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(6.dp))
-                    Text("点击右下角 + 添加第一项", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                    Text(stringResource(R.string.todo_empty_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
                 }
             }
         } else {
@@ -274,7 +276,7 @@ fun TodoListScreen(
                             contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp)
                         )
                         Spacer(Modifier.width(6.dp))
-                        Text("已完成 ${completed.size}", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                        Text(stringResource(R.string.todo_completed, completed.size), color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                     }
                 }
                 if (!completedCollapsed) {
@@ -330,6 +332,7 @@ fun TodoListScreen(
 
 @Composable
 private fun TodoCard(item: TodoItem, isCompleted: Boolean, onToggle: () -> Unit, onClick: () -> Unit, onDelete: () -> Unit) {
+    val context = LocalContext.current
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val tint = when {
         !isCompleted -> glassTint(dark)
@@ -343,8 +346,8 @@ private fun TodoCard(item: TodoItem, isCompleted: Boolean, onToggle: () -> Unit,
     SwipeDeleteCard(
         onClick = onClick,
         onDelete = onDelete,
-        confirmTitle = "删除待办",
-        confirmMessage = "确定要删除“${item.text}”吗？",
+        confirmTitle = stringResource(R.string.todo_delete_title),
+        confirmMessage = stringResource(R.string.todo_delete_message, item.text),
         containerColor = Color.Transparent,
         cardModifier = Modifier
             .background(MaterialTheme.colorScheme.background, MaterialTheme.shapes.medium)
@@ -368,8 +371,8 @@ private fun TodoCard(item: TodoItem, isCompleted: Boolean, onToggle: () -> Unit,
                 if (item.reminderAt != null && !isCompleted) {
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        (if (item.alarmMode == TodoItem.MODE_RING) "闹钟 · " else "") +
-                            DateUtils.formatReminder(item.reminderAt, item.repeatRule),
+                        (if (item.alarmMode == TodoItem.MODE_RING) stringResource(R.string.todo_ring_prefix) else "") +
+                            DateUtils.formatReminder(context, item.reminderAt, item.repeatRule),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )

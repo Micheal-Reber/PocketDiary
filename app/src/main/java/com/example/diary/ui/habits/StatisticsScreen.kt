@@ -16,8 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.diary.R
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,7 +41,7 @@ fun StatisticsScreen(
             TopAppBar(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.common_back))
                     }
                 },
                 title = { },
@@ -87,9 +89,9 @@ fun StatisticsScreen(
 @Composable
 private fun SegmentedStatTabs(current: StatView, onSelect: (StatView) -> Unit) {
     val entries = listOf(
-        StatView.WEEKLY to "周频率",
-        StatView.MONTHLY to "月视图",
-        StatView.YEARLY to "年视图"
+        StatView.WEEKLY to stringResource(R.string.stat_weekly),
+        StatView.MONTHLY to stringResource(R.string.stat_monthly),
+        StatView.YEARLY to stringResource(R.string.stat_yearly)
     )
     // Official M3 segmented control — selected segment gets the expressive
     // shape-morph animation for free.

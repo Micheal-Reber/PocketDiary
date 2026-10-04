@@ -23,8 +23,10 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.example.diary.R
 import com.example.diary.ui.theme.Spacing
 import java.time.Instant
 import java.time.LocalDate
@@ -45,8 +47,8 @@ fun ConfirmDialog(
     message: String,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
-    confirmText: String = "删除",
-    dismissText: String = "取消",
+    confirmText: String? = null,
+    dismissText: String? = null,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -56,9 +58,9 @@ fun ConfirmDialog(
             TextButton(
                 onClick = onConfirm,
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-            ) { Text(confirmText) }
+            ) { Text(confirmText ?: stringResource(R.string.common_delete)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(dismissText) } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(dismissText ?: stringResource(R.string.common_cancel)) } }
     )
 }
 
@@ -103,7 +105,7 @@ fun SwipeDeleteCard(
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Outlined.Delete, "删除",
+                        Icons.Outlined.Delete, stringResource(R.string.common_delete),
                         tint = Color.White,
                         modifier = Modifier.size(28.dp)
                     )
@@ -171,7 +173,8 @@ fun SearchToggleButton(
     IconButton(onClick = onToggle) {
         Icon(
             if (searchActive) Icons.Default.Close else Icons.Default.Search,
-            contentDescription = if (searchActive) "关闭搜索" else "搜索$contentDescriptionBase"
+            contentDescription = if (searchActive) stringResource(R.string.search_close)
+            else stringResource(R.string.search_open, contentDescriptionBase)
         )
     }
 }
@@ -195,7 +198,7 @@ fun SearchTextField(
         trailingIcon = {
             if (value.isNotEmpty()) {
                 IconButton(onClick = { onValueChange("") }) {
-                    Icon(Icons.Default.Close, "清空", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Default.Close, stringResource(R.string.common_clear), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         },
@@ -243,9 +246,9 @@ fun UtcDatePickerDialog(
                             .toLocalDate()
                     )
                 } ?: onDismiss()
-            }) { Text("确定") }
+            }) { Text(stringResource(R.string.common_ok)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) } }
     ) {
         DatePicker(state = state)
     }

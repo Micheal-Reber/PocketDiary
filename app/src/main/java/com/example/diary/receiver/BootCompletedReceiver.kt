@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.example.diary.R
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.local.TodoItem
 import com.example.diary.data.repository.TodoRepository
@@ -35,7 +36,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
                 repo.getDueReminders(now)
                     .filter { it.repeatRule == TodoItem.REPEAT_NONE }
                     .forEach { item ->
-                        TodoNotificationHelper.show(context, item.id, item.text, title = "错过的提醒")
+                        TodoNotificationHelper.show(context, item.id, item.text, title = context.getString(R.string.notif_missed_title))
                     }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e

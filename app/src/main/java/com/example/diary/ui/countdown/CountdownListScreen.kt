@@ -27,10 +27,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.example.diary.R
 import com.example.diary.data.countdown.DateMath
 import com.example.diary.data.countdown.DateMath.CountState
 import com.example.diary.data.image.EventImageStore
@@ -82,17 +84,17 @@ fun CountdownListScreen(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("倒数日", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.cd_title), fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = { gridMode = !gridMode }) {
                         Icon(
                             if (gridMode) Icons.Default.ViewList else Icons.Default.GridView,
-                            contentDescription = if (gridMode) "列表视图" else "网格视图"
+                            contentDescription = if (gridMode) stringResource(R.string.cd_view_list) else stringResource(R.string.cd_view_grid)
                         )
                     }
                     SearchToggleButton(
                         searchActive = searchActive,
-                        contentDescriptionBase = "事件",
+                        contentDescriptionBase = stringResource(R.string.cd_search_base),
                         onToggle = {
                             searchActive = !searchActive
                             if (!searchActive) searchQuery = ""
@@ -110,7 +112,7 @@ fun CountdownListScreen(
                 backdrop = listOf(listFab),
                 modifier = Modifier.padding(bottom = BottomBarContentInset)
             ) {
-                Icon(Icons.Default.Add, "新建倒数日", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.Add, stringResource(R.string.cd_fab), tint = MaterialTheme.colorScheme.primary)
             }
         }
     ) { padding ->
@@ -119,14 +121,14 @@ fun CountdownListScreen(
                 SearchTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = "搜索事件名称...",
+                    placeholder = stringResource(R.string.cd_search_hint),
                     focusRequester = searchFocusRequester
                 )
             }
 
             when {
-                events.isEmpty() && searchQuery.isNotBlank() -> EmptyHint("未找到相关事件")
-                events.isEmpty() -> EmptyHint("还没有倒数日\n点击右下角 + 添加重要日子")
+                events.isEmpty() && searchQuery.isNotBlank() -> EmptyHint(stringResource(R.string.cd_search_empty))
+                events.isEmpty() -> EmptyHint(stringResource(R.string.cd_empty))
                 gridMode -> LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     modifier = Modifier.fillMaxSize(),
@@ -183,6 +185,7 @@ private fun EventCard(
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val state = remember(event.date, event.repeatRule, event.plusOne, today) {
         DateMath.compute(event.date, event.repeatRule, event.plusOne, today)
     }
@@ -210,7 +213,7 @@ private fun EventCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (event.pinned) {
                         Icon(
-                            Icons.Default.PushPin, "已置顶",
+                            Icons.Default.PushPin, stringResource(R.string.cd_pinned),
                             tint = accent,
                             modifier = Modifier.size(14.dp)
                         )
@@ -224,7 +227,7 @@ private fun EventCard(
                 }
                 Spacer(Modifier.height(Spacing.xs))
                 Text(
-                    stateLabel(state),
+                    stateLabel(context, state),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -240,7 +243,7 @@ private fun EventCard(
             ) {
                 Text(
                     text = when (state) {
-                        is CountState.Today -> "今"
+                        is CountState.Today -> stringResource(R.string.cd_badge_today)
                         is CountState.Countdown -> "${state.days}"
                         is CountState.Countup -> "${state.days}"
                     },
@@ -257,8 +260,8 @@ private fun EventCard(
 
     if (showDeleteConfirm) {
         ConfirmDialog(
-            title = "删除「${event.name}」？",
-            message = "该事件的背景图也会一并删除，不可恢复。",
+            title = stringResource(R.string.cd_delete_title, event.name),
+            message = stringResource(R.string.cd_delete_message),
             onConfirm = { showDeleteConfirm = false; onDelete() },
             onDismiss = { showDeleteConfirm = false }
         )

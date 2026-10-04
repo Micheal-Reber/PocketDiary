@@ -38,6 +38,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.diary.R
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.location.LocationProvider
 import com.example.diary.data.photo.DiaryPhotoStore
@@ -59,9 +61,27 @@ import java.time.format.DateTimeFormatter
 
 // Mood & weather presets (inspired by MyDiary → localized)
 private val moodPresets = listOf("😊", "😐", "😢", "😡", "😰")
-private val moodLabels = listOf("开心", "一般", "难过", "生气", "焦虑")
 private val weatherPresets = listOf("☀️", "🌤️", "☁️", "🌧️", "⛈️", "❄️", "🌫️")
-private val weatherLabels = listOf("晴", "多云", "阴", "雨", "暴雨", "雪", "雾")
+
+@Composable
+private fun moodLabels() = listOf(
+    stringResource(R.string.mood_happy),
+    stringResource(R.string.mood_okay),
+    stringResource(R.string.mood_sad),
+    stringResource(R.string.mood_angry),
+    stringResource(R.string.mood_anxious)
+)
+
+@Composable
+private fun weatherLabels() = listOf(
+    stringResource(R.string.weather_sunny),
+    stringResource(R.string.weather_cloudy),
+    stringResource(R.string.weather_overcast),
+    stringResource(R.string.weather_rain),
+    stringResource(R.string.weather_heavyrain),
+    stringResource(R.string.weather_snow),
+    stringResource(R.string.weather_fog)
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -132,7 +152,7 @@ fun DiaryEditorScreen(
                     DiaryPhotoStore.importFromUri(context, uri)?.let { name ->
                         content = (if (content.endsWith("\n")) content else "$content\n") + DiaryPhotoStore.markerOf(name)
                     } ?: run {
-                        snackbarHostState.showSnackbar("图片导入失败", duration = SnackbarDuration.Short)
+                        snackbarHostState.showSnackbar(context.getString(R.string.editor_import_failed), duration = SnackbarDuration.Short)
                     }
                 } finally {
                     isImportingPhoto = false
@@ -220,7 +240,7 @@ fun DiaryEditorScreen(
                     }
                 } else {
                     snackbarHostState.showSnackbar(
-                        message = "暂未获取到位置,请稍后再试或检查定位权限",
+                        message = context.getString(R.string.editor_location_failed),
                         duration = SnackbarDuration.Short
                     )
                 }
@@ -243,7 +263,7 @@ fun DiaryEditorScreen(
         } else {
             scope.launch {
                 snackbarHostState.showSnackbar(
-                    message = "需要位置权限才能获取位置和天气",
+                    message = context.getString(R.string.editor_location_permission),
                     duration = SnackbarDuration.Short
                 )
             }
@@ -322,7 +342,7 @@ fun DiaryEditorScreen(
                     SaveResult.DateConflict -> {
                         dateStr = loadedForDate ?: dateStr
                         snackbarHostState.showSnackbar(
-                            message = "该日期已有一篇日记",
+                            message = context.getString(R.string.editor_date_conflict),
                             duration = SnackbarDuration.Long
                         )
                     }
@@ -331,7 +351,7 @@ fun DiaryEditorScreen(
                 throw e
             } catch (e: Exception) {
                 snackbarHostState.showSnackbar(
-                    message = "保存失败,请重试",
+                    message = context.getString(R.string.editor_save_failed),
                     duration = SnackbarDuration.Long
                 )
             }
@@ -341,7 +361,7 @@ fun DiaryEditorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("日记", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.editor_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (isDirty) {
@@ -350,7 +370,7 @@ fun DiaryEditorScreen(
                             onBack()
                         }
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.editor_back))
                     }
                 },
                 actions = {
@@ -360,12 +380,13 @@ fun DiaryEditorScreen(
                     }) {
                         Icon(
                             if (showPreview) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                            contentDescription = if (showPreview) "切换到编辑" else "预览"
+                            contentDescription = if (showPreview) stringResource(R.string.editor_toggle_editing)
+                            else stringResource(R.string.editor_toggle_preview)
                         )
                     }
                     if (existingId != null) {
                         IconButton(onClick = { showDeleteDialog = true }) {
-                            Icon(Icons.Outlined.Delete, "删除整篇", tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Outlined.Delete, stringResource(R.string.editor_delete_entry), tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 },
@@ -418,7 +439,7 @@ fun DiaryEditorScreen(
                     } else {
                         Icon(
                             Icons.Default.PhotoCamera,
-                            contentDescription = "插入图片",
+                            contentDescription = stringResource(R.string.editor_insert_photo),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -434,7 +455,7 @@ fun DiaryEditorScreen(
                     } else {
                         Icon(
                             Icons.Default.LocationOn,
-                            contentDescription = "获取位置",
+                            contentDescription = stringResource(R.string.editor_fetch_location),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -442,7 +463,7 @@ fun DiaryEditorScreen(
                 FilledIconButton(onClick = saveEntryAction) {
                     Icon(
                         Icons.Default.Save,
-                        contentDescription = "保存",
+                        contentDescription = stringResource(R.string.editor_save),
                         tint = MaterialTheme.colorScheme.onPrimary
                     )
                 }
@@ -452,13 +473,13 @@ fun DiaryEditorScreen(
             // Mood / weather selectors (同构 chip 行，抽共享 PresetChipRow)
             PresetChipRow(
                 values = moodPresets,
-                labels = moodLabels,
+                labels = moodLabels(),
                 selected = mood,
                 onToggle = { mood = it }
             )
             PresetChipRow(
                 values = weatherPresets,
-                labels = weatherLabels,
+                labels = weatherLabels(),
                 selected = weather,
                 onToggle = { weather = it }
             )
@@ -487,7 +508,7 @@ fun DiaryEditorScreen(
                 // Chips and date stay editable above; only the body is read.
                 if (content.isBlank()) {
                     Text(
-                        "（暂无内容）",
+                        stringResource(R.string.editor_preview_empty),
                         style = MaterialTheme.typography.bodyLarge.copy(fontStyle = FontStyle.Italic),
                         color = MaterialTheme.colorScheme.outline,
                         modifier = Modifier
@@ -510,7 +531,7 @@ fun DiaryEditorScreen(
                 value = content,
                 onValueChange = { content = it },
                 placeholder = {
-                    Text("写下今天的心情...", color = MaterialTheme.colorScheme.outline)
+                    Text(stringResource(R.string.editor_placeholder), color = MaterialTheme.colorScheme.outline)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -533,7 +554,7 @@ fun DiaryEditorScreen(
                 if (photoNames.isNotEmpty()) {
                     Spacer(Modifier.height(Spacing.s))
                     Text(
-                        "已插入图片 ${photoNames.size}/${DiaryPhotoStore.MAX_PHOTOS_PER_ENTRY}",
+                        stringResource(R.string.editor_photo_count, photoNames.size, DiaryPhotoStore.MAX_PHOTOS_PER_ENTRY),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -573,7 +594,7 @@ fun DiaryEditorScreen(
                                 ) {
                                     Icon(
                                         Icons.Default.Close,
-                                        contentDescription = "删除图片",
+                                        contentDescription = stringResource(R.string.editor_delete_photo),
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         modifier = Modifier.size(14.dp)
                                     )
@@ -604,8 +625,8 @@ fun DiaryEditorScreen(
 
     if (showDeleteDialog) {
         ConfirmDialog(
-            title = "删除日记",
-            message = "确定要删除这篇日记吗？此操作不可撤销。",
+            title = stringResource(R.string.editor_delete_title),
+            message = stringResource(R.string.editor_delete_message),
             onConfirm = {
                 showDeleteDialog = false
                 scope.launch {
@@ -623,10 +644,10 @@ fun DiaryEditorScreen(
 
     if (showDiscardChangesDialog) {
         ConfirmDialog(
-            title = "放弃编辑？",
-            message = "当前修改尚未保存,是否放弃并退出？",
-            confirmText = "放弃",
-            dismissText = "继续编辑",
+            title = stringResource(R.string.editor_discard_title),
+            message = stringResource(R.string.editor_discard_message),
+            confirmText = stringResource(R.string.editor_discard_confirm),
+            dismissText = stringResource(R.string.editor_discard_dismiss),
             onConfirm = {
                 showDiscardChangesDialog = false
                 // Unsaved exit: tmp photo picks are orphans — wipe them.
