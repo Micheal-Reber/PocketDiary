@@ -236,13 +236,11 @@ fun SettingsScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
             )
 
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_dark_mode)) },
-                supportingContent = { Text(stringResource(R.string.settings_dark_mode_desc)) },
-                leadingContent = {
-                    Icon(Icons.Default.DarkMode, contentDescription = null)
-                },
-                trailingContent = {
+            SettingsRow(
+                headline = stringResource(R.string.settings_dark_mode),
+                supporting = stringResource(R.string.settings_dark_mode_desc),
+                leading = { Icon(Icons.Default.DarkMode, contentDescription = null) },
+                trailing = {
                     Switch(
                         checked = isDarkMode,
                         onCheckedChange = { checked ->
@@ -252,18 +250,12 @@ fun SettingsScreen(
                 }
             )
 
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_dynamic_color)) },
-                supportingContent = {
-                    Text(
-                        if (dynamicColor) stringResource(R.string.settings_dynamic_color_on)
-                        else stringResource(R.string.settings_dynamic_color_off)
-                    )
-                },
-                leadingContent = {
-                    Icon(Icons.Default.Palette, contentDescription = null)
-                },
-                trailingContent = {
+            SettingsRow(
+                headline = stringResource(R.string.settings_dynamic_color),
+                supporting = if (dynamicColor) stringResource(R.string.settings_dynamic_color_on)
+                else stringResource(R.string.settings_dynamic_color_off),
+                leading = { Icon(Icons.Default.Palette, contentDescription = null) },
+                trailing = {
                     Switch(
                         checked = dynamicColor,
                         onCheckedChange = { checked ->
@@ -273,18 +265,12 @@ fun SettingsScreen(
                 }
             )
 
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_background)) },
-                supportingContent = {
-                    Text(
-                        if (bgPath != null) stringResource(R.string.settings_background_custom)
-                        else stringResource(R.string.settings_background_default)
-                    )
-                },
-                leadingContent = {
-                    Icon(Icons.Default.Wallpaper, contentDescription = null)
-                },
-                trailingContent = {
+            SettingsRow(
+                headline = stringResource(R.string.settings_background),
+                supporting = if (bgPath != null) stringResource(R.string.settings_background_custom)
+                else stringResource(R.string.settings_background_default),
+                leading = { Icon(Icons.Default.Wallpaper, contentDescription = null) },
+                trailing = {
                     if (bgPath != null) {
                         TextButton(onClick = {
                             scope.launch {
@@ -301,20 +287,14 @@ fun SettingsScreen(
                 }
             )
 
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_language)) },
-                supportingContent = {
-                    Text(
-                        when (currentLang) {
-                            LocaleHelper.ZH -> stringResource(R.string.lang_zh)
-                            LocaleHelper.EN -> stringResource(R.string.lang_en)
-                            else -> stringResource(R.string.lang_system)
-                        }
-                    )
+            SettingsRow(
+                headline = stringResource(R.string.settings_language),
+                supporting = when (currentLang) {
+                    LocaleHelper.ZH -> stringResource(R.string.lang_zh)
+                    LocaleHelper.EN -> stringResource(R.string.lang_en)
+                    else -> stringResource(R.string.lang_system)
                 },
-                leadingContent = {
-                    Icon(Icons.Default.Language, contentDescription = null)
-                },
+                leading = { Icon(Icons.Default.Language, contentDescription = null) },
                 modifier = Modifier.clickable { langDialog = true }
             )
 
@@ -332,13 +312,11 @@ fun SettingsScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
             )
 
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_lock)) },
-                supportingContent = { Text(stringResource(R.string.settings_lock_desc)) },
-                leadingContent = {
-                    Icon(Icons.Default.Lock, contentDescription = null)
-                },
-                trailingContent = {
+            SettingsRow(
+                headline = stringResource(R.string.settings_lock),
+                supporting = stringResource(R.string.settings_lock_desc),
+                leading = { Icon(Icons.Default.Lock, contentDescription = null) },
+                trailing = {
                     Switch(
                         checked = lockEnabled,
                         onCheckedChange = { checked ->
@@ -355,29 +333,21 @@ fun SettingsScreen(
             )
 
             if (lockEnabled && hasLockPassword) {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_change_pin)) },
-                    supportingContent = { Text(stringResource(R.string.settings_change_pin_desc)) },
-                    leadingContent = {
-                        Icon(Icons.Default.Password, contentDescription = null)
-                    },
+                SettingsRow(
+                    headline = stringResource(R.string.settings_change_pin),
+                    supporting = stringResource(R.string.settings_change_pin_desc),
+                    leading = { Icon(Icons.Default.Password, contentDescription = null) },
                     modifier = Modifier.clickable { showLockSetup = true }
                 )
 
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_lock_mode)) },
-                    supportingContent = {
-                        Text(
-                            when (lockMode) {
-                                AppLockPreferences.MODE_EVERY_DIARY -> stringResource(R.string.settings_lock_mode_every_diary)
-                                AppLockPreferences.MODE_DAILY -> stringResource(R.string.settings_lock_mode_daily)
-                                else -> stringResource(R.string.settings_lock_mode_every_app)
-                            }
-                        )
+                SettingsRow(
+                    headline = stringResource(R.string.settings_lock_mode),
+                    supporting = when (lockMode) {
+                        AppLockPreferences.MODE_EVERY_DIARY -> stringResource(R.string.settings_lock_mode_every_diary)
+                        AppLockPreferences.MODE_DAILY -> stringResource(R.string.settings_lock_mode_daily)
+                        else -> stringResource(R.string.settings_lock_mode_every_app)
                     },
-                    leadingContent = {
-                        Icon(Icons.Default.Schedule, contentDescription = null)
-                    },
+                    leading = { Icon(Icons.Default.Schedule, contentDescription = null) },
                     modifier = Modifier.clickable { showLockModeDialog = true }
                 )
             }
@@ -410,12 +380,10 @@ fun SettingsScreen(
             }
 
             if (backupExpanded) {
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_export)) },
-                    supportingContent = {
-                        Text(if (backupBusy) stringResource(R.string.settings_busy) else stringResource(R.string.settings_export_desc))
-                    },
-                    leadingContent = {
+                SettingsRow(
+                    headline = stringResource(R.string.settings_export),
+                    supporting = if (backupBusy) stringResource(R.string.settings_busy) else stringResource(R.string.settings_export_desc),
+                    leading = {
                         Icon(Icons.Default.CloudUpload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier
@@ -423,15 +391,12 @@ fun SettingsScreen(
                         .clickable(enabled = !backupBusy) {
                             exportLauncher.launch(context.getString(R.string.settings_backup_filename))
                         }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 )
 
-                ListItem(
-                    headlineContent = { Text(stringResource(R.string.settings_import)) },
-                    supportingContent = {
-                        Text(if (backupBusy) stringResource(R.string.settings_busy) else stringResource(R.string.settings_import_desc))
-                    },
-                    leadingContent = {
+                SettingsRow(
+                    headline = stringResource(R.string.settings_import),
+                    supporting = if (backupBusy) stringResource(R.string.settings_busy) else stringResource(R.string.settings_import_desc),
+                    leading = {
                         Icon(Icons.Default.CloudDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     },
                     modifier = Modifier
@@ -439,7 +404,6 @@ fun SettingsScreen(
                         .clickable(enabled = !backupBusy) {
                             importLauncher.launch(arrayOf("application/zip"))
                         }
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 )
             }
 
@@ -457,14 +421,10 @@ fun SettingsScreen(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
             )
 
-            ListItem(
-                headlineContent = { Text("PocketDiary") },
-                supportingContent = {
-                    Text(stringResource(R.string.settings_about_version, BuildConfig.VERSION_NAME))
-                },
-                leadingContent = {
-                    Icon(Icons.Default.Info, contentDescription = null)
-                }
+            SettingsRow(
+                headline = "PocketDiary",
+                supporting = stringResource(R.string.settings_about_version, BuildConfig.VERSION_NAME),
+                leading = { Icon(Icons.Default.Info, contentDescription = null) }
             )
 
             HorizontalDivider(
@@ -575,4 +535,37 @@ fun SettingsScreen(
 
 private fun showToast(context: android.content.Context, message: String) {
     android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+}
+
+@Composable
+private fun SettingsRow(
+    modifier: Modifier = Modifier,
+    headline: String,
+    supporting: String? = null,
+    leading: @Composable () -> Unit = {},
+    trailing: (@Composable () -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.l, vertical = Spacing.m),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        leading()
+        Spacer(Modifier.width(Spacing.l))
+        Column(Modifier.weight(1f)) {
+            Text(headline, style = MaterialTheme.typography.titleMedium)
+            if (supporting != null) {
+                Text(
+                    supporting,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (trailing != null) {
+            Spacer(Modifier.width(Spacing.l))
+            trailing()
+        }
+    }
 }

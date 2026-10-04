@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -50,7 +51,10 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalGraphicsContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -223,39 +227,58 @@ fun GlassBottomBar(
     modifier: Modifier = Modifier,
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
 
-    GlassCapsule(backdrop, modifier) {
-        bottomNavItems.forEach { screen ->
-            val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
-            val color = when {
-                selected -> MaterialTheme.colorScheme.primary
-                dark -> Color.White.copy(alpha = 0.78f)
-                else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(horizontal = Spacing.s, vertical = Spacing.s)
-                    .clip(CircleShape)
-                    .clickable { onNavigate(screen) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Icon(
-                    if (selected) screen.selectedIcon else screen.unselectedIcon,
-                    contentDescription = stringResource(screen.titleRes),
-                    tint = color,
-                    modifier = Modifier.size(24.dp).offset(y = 1.dp),
-                )
-                Text(
-                    stringResource(screen.titleRes),
-                    modifier = Modifier.offset(y = (-1).dp),
-                    fontSize = 11.sp,
-                    fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
-                    color = color,
-                    maxLines = 1,
-                )
+    BoxWithConstraints(modifier.fillMaxWidth()) {
+        // 2dp 安全边距：给格子 CircleShape 在文字高度的内削留余量
+        val labelAvail = maxWidth / 5f - Spacing.s * 2 - 2.dp
+
+        GlassCapsule(backdrop) {
+            bottomNavItems.forEach { screen ->
+                val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+                val color = when {
+                    selected -> MaterialTheme.colorScheme.primary
+                    dark -> Color.White.copy(alpha = 0.78f)
+                    else -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
+                }
+                val label = stringResource(screen.titleRes)
+                val fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal
+                val fontSize = remember(label, fontWeight, labelAvail, density.fontScale) {
+                    val natural = measurer.measure(
+                        label,
+                        style = TextStyle(fontSize = 11.sp, fontWeight = fontWeight)
+                    ).size.width
+                    val availPx = with(density) { labelAvail.toPx() }
+                    if (natural <= 0 || natural <= availPx) 11.sp
+                    else (11f * (availPx / natural)).coerceAtLeast(8f).sp
+                }
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(horizontal = Spacing.s, vertical = Spacing.s)
+                        .clip(CircleShape)
+                        .clickable { onNavigate(screen) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    Icon(
+                        if (selected) screen.selectedIcon else screen.unselectedIcon,
+                        contentDescription = label,
+                        tint = color,
+                        modifier = Modifier.size(24.dp).offset(y = 1.dp),
+                    )
+                    Text(
+                        label,
+                        modifier = Modifier.offset(y = (-1).dp),
+                        fontSize = fontSize,
+                        fontWeight = fontWeight,
+                        color = color,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }
