@@ -48,6 +48,8 @@
     <string name="settings_about_version">版本 %1$s · 简洁好用的日记本</string>
     <string name="settings_pin_changed">密码已修改</string>
     <string name="settings_lock_enabled">日记密码锁已开启</string>
+    <string name="settings_lock_disabled">日记密码锁已关闭</string>
+    <string name="settings_lock_verify_title">输入密码以关闭密码锁</string>
     <string name="tab_diary">日记</string>
     <string name="tab_calendar">日历</string>
     <string name="tab_countdown">倒数日</string>

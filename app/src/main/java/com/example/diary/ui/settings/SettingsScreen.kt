@@ -87,6 +87,8 @@ fun SettingsScreen(
     val lockPinLength by appLockPreferences.pinLength.collectAsStateWithLifecycle(initialValue = 4)
     // 全屏设置密码页（开启时若无密码 / 修改密码）
     var showLockSetup by remember { mutableStateOf(false) }
+    // 关闭密码锁前的全屏验证
+    var showLockVerify by remember { mutableStateOf(false) }
     var showLockModeDialog by remember { mutableStateOf(false) }
     var backupExpanded by remember { mutableStateOf(false) }
     var langDialog by remember { mutableStateOf(false) }
@@ -342,6 +344,8 @@ fun SettingsScreen(
                         onCheckedChange = { checked ->
                             if (checked && !hasLockPassword) {
                                 showLockSetup = true
+                            } else if (!checked && hasLockPassword && lockEnabled) {
+                                showLockVerify = true
                             } else {
                                 scope.launch { appLockPreferences.setLockEnabled(checked) }
                             }
@@ -547,6 +551,23 @@ fun SettingsScreen(
                     )
                 },
                 onCancel = { showLockSetup = false }
+            )
+        }
+
+        // 关闭密码锁前先验证（防绕过日记锁直接进设置关锁）
+        if (showLockVerify) {
+            AppLockScreen(
+                mode = LockMode.Unlock,
+                lockPreferences = appLockPreferences,
+                title = stringResource(R.string.settings_lock_verify_title),
+                pinLength = lockPinLength,
+                onVerified = {
+                    scope.launch { appLockPreferences.setLockEnabled(false) }
+                    showLockVerify = false
+                    showToast(context, context.getString(R.string.settings_lock_disabled))
+                },
+                onPinSet = {},
+                onCancel = { showLockVerify = false }
             )
         }
     }

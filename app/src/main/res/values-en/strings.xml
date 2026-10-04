@@ -48,6 +48,8 @@
     <string name="settings_about_version">Version %1$s · A simple, delightful diary</string>
     <string name="settings_pin_changed">Password changed</string>
     <string name="settings_lock_enabled">Diary PIN lock enabled</string>
+    <string name="settings_lock_disabled">Diary PIN lock turned off</string>
+    <string name="settings_lock_verify_title">Enter PIN to turn off the lock</string>
     <string name="tab_diary">Diary</string>
     <string name="tab_calendar">Calendar</string>
     <string name="tab_countdown">Countdown</string>
