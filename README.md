@@ -117,7 +117,7 @@ Grab the latest `app-release.apk` from the [**Releases page**](https://github.co
 
 | Area | Choice |
 |------|--------|
-| Language | Kotlin 1.9.24 (**no Kotlin 2.x / Compose 1.8+ / M3 1.4** dependencies) |
+| Language | Kotlin 2.3.21 + Jetpack Compose BOM 2026.01.01 (Compose 1.10.2 / M3 1.4) |
 | UI | Jetpack Compose + Material 3; glass effects via `GraphicsLayer` + `BlurEffect` |
 | Database | Room **v14** (5 tables: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem; handwritten migration chain v9→14) |
 | Preferences | DataStore Preferences |

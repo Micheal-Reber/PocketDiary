@@ -116,7 +116,7 @@
 
 | 分类 | 方案 |
 |------|------|
-| 语言 | Kotlin 1.9.24（**不引入 Kotlin 2.x / Compose 1.8+ / M3 1.4** 依赖） |
+| 语言 | Kotlin 2.3.21 + Jetpack Compose BOM 2026.01.01（Compose 1.10.2 / M3 1.4） |
 | UI | Jetpack Compose + Material 3，玻璃效果用 `GraphicsLayer` + `BlurEffect` |
 | 数据库 | Room **v14**（DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem 五表；v9→14 手写迁移链） |
 | 偏好 | DataStore Preferences |

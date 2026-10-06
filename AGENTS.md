@@ -8,12 +8,12 @@
 
 **PocketDiary** — 极简 Android 日记 App。纯本地存储、零联网依赖（无账号/云同步）。
 
-- **语言/UI**: Kotlin 1.9.24 + Jetpack Compose (BOM 2024.09.03, M3 1.3) + Material 3
+- **语言/UI**: Kotlin 2.3.21 + Jetpack Compose (BOM 2026.01.01, Compose 1.10.2, M3 1.4) + Material 3
 - **数据库**: Room v14（v9→11 / v10→11 / v11→12→13→14 有手写迁移；v8 及更早仍破坏性回退会清数据）
 - **偏好**: DataStore Preferences
-- **SDK**: minSdk 26 / target & compile 35 / JDK 17
-- **当前版本**: 1.9.0 (code 13)
-- **约束**: Kotlin 1.9.24 工具链 —— **不要**引入要求 Kotlin 2.x / Compose 1.8+ / M3 1.4 的依赖（如 Material 3 Expressive 组件）
+- **SDK**: minSdk 26 / target 35 / compile 36 / JDK 17
+- **当前版本**: 1.9.2 (code 15)
+- **工具链**: AGP 8.13.2 / Gradle 8.14.3 / KSP 2.3.12 / Room 2.8.5（schema 走 Room Gradle 插件 `room { schemaDirectory }`）——Kotlin 2.x 依赖已解锁；引入 M3 Expressive 组件仍需用户确认（视觉突变）
 
 ## 构建与安装
 
@@ -128,7 +128,7 @@ app/src/main/java/com/example/diary/
 - 亮暗模式**独立于系统**：以 App 内设置（DataStore）为准；开屏为无 logo 纯色（随软件内模式）
 
 ### Markdown
-- 解析用 `org.commonmark:commonmark`，渲染用自研子集（`ui/editor/MarkdownText.kt`）——**不要**引入 mikepenz/richtext 等渲染库（Kotlin 2.x 兼容问题）
+- 解析用 `org.commonmark:commonmark`，渲染用自研子集（`ui/editor/MarkdownText.kt`）——**不要**引入 mikepenz/richtext 等渲染库
 - 列表卡片预览必须走 `markdownToPlainText()` 剥离语法
 
 ## 已知坑点（踩过的）
