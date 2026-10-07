@@ -39,8 +39,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -60,8 +58,8 @@ import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.navigation.GlassCapsule
-import com.example.diary.ui.navigation.glassBackdrop
 import com.example.diary.ui.navigation.rememberGlassBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
 import com.example.diary.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -672,8 +670,7 @@ fun CountdownDetailScreen(
                 Modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .onGloballyPositioned { backdrop.contentOriginInRoot = it.boundsInRoot().topLeft }
-                    .glassBackdrop(backdrop)
+                    .layerBackdrop(backdrop)
                     .pointerInput(allEvents, e.id) {
                         var totalDragX = 0f
                         detectHorizontalDragGestures(

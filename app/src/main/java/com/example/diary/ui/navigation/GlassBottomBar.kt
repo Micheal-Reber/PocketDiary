@@ -1,69 +1,79 @@
 package com.example.diary.ui.navigation
 
-import android.os.Build
-import androidx.compose.foundation.background
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
-import androidx.compose.ui.geometry.RoundRect
-import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.TileMode
-import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.layer.GraphicsLayer
-import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalGraphicsContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hierarchy
 import com.example.diary.R
 import com.example.diary.ui.theme.Spacing
+import com.kyant.backdrop.Backdrop
+import com.kyant.backdrop.backdrops.LayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.lens
+import com.kyant.backdrop.effects.vibrancy
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /** 悬浮玻璃底栏在各 Tab 页内容底部预留的高度（下间隙 16 + 胶囊 64 + 上间隙 16）。 */
@@ -88,157 +98,184 @@ internal fun glassStroke(dark: Boolean): Brush =
         Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.16f), Color.Black.copy(alpha = 0.08f)))
     }
 
-class GlassBackdropState(val layer: GraphicsLayer) {
-    var active by mutableStateOf(false)
-    var barBoundsInRoot by mutableStateOf(Rect.Zero)
-    var contentOriginInRoot by mutableStateOf(Offset.Zero)
-}
-
-// 每屏一个「内容区录制层」给加号用：录制节点不含 FAB（FAB 在 Scaffold 的
-// fab 槽），加号画这层不可能自环
-class FabLayer(val layer: GraphicsLayer) {
-    val originInRoot = mutableStateOf(Offset.Zero)
-}
-
 @Composable
-fun rememberFabLayer(): FabLayer {
-    val graphicsContext = LocalGraphicsContext.current
-    val layer = remember(graphicsContext) { graphicsContext.createGraphicsLayer() }
-    val radiusPx = with(LocalDensity.current) { GlassBlurRadius.toPx() }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val effect = remember(radiusPx) { BlurEffect(radiusPx, radiusPx, TileMode.Clamp) }
-        SideEffect { layer.renderEffect = effect }
-    }
-    DisposableEffect(graphicsContext) {
-        onDispose { graphicsContext.releaseGraphicsLayer(layer) }
-    }
-    return remember(layer) { FabLayer(layer) }
-}
-
-// 挂在屏内容根节点：每帧正常绘制后再把内容录进 fabLayer（供 GlassFab 取样）
-@Composable
-fun Modifier.fabRecord(fab: FabLayer): Modifier =
-    this
-        .onGloballyPositioned { fab.originInRoot.value = it.boundsInRoot().topLeft }
-        .drawWithContent {
-            val contentScope = this
-            drawContent()
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
-                size.width > 0f && size.height > 0f
-            ) {
-                fab.layer.record(
-                    IntSize(size.width.roundToInt(), size.height.roundToInt())
-                ) {
-                    contentScope.drawContent()
-                }
-            }
-        }
-
-@Composable
-fun rememberGlassBackdrop(): GlassBackdropState {
-    val graphicsContext = LocalGraphicsContext.current
-    val layer = remember(graphicsContext) { graphicsContext.createGraphicsLayer() }
-    DisposableEffect(graphicsContext) {
-        onDispose { graphicsContext.releaseGraphicsLayer(layer) }
-    }
-    return remember { GlassBackdropState(layer) }
-}
-
-@Composable
-fun Modifier.glassBackdrop(state: GlassBackdropState): Modifier {
-    val radiusPx = with(LocalDensity.current) { GlassBlurRadius.toPx() }
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val effect = remember(radiusPx) { BlurEffect(radiusPx, radiusPx, TileMode.Clamp) }
-        SideEffect { state.layer.renderEffect = effect }
-    }
-    return this.drawWithContent {
-        val contentScope = this
-        drawContent()
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || !state.active) return@drawWithContent
-        val bar = state.barBoundsInRoot
-        if (bar.width <= 0f || bar.height <= 0f) return@drawWithContent
-        val origin = state.contentOriginInRoot
-        val left = bar.left - origin.x - radiusPx
-        val top = bar.top - origin.y - radiusPx
-        val right = bar.right - origin.x + radiusPx
-        val bottom = bar.bottom - origin.y + radiusPx
-        val layerWidth = (right - left).roundToInt()
-        val layerHeight = (bottom - top).roundToInt()
-        if (layerWidth <= 0 || layerHeight <= 0) return@drawWithContent
-        state.layer.topLeft = IntOffset(left.roundToInt(), top.roundToInt())
-        state.layer.record(IntSize(layerWidth, layerHeight)) {
-            clipRect(0f, 0f, layerWidth.toFloat(), layerHeight.toFloat()) {
-                translate(-left, -top) { contentScope.drawContent() }
-            }
-        }
-        val localBar = Rect(
-            bar.left - origin.x,
-            bar.top - origin.y,
-            bar.right - origin.x,
-            bar.bottom - origin.y,
-        )
-        val radius = localBar.height / 2f
-        val capsule = Path().apply {
-            addRoundRect(
-                RoundRect(
-                    localBar.left, localBar.top, localBar.right, localBar.bottom,
-                    CornerRadius(radius), CornerRadius(radius),
-                    CornerRadius(radius), CornerRadius(radius),
-                )
-            )
-        }
-        clipPath(capsule) { drawLayer(state.layer) }
-    }
-}
+fun rememberGlassBackdrop(): LayerBackdrop = rememberLayerBackdrop { drawContent() }
 
 @Composable
 fun GlassCapsule(
-    backdrop: GlassBackdropState,
+    backdrop: LayerBackdrop,
     modifier: Modifier = Modifier,
+    indicator: @Composable BoxScope.() -> Unit = {},
+    pressProgress: Animatable<Float, AnimationVector1D> = remember { Animatable(0f) },
     content: @Composable RowScope.() -> Unit,
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val pressScope = rememberCoroutineScope()
 
-    DisposableEffect(backdrop) {
-        backdrop.active = true
-        onDispose {
-            backdrop.active = false
-            backdrop.barBoundsInRoot = Rect.Zero
-        }
-    }
-
-    Row(
+    Box(
         modifier = modifier
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown()
+                    pressScope.launch { pressProgress.animateTo(1f, tween(90)) }
+                    waitForUpOrCancellation()
+                    pressScope.launch {
+                        pressProgress.animateTo(0f, spring(0.5f, 300f, 0.001f))
+                    }
+                }
+            }
             .fillMaxWidth()
-            .height(BarHeight)
-            .onGloballyPositioned { backdrop.barBoundsInRoot = it.boundsInRoot() }
-            .clip(CircleShape)
-            .background(glassTint(dark))
-            .border(1.dp, glassStroke(dark), CircleShape),
-        verticalAlignment = Alignment.CenterVertically,
-        content = content,
-    )
+            .height(BarHeight),
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawBackdrop(
+                    backdrop = backdrop,
+                    shape = { CircleShape },
+                    effects = {
+                        vibrancy()
+                        blur(GlassBlurRadius.toPx())
+                        lens(16.dp.toPx(), 32.dp.toPx())
+                    },
+                    layerBlock = {
+                        val p = pressProgress.value
+                        val maxScale = (size.width + 16.dp.toPx()) / size.width
+                        val s = 1f + (maxScale - 1f) * p
+                        scaleX = s
+                        scaleY = s
+                    },
+                    onDrawSurface = { drawRect(glassTint(dark)) }
+                )
+                .clip(CircleShape)
+                .border(1.dp, glassStroke(dark), CircleShape)
+        )
+        indicator()
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically,
+            content = content,
+        )
+    }
 }
 
 @Composable
 fun GlassBottomBar(
     currentDestination: NavDestination?,
     onNavigate: (Screen) -> Unit,
-    backdrop: GlassBackdropState,
+    backdrop: LayerBackdrop,
     modifier: Modifier = Modifier,
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
+    val haptics = LocalHapticFeedback.current
+    val currentIndex = bottomNavItems.indexOfFirst { screen ->
+        currentDestination?.hierarchy?.any { it.route == screen.route } == true
+    }
+    val liveIndex by rememberUpdatedState(currentIndex)
+    val liveNavigate by rememberUpdatedState(onNavigate)
 
     BoxWithConstraints(modifier.fillMaxWidth()) {
         // Keep a small horizontal inset so the longest English label can fit
         // without ellipsis on narrow screens and larger accessibility fonts.
         val labelAvail = maxWidth / 5f - Spacing.xs * 2
+        val cellDp = maxWidth / 5f
+        val cellPx = with(LocalDensity.current) { cellDp.toPx() }
+        val snapSpec = spring<Float>(0.5f, 300f, 0.001f)
 
-        GlassCapsule(backdrop) {
-            bottomNavItems.forEach { screen ->
-                val selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true
+        // 高亮/透镜的连续位置（tab 单位），拖动 1:1 跟手，松手吸附最近 tab
+        var displayIndex by remember { mutableIntStateOf(currentIndex) }
+        val pos = remember { Animatable(currentIndex.coerceAtLeast(0).toFloat()) }
+        val animScope = rememberCoroutineScope()
+        // 透镜默认隐藏：拖动时浮现、点按时闪现；按压放大由点按补一次闪现
+        val lensAlpha = remember { Animatable(0f) }
+        val pressProgress = remember { Animatable(0f) }
+        var tabFlashJob by remember { mutableStateOf<Job?>(null) }
+
+        LaunchedEffect(currentIndex) {
+            if (currentIndex >= 0) pos.animateTo(currentIndex.toFloat(), snapSpec)
+            displayIndex = currentIndex
+        }
+
+        val scrubState = rememberDraggableState { delta ->
+            animScope.launch {
+                pos.snapTo(
+                    (pos.value + delta / cellPx)
+                        .coerceIn(0f, (bottomNavItems.size - 1).toFloat())
+                )
+                val crossed = pos.value.roundToInt()
+                if (crossed != displayIndex) {
+                    displayIndex = crossed
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+            }
+        }
+
+        GlassCapsule(
+            backdrop = backdrop,
+            modifier = Modifier.draggable(
+                state = scrubState,
+                orientation = Orientation.Horizontal,
+                onDragStarted = {
+                    tabFlashJob?.cancel()
+                    lensAlpha.animateTo(1f, tween(100))
+                },
+                onDragStopped = { velocity ->
+                    val target = pos.value.roundToInt()
+                        .coerceIn(0, bottomNavItems.size - 1)
+                    displayIndex = target
+                    if (target != liveIndex) liveNavigate(bottomNavItems[target])
+                    pos.animateTo(target.toFloat(), snapSpec, velocity / cellPx)
+                    lensAlpha.animateTo(0f, tween(260))
+                },
+            ),
+            pressProgress = pressProgress,
+            indicator = {
+                Box(
+                    Modifier
+                        .align(Alignment.CenterStart)
+                        .graphicsLayer {
+                            translationX = pos.value * cellPx
+                            alpha = lensAlpha.value
+                        }
+                        .width(cellDp)
+                        .height(BarHeight - Spacing.m)
+                        .drawBackdrop(
+                            backdrop = backdrop,
+                            shape = { CircleShape },
+                            effects = {
+                                vibrancy()
+                                blur(GlassBlurRadius.toPx())
+                                lens(16.dp.toPx(), 32.dp.toPx())
+                            },
+                            onDrawSurface = {
+                                drawRect(
+                                    Brush.verticalGradient(
+                                        listOf(
+                                            Color.White.copy(alpha = 0.16f),
+                                            Color.White.copy(alpha = 0.06f)
+                                        )
+                                    )
+                                )
+                            }
+                        )
+                        .clip(CircleShape)
+                        .border(
+                            1.dp,
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color.White.copy(alpha = 0.40f),
+                                    Color.White.copy(alpha = 0.14f)
+                                )
+                            ),
+                            CircleShape
+                        )
+                )
+            },
+        ) {
+            bottomNavItems.forEachIndexed { index, screen ->
+                val selected = displayIndex == index
                 val color = when {
                     selected -> MaterialTheme.colorScheme.primary
                     dark -> Color.White.copy(alpha = 0.78f)
@@ -263,7 +300,17 @@ fun GlassBottomBar(
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null,
-                            onClick = { onNavigate(screen) }
+                            onClick = {
+                                onNavigate(screen)
+                                tabFlashJob?.cancel()
+                                tabFlashJob = animScope.launch {
+                                    launch { lensAlpha.animateTo(1f, tween(80)) }
+                                    launch { pressProgress.animateTo(1f, tween(60)) }
+                                    delay(440)
+                                    launch { lensAlpha.animateTo(0f, tween(260)) }
+                                    pressProgress.animateTo(0f, snapSpec)
+                                }
+                            }
                         ),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
@@ -290,46 +337,38 @@ fun GlassBottomBar(
     }
 }
 
-// 真液态玻璃加号：先贴一块本屏内容录制层的模糊副本（backdrop 列表），
-// 再画自己的玻璃底/高光/描边；录制层节点在 Scaffold 内容槽，不含加号本身
 @Composable
 fun GlassFab(
     onClick: () -> Unit,
-    backdrop: List<FabLayer> = emptyList(),
+    backdrop: Backdrop,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
-    val bounds = remember { mutableStateOf(Rect.Zero) }
     Box(
         modifier
             .size(56.dp)
-            .onGloballyPositioned { bounds.value = it.boundsInRoot() }
-            .clip(CircleShape)
-            .drawWithContent {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val b = bounds.value
-                    if (b.width > 0f && b.height > 0f) {
-                        for (fab in backdrop) {
-                            val o = fab.originInRoot.value
-                            translate(-(b.left - o.x), -(b.top - o.y)) {
-                                drawLayer(fab.layer)
-                            }
-                        }
-                    }
-                }
-                drawContent()
-            }
-            .background(glassTint(dark), CircleShape)
-            .background(
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = if (dark) 0.20f else 0.50f),
-                        Color.White.copy(alpha = 0f)
+            .drawBackdrop(
+                backdrop = backdrop,
+                shape = { CircleShape },
+                effects = {
+                    vibrancy()
+                    blur(GlassBlurRadius.toPx())
+                    lens(16.dp.toPx(), 32.dp.toPx())
+                },
+                onDrawSurface = {
+                    drawRect(glassTint(dark))
+                    drawRect(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.White.copy(alpha = if (dark) 0.20f else 0.50f),
+                                Color.White.copy(alpha = 0f)
+                            )
+                        )
                     )
-                ),
-                CircleShape
+                }
             )
+            .clip(CircleShape)
             .border(1.dp, glassStroke(dark), CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center

@@ -43,11 +43,11 @@ import com.example.diary.ui.components.SearchTextField
 import com.example.diary.ui.components.SearchToggleButton
 import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.navigation.GlassFab
-import com.example.diary.ui.navigation.fabRecord
 import com.example.diary.ui.navigation.glassStroke
 import com.example.diary.ui.navigation.glassTint
-import com.example.diary.ui.navigation.rememberFabLayer
+import com.example.diary.ui.navigation.rememberGlassBackdrop
 import com.example.diary.ui.theme.Spacing
+import com.kyant.backdrop.backdrops.layerBackdrop
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -78,7 +78,7 @@ fun CountdownListScreen(
     }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
-    val listFab = rememberFabLayer()
+    val listBackdrop = rememberGlassBackdrop()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -109,14 +109,14 @@ fun CountdownListScreen(
         floatingActionButton = {
             GlassFab(
                 onClick = onCreate,
-                backdrop = listOf(listFab),
+                backdrop = listBackdrop,
                 modifier = Modifier.padding(bottom = BottomBarContentInset)
             ) {
                 Icon(Icons.Default.Add, stringResource(R.string.cd_fab), tint = MaterialTheme.colorScheme.primary)
             }
         }
     ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).fabRecord(listFab)) {
+        Column(Modifier.fillMaxSize().padding(padding).layerBackdrop(listBackdrop)) {
             if (searchActive) {
                 SearchTextField(
                     value = searchQuery,

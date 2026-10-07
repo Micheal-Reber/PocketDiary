@@ -44,12 +44,12 @@ import com.example.diary.data.todo.TodoNotificationHelper
 import com.example.diary.ui.components.SwipeDeleteCard
 import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.navigation.GlassFab
-import com.example.diary.ui.navigation.fabRecord
 import com.example.diary.ui.navigation.glassStroke
 import com.example.diary.ui.navigation.glassTint
-import com.example.diary.ui.navigation.rememberFabLayer
+import com.example.diary.ui.navigation.rememberGlassBackdrop
 import com.example.diary.ui.theme.Spacing
 import com.example.diary.util.DateUtils
+import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlinx.coroutines.launch
 
 /**
@@ -214,7 +214,7 @@ fun TodoListScreen(
         }
     }
 
-    val listFab = rememberFabLayer()
+    val listBackdrop = rememberGlassBackdrop()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -228,7 +228,7 @@ fun TodoListScreen(
         floatingActionButton = {
             GlassFab(
                 onClick = { editingItem = null; showEditSheet = true },
-                backdrop = listOf(listFab),
+                backdrop = listBackdrop,
                 modifier = Modifier.padding(bottom = BottomBarContentInset)
             ) {
                 Icon(Icons.Filled.Add, stringResource(R.string.todo_fab), tint = MaterialTheme.colorScheme.primary)
@@ -236,7 +236,7 @@ fun TodoListScreen(
         }
     ) { padding ->
         if (active.isEmpty() && completed.isEmpty()) {
-            Box(Modifier.fillMaxSize().padding(padding).fabRecord(listFab), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize().padding(padding).layerBackdrop(listBackdrop), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
                     Spacer(Modifier.height(Spacing.l))
@@ -247,7 +247,7 @@ fun TodoListScreen(
             }
         } else {
         LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding).fabRecord(listFab),
+            modifier = Modifier.fillMaxSize().padding(padding).layerBackdrop(listBackdrop),
             contentPadding = PaddingValues(start = Spacing.l, end = Spacing.l, top = Spacing.m, bottom = BottomBarContentInset),
             verticalArrangement = Arrangement.spacedBy(Spacing.s)
         ) {

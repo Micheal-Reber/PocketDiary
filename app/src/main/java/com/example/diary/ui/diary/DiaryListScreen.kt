@@ -55,11 +55,12 @@ import com.example.diary.ui.components.SwipeDeleteCard
 import com.example.diary.ui.editor.markdownToPlainText
 import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.navigation.GlassFab
-import com.example.diary.ui.navigation.fabRecord
 import com.example.diary.ui.navigation.glassStroke
 import com.example.diary.ui.navigation.glassTint
-import com.example.diary.ui.navigation.rememberFabLayer
+import com.example.diary.ui.navigation.rememberGlassBackdrop
 import com.example.diary.ui.theme.Spacing
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -113,15 +114,16 @@ fun DiaryListScreen(
         SideEffect { blurLayer.renderEffect = effect }
     }
 
-    val photoFab = rememberFabLayer()
-    val listFab = rememberFabLayer()
+    val photoBackdrop = rememberGlassBackdrop()
+    val listBackdrop = rememberGlassBackdrop()
+    val fabBackdrop = rememberCombinedBackdrop(photoBackdrop, listBackdrop)
 
     Box(Modifier.fillMaxSize()) {
         if (bgBitmap != null) {
             Box(
                 Modifier
                     .fillMaxSize()
-                    .fabRecord(photoFab)
+                    .layerBackdrop(photoBackdrop)
                     .drawWithContent {
                         val contentScope = this
                         drawContent()
@@ -170,14 +172,14 @@ fun DiaryListScreen(
             floatingActionButton = {
                 GlassFab(
                     onClick = { onWriteDiary(null) },
-                    backdrop = listOf(photoFab, listFab),
+                    backdrop = fabBackdrop,
                     modifier = Modifier.padding(bottom = BottomBarContentInset)
                 ) {
                     Icon(Icons.Default.Add, stringResource(R.string.diary_fab), tint = MaterialTheme.colorScheme.primary)
                 }
             }
         ) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding).fabRecord(listFab)) {
+            Column(Modifier.fillMaxSize().padding(padding).layerBackdrop(listBackdrop)) {
                 if (searchActive) {
                     SearchTextField(
                         value = searchQuery,

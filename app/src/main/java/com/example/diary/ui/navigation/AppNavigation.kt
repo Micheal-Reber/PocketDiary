@@ -32,8 +32,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.boundsInRoot
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
@@ -75,6 +73,7 @@ import com.example.diary.ui.lock.LockMode
 import com.example.diary.ui.settings.SettingsScreen
 import com.example.diary.ui.todo.TodoListScreen
 import com.example.diary.ui.theme.Spacing
+import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 
@@ -170,8 +169,7 @@ fun AppNavigation(
         Box(
             Modifier
                 .fillMaxSize()
-                .onGloballyPositioned { backdrop.contentOriginInRoot = it.boundsInRoot().topLeft }
-                .glassBackdrop(backdrop)
+                .layerBackdrop(backdrop)
         ) {
             Scaffold(
                 contentWindowInsets = WindowInsets(0, 0, 0, 0),
