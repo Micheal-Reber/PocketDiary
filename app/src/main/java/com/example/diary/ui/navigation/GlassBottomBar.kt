@@ -2,6 +2,7 @@ package com.example.diary.ui.navigation
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
@@ -74,6 +75,7 @@ import com.kyant.backdrop.effects.vibrancy
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 /** 悬浮玻璃底栏在各 Tab 页内容底部预留的高度（下间隙 16 + 胶囊 64 + 上间隙 16）。 */
@@ -183,6 +185,11 @@ fun GlassBottomBar(
         val cellDp = maxWidth / 5f
         val cellPx = with(LocalDensity.current) { cellDp.toPx() }
         val snapSpec = spring<Float>(0.5f, 300f, 0.001f)
+        // 切 tab 的位移用按距离定时长的缓动：无回弹、远跳不过冲（弹簧会飞出胶囊）
+        fun jumpSpec(dist: Float) = tween<Float>(
+            (160 + 70 * dist).toInt().coerceAtMost(380),
+            easing = FastOutSlowInEasing
+        )
 
         // 高亮/透镜的连续位置（tab 单位），拖动 1:1 跟手，松手吸附最近 tab
         var displayIndex by remember { mutableIntStateOf(currentIndex) }
@@ -194,7 +201,9 @@ fun GlassBottomBar(
         var tabFlashJob by remember { mutableStateOf<Job?>(null) }
 
         LaunchedEffect(currentIndex) {
-            if (currentIndex >= 0) pos.animateTo(currentIndex.toFloat(), snapSpec)
+            if (currentIndex >= 0) {
+                pos.animateTo(currentIndex.toFloat(), jumpSpec(abs(currentIndex - pos.value)))
+            }
             displayIndex = currentIndex
         }
 
@@ -221,12 +230,16 @@ fun GlassBottomBar(
                     tabFlashJob?.cancel()
                     lensAlpha.animateTo(1f, tween(100))
                 },
-                onDragStopped = { velocity ->
+                onDragStopped = {
                     val target = pos.value.roundToInt()
                         .coerceIn(0, bottomNavItems.size - 1)
                     displayIndex = target
-                    if (target != liveIndex) liveNavigate(bottomNavItems[target])
-                    pos.animateTo(target.toFloat(), snapSpec, velocity / cellPx)
+                    if (target != liveIndex) {
+                        // 导航触发 LaunchedEffect 统一按距离 tween 吸附，避免双动画打架
+                        liveNavigate(bottomNavItems[target])
+                    } else {
+                        pos.animateTo(target.toFloat(), jumpSpec(abs(target - pos.value)))
+                    }
                     lensAlpha.animateTo(0f, tween(260))
                 },
             ),

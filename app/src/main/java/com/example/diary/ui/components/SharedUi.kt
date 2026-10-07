@@ -169,12 +169,14 @@ fun SearchToggleButton(
     searchActive: Boolean,
     contentDescriptionBase: String,
     onToggle: () -> Unit,
+    tint: Color = Color.Unspecified,
 ) {
     IconButton(onClick = onToggle) {
         Icon(
             if (searchActive) Icons.Default.Close else Icons.Default.Search,
             contentDescription = if (searchActive) stringResource(R.string.search_close)
-            else stringResource(R.string.search_open, contentDescriptionBase)
+            else stringResource(R.string.search_open, contentDescriptionBase),
+            tint = tint
         )
     }
 }

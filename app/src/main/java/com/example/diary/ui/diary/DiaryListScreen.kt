@@ -1,5 +1,6 @@
 package com.example.diary.ui.diary
 
+import android.graphics.Bitmap
 import android.os.Build
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -20,10 +21,12 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.BlurEffect
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.layer.GraphicsLayer
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -100,6 +103,11 @@ fun DiaryListScreen(
         value = BackgroundImageStore.decode(context, bgPath, maxDim = 1600)
     }
     val hasCustomBg = bgBitmap != null
+    // 壁纸平均亮度（一次性采样）：亮图加深黑纱、暗图减纱保观感
+    val bgLuminance by produceState(0.35f, bgBitmap) {
+        value = bgBitmap?.let { sampleWallpaperLuminance(it) } ?: 0.35f
+    }
+    val scrimAlpha = 0.15f + 0.33f * bgLuminance
 
     // 卡片衬底模糊：把「壁纸 + 黑纱」录进一层带 BlurEffect 的 GraphicsLayer，
     // 卡片绘制时先贴一块模糊副本再画自己的底色/文字（真正的 backdrop 磨砂）
@@ -145,7 +153,7 @@ fun DiaryListScreen(
                     modifier = Modifier.fillMaxSize()
                 )
                 // Scrim so cards/text keep their contrast on bright photos.
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.30f)))
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = scrimAlpha)))
             }
         }
 
@@ -153,11 +161,27 @@ fun DiaryListScreen(
             containerColor = if (hasCustomBg) Color.Transparent else MaterialTheme.colorScheme.background,
             topBar = {
                 TopAppBar(
-                    title = { Text(stringResource(R.string.diary_title), fontWeight = FontWeight.Bold) },
+                    modifier = if (hasCustomBg) {
+                        Modifier.background(
+                            Brush.verticalGradient(
+                                listOf(Color.Black.copy(alpha = 0.5f), Color.Black.copy(alpha = 0f))
+                            )
+                        )
+                    } else {
+                        Modifier
+                    },
+                    title = {
+                        Text(
+                            stringResource(R.string.diary_title),
+                            fontWeight = FontWeight.Bold,
+                            color = if (hasCustomBg) Color.White else Color.Unspecified
+                        )
+                    },
                     actions = {
                         SearchToggleButton(
                             searchActive = searchActive,
                             contentDescriptionBase = stringResource(R.string.diary_title),
+                            tint = if (hasCustomBg) Color.White else Color.Unspecified,
                             onToggle = {
                                 searchActive = !searchActive
                                 if (!searchActive) searchQuery = ""
@@ -202,7 +226,7 @@ fun DiaryListScreen(
                 // Search miss — distinct from the no-diaries state.
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.diary_no_results), style = MaterialTheme.typography.bodyLarge,
-                        color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        color = if (hasCustomBg) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             } else {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -215,10 +239,10 @@ fun DiaryListScreen(
                     )
                     Spacer(Modifier.height(Spacing.l))
                     Text(stringResource(R.string.diary_empty_title), style = MaterialTheme.typography.titleMedium,
-                        color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        color = if (hasCustomBg) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.height(Spacing.xs))
                     Text(stringResource(R.string.diary_empty_hint), style = MaterialTheme.typography.bodySmall,
-                        color = if (hasCustomBg) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.outline)
+                        color = if (hasCustomBg) Color.White else MaterialTheme.colorScheme.outline)
                 }
             }
             }
@@ -256,6 +280,7 @@ fun DiaryListScreen(
                                     entry = item.entry,
                                     highlightQuery = debouncedQuery,
                                     blurLayer = if (hasCustomBg && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) blurLayer else null,
+                                    onImageBg = hasCustomBg,
                                     onClick = { onEditDiary(item.entry.date) },
                                     onDelete = { scope.launch { diaryRepository.deleteEntry(item.entry.id) } }
                                 )
@@ -274,10 +299,14 @@ private fun DiaryCard(
     entry: DiaryEntry,
     highlightQuery: String = "",
     blurLayer: GraphicsLayer? = null,
+    onImageBg: Boolean = false,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    // 图片背景上固定深玻璃卡+白字，避免浅色主题黑字压在照片上
+    val cardTint = glassTint(if (onImageBg) true else dark)
+    val cardStroke = glassStroke(if (onImageBg) true else dark)
     val cardBounds = remember { mutableStateOf(Rect.Zero) }
     SwipeDeleteCard(
         onClick = onClick,
@@ -295,15 +324,17 @@ private fun DiaryCard(
                 }
                 drawContent()
             }
-            .background(glassTint(dark), MaterialTheme.shapes.medium)
-            .border(1.dp, glassStroke(dark), MaterialTheme.shapes.medium)
+            .background(cardTint, MaterialTheme.shapes.medium)
+            .border(1.dp, cardStroke, MaterialTheme.shapes.medium)
     ) {
         Column(modifier = Modifier.padding(Spacing.xl)) {
             // Heading is always the entry's date; mood rides on the right.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Text(entry.date, style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (!entry.mood.isNullOrEmpty()) Text(entry.mood, style = MaterialTheme.typography.titleLarge)
+                    fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                    color = if (onImageBg) Color.White else Color.Unspecified)
+                if (!entry.mood.isNullOrEmpty()) Text(entry.mood, style = MaterialTheme.typography.titleLarge,
+                    color = if (onImageBg) Color.White else Color.Unspecified)
             }
 
             Spacer(Modifier.height(8.dp))
@@ -312,7 +343,8 @@ private fun DiaryCard(
             // Markdown syntax is stripped so **bold** reads as bold words.
             HighlightedPreview(
                 text = markdownToPlainText(entry.content),
-                query = highlightQuery
+                query = highlightQuery,
+                onImageBg = onImageBg
             )
 
             Spacer(Modifier.height(10.dp))
@@ -324,12 +356,16 @@ private fun DiaryCard(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.heightIn(min = 18.dp)
             ) {
-                Text(entry.weather ?: "", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(entry.weather ?: "", style = MaterialTheme.typography.labelSmall,
+                    color = if (onImageBg) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant)
                 if (!entry.locationName.isNullOrEmpty()) {
                     if (!entry.weather.isNullOrEmpty()) Spacer(Modifier.width(8.dp))
-                    Icon(Icons.Default.LocationOn, null, Modifier.size(12.dp), tint = MaterialTheme.colorScheme.outline)
+                    Icon(Icons.Default.LocationOn, null, Modifier.size(12.dp),
+                        tint = if (onImageBg) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.outline)
                     Spacer(Modifier.width(2.dp))
-                    Text(entry.locationName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(entry.locationName, style = MaterialTheme.typography.labelSmall,
+                        color = if (onImageBg) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.outline,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -337,13 +373,17 @@ private fun DiaryCard(
 }
 
 @Composable
-private fun HighlightedPreview(text: String, query: String) {
+private fun HighlightedPreview(text: String, query: String, onImageBg: Boolean = false) {
+    val baseColor = when {
+        onImageBg -> Color.White.copy(alpha = 0.88f)
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
     val normalizedQuery = query.trim()
     if (normalizedQuery.isBlank()) {
         Text(
             text,
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = baseColor,
             minLines = 1,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis
@@ -373,7 +413,7 @@ private fun HighlightedPreview(text: String, query: String) {
     Text(
         highlighted,
         style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = baseColor,
         minLines = 1,
         maxLines = 2,
         overflow = TextOverflow.Ellipsis
@@ -403,4 +443,21 @@ private fun MonthDivider(month: Int, hasCustomBg: Boolean) {
             )
         )
     }
+}
+
+// 缩到 16x16 取 Rec.709 平均亮度，一次性开销可忽略
+private fun sampleWallpaperLuminance(source: ImageBitmap): Float {
+    val bmp = source.asAndroidBitmap()
+    val tiny = Bitmap.createScaledBitmap(bmp, 16, 16, true)
+    val pixels = IntArray(16 * 16)
+    tiny.getPixels(pixels, 0, 16, 0, 0, 16, 16)
+    if (tiny !== bmp) tiny.recycle()
+    var sum = 0.0
+    for (p in pixels) {
+        val r = (p shr 16) and 0xFF
+        val g = (p shr 8) and 0xFF
+        val b = p and 0xFF
+        sum += 0.299 * r + 0.587 * g + 0.114 * b
+    }
+    return (sum / (pixels.size * 255.0)).toFloat().coerceIn(0f, 1f)
 }
