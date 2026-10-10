@@ -34,8 +34,8 @@ android {
         applicationId = "com.example.diary"
         minSdk = 26
         targetSdk = 35
-        versionCode = 16
-        versionName = "1.10.0"
+        versionCode = 17
+        versionName = "1.10.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
     }
