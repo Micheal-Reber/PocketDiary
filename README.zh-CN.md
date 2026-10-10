@@ -13,7 +13,7 @@
 
 [English](README.md) | **简体中文**
 
-**[⬇️ 下载安装](#-下载安装)** · **[✨ 功能](#-功能一览)** · **[🛠️ 技术栈](#-技术栈)**
+**[⬇️ 下载安装](#-下载安装)** · **[✨ 功能](#-功能一览)** · **[🛠️ 技术栈](#-技术栈)** · **[🙏 鸣谢](#-鸣谢)**
 
 </div>
 
@@ -103,7 +103,7 @@
 - 关于页版本号自动读 `BuildConfig.VERSION_NAME`
 
 ### 🎨 设计语言
-- **真液态玻璃**：悬浮胶囊底栏 + 加号按钮实时取样背后内容做 backdrop 模糊
+- **真液态玻璃**：悬浮胶囊底栏 + 加号按钮实时取样背后内容做 backdrop 折射与模糊（`io.github.kyant0:backdrop`）
 - 卡片层次靠 `surfaceContainerLow/High` 色阶，圆角/间距全部走令牌（无字面量）
 
 ## 📥 下载安装
@@ -117,7 +117,7 @@
 | 分类 | 方案 |
 |------|------|
 | 语言 | Kotlin 2.3.21 + Jetpack Compose BOM 2026.01.01（Compose 1.10.2 / M3 1.4） |
-| UI | Jetpack Compose + Material 3，玻璃效果用 `GraphicsLayer` + `BlurEffect` |
+| UI | Jetpack Compose + Material 3，液态玻璃用 [`io.github.kyant0:backdrop`](https://github.com/Kyant0/AndroidLiquidGlass) |
 | 数据库 | Room **v14**（DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem 五表；v9→14 手写迁移链） |
 | 偏好 | DataStore Preferences |
 | 导航 | Navigation Compose（底部五 Tab + 编辑器 + 统计 + 倒数日子路由） |
@@ -169,7 +169,7 @@ app/src/main/java/com/example/diary/
     ├── editor/                # 编辑器：无边框书写、Markdown 预览、图文混排
     ├── habits/                # 打卡日历 + 统计图表（LineChart 自研）+ ViewModel
     ├── lock/                  # 密码锁键盘屏
-    ├── navigation/            # 底部五 Tab + 路由 + 玻璃底栏/加号（GlassBottomBar）
+    ├── navigation/            # 底部五 Tab + 路由 + 液态玻璃底栏/加号（LiquidGlassBottomBar）
     ├── settings/              # 设置页（数据迁移 + 关于读 BuildConfig）
     ├── theme/                 # Material 3 主题 + 圆角/间距令牌
     └── todo/                  # 待办列表 + 编辑/提醒 Sheet + 响铃页
@@ -182,6 +182,11 @@ JVM 单测覆盖：`DateMathTest`（倒数日正倒判定）/ `TodoReminderSched
 ```bash
 ./gradlew test
 ```
+
+## 🙏 鸣谢
+
+- **[Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)** —— PocketDiary 的液态玻璃界面构建于它的 `backdrop` 库（`io.github.kyant0:backdrop`）之上。折射 / 色散着色器、边缘高光、内阴影，以及示例目录里的 `LiquidBottomTabs`，是我们悬浮底栏、悬浮按钮和玻璃卡片的实现参考。感谢这个库与示例工程。
+- **[perchA5uka/Niriko](https://github.com/perchA5uka/Niriko)** —— 它的 `docs/dock-kyant-migration-plan.md` 与 `ui/bottombar`（MIT）记录了移植悬浮胶囊底栏的坑：命中格与指示器是两套坐标、手势层的归属、指示器必须显式指定宽度。我们的实现参考了这些结论。
 
 ## 📄 License
 

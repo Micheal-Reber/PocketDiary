@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -369,7 +370,15 @@ fun AppNavigation(
                                         contentDescription = null
                                     )
                                 },
-                                label = { Text(stringResource(screen.titleRes)) }
+                                label = {
+                                    Text(
+                                        stringResource(screen.titleRes),
+                                        fontSize = 10.sp,
+                                        letterSpacing = 0.sp,
+                                        maxLines = 1,
+                                        softWrap = false
+                                    )
+                                }
                             )
                         }
                     }

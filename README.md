@@ -13,7 +13,7 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-**[⬇️ Download](#-download)** · **[✨ Features](#-features)** · **[🛠️ Tech Stack](#-tech-stack)**
+**[⬇️ Download](#-download)** · **[✨ Features](#-features)** · **[🛠️ Tech Stack](#-tech-stack)** · **[🙏 Acknowledgements](#-acknowledgements)**
 
 </div>
 
@@ -118,7 +118,7 @@ Grab the latest `app-release.apk` from the [**Releases page**](https://github.co
 | Area | Choice |
 |------|--------|
 | Language | Kotlin 2.3.21 + Jetpack Compose BOM 2026.01.01 (Compose 1.10.2 / M3 1.4) |
-| UI | Jetpack Compose + Material 3; glass effects via `GraphicsLayer` + `BlurEffect` |
+| UI | Jetpack Compose + Material 3; liquid glass via [`io.github.kyant0:backdrop`](https://github.com/Kyant0/AndroidLiquidGlass) |
 | Database | Room **v14** (5 tables: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem; handwritten migration chain v9→14) |
 | Preferences | DataStore Preferences |
 | Navigation | Navigation Compose (5 bottom tabs + editor + statistics + countdown sub-routes) |
@@ -170,7 +170,7 @@ app/src/main/java/com/example/diary/
     ├── editor/                # Editor: borderless writing, Markdown preview, photo posts
     ├── habits/                # Habit calendar + statistics charts (self-built LineChart) + ViewModel
     ├── lock/                  # PIN lock keypad screen
-    ├── navigation/            # Bottom tabs + routes + glass bottom bar / FAB (GlassBottomBar)
+    ├── navigation/            # Bottom tabs + routes + liquid-glass bottom bar / FAB (LiquidGlassBottomBar)
     ├── settings/              # Settings (data migration + About reading BuildConfig)
     ├── theme/                 # Material 3 theme + radius/spacing tokens
     └── todo/                  # Todos list + edit/reminder sheets + ring activity
@@ -183,6 +183,11 @@ JVM unit tests cover `DateMathTest` (countdown date math) / `TodoReminderSchedul
 ```bash
 ./gradlew test
 ```
+
+## 🙏 Acknowledgements
+
+- **[Kyant0/AndroidLiquidGlass](https://github.com/Kyant0/AndroidLiquidGlass)** — PocketDiary's glass surfaces are built on its `backdrop` library (`io.github.kyant0:backdrop`). The refraction / chromatic-dispersion shader, rim highlight, inner shadow, and the sample catalog's `LiquidBottomTabs` were the reference for our floating bottom bar, FAB and glass cards. Thanks for the library and the catalog.
+- **[perchA5uka/Niriko](https://github.com/perchA5uka/Niriko)** — its `docs/dock-kyant-migration-plan.md` and `ui/bottombar` package (MIT) documented the pitfalls of porting the floating capsule dock: hit-cell vs. indicator coordinate spaces, gesture-layer ownership, explicit indicator width. Those notes shaped our implementation.
 
 ## 📄 License
 
