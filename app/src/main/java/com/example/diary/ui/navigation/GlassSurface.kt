@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -32,10 +33,19 @@ import com.kyant.backdrop.effects.vibrancy
 val FloatingBottomInset = 96.dp
 val DockedBottomBarHeight = 80.dp
 val LocalBottomBarInset = staticCompositionLocalOf { FloatingBottomInset }
+val LocalFloatingBar = staticCompositionLocalOf { true }
 val BottomBarContentInset: Dp
     @Composable get() = LocalBottomBarInset.current
 
 private val GlassBlurRadius = 20.dp
+
+// 与主底栏 LiquidGlassBottomBar 同一套玻璃配方，保证胶囊和底栏质感一致
+private val CapsuleBlurRadius = 8.dp
+private val CapsuleRefraction = 24.dp
+
+@Composable
+private fun glassContainerColor(): Color =
+    MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.40f)
 
 internal fun glassTint(dark: Boolean): Brush =
     if (dark) {
@@ -61,26 +71,21 @@ fun GlassCapsule(
     indicator: @Composable BoxScope.() -> Unit = {},
     content: @Composable RowScope.() -> Unit,
 ) {
-    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val containerColor = glassContainerColor()
     Box(
         modifier
             .height(64.dp)
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { CircleShape },
+                shape = { RoundedCornerShape(50.dp) },
                 effects = {
                     vibrancy()
-                    blur(GlassBlurRadius.toPx())
-                    lens(16.dp.toPx(), 32.dp.toPx())
+                    blur(CapsuleBlurRadius.toPx())
+                    lens(CapsuleRefraction.toPx(), CapsuleRefraction.toPx())
                 },
-                onDrawSurface = {
-                    drawRect(
-                        if (dark) Color.Black.copy(alpha = 0.50f)
-                        else Color.White.copy(alpha = 0.42f)
-                    )
-                }
+                onDrawSurface = { drawRect(containerColor) }
             )
-            .clip(CircleShape)
+            .clip(RoundedCornerShape(50.dp))
     ) {
         indicator()
         Row(

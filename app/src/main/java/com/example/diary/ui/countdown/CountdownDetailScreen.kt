@@ -58,6 +58,7 @@ import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.navigation.GlassCapsule
+import com.example.diary.ui.navigation.LocalFloatingBar
 import com.example.diary.ui.navigation.rememberGlassBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.example.diary.ui.theme.Spacing
@@ -75,6 +76,21 @@ import java.time.LocalDate
  */
 
 // ── Helper composables (defined BEFORE main function so they're in scope) ──
+
+@Composable
+private fun RowScope.DockedActionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    selected: Boolean = false,
+    onClick: () -> Unit,
+) {
+    NavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        icon = { Icon(icon, contentDescription = null) },
+        label = { Text(label, maxLines = 1) },
+    )
+}
 
 @Composable
 private fun RowScope.ActionItem(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
@@ -123,7 +139,8 @@ private fun ClassicFullscreenContent(
     dateLine: String,
     endDate: String?,
     time: String?,
-    fontDark: Boolean = false
+    fontDark: Boolean = false,
+    bottomInset: androidx.compose.ui.unit.Dp = 0.dp,
 ) {
     val textColor = if (fontDark) Color.Black else Color.White
     val subTextColor = if (fontDark) Color(0xFF333333) else Color(0xFFCCCCCC)
@@ -188,7 +205,7 @@ private fun ClassicFullscreenContent(
         Spacer(Modifier.weight(1f))
 
         Column(
-            Modifier.fillMaxWidth().padding(bottom = Spacing.xl),
+            Modifier.fillMaxWidth().padding(bottom = bottomInset + Spacing.xl),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -646,6 +663,8 @@ fun CountdownDetailScreen(
     LaunchedEffect(e.id) { showBackgroundSheet = false }
 
     val backdrop = rememberGlassBackdrop()
+    val floatingBar = LocalFloatingBar.current
+    val navBottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
@@ -713,7 +732,8 @@ fun CountdownDetailScreen(
                         dateLine = "${e.date} · ${weekdayLabel(context, anchor)}",
                         endDate = e.endDate,
                         time = e.time,
-                        fontDark = e.fontDark
+                        fontDark = e.fontDark,
+                        bottomInset = BottomBarContentInset
                     )
                 }
 
@@ -783,28 +803,48 @@ fun CountdownDetailScreen(
             }
         }
 
-        GlassCapsule(
-            backdrop = backdrop,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(horizontal = Spacing.l)
-                .windowInsetsPadding(WindowInsets.navigationBars)
-                .padding(bottom = Spacing.l),
-        ) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
+        if (floatingBar) {
+            GlassCapsule(
+                backdrop = backdrop,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = Spacing.l)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(bottom = Spacing.l),
             ) {
-                ActionItem(Icons.Default.IosShare, stringResource(R.string.cd_action_share)) { shareCard() }
-                ActionItem(Icons.Default.SaveAlt, stringResource(R.string.cd_action_save)) { saveToGallery() }
-                ActionItem(Icons.Default.Texture, stringResource(R.string.cd_action_bg)) { showBackgroundSheet = true }
-                ActionItem(
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    ActionItem(Icons.Default.IosShare, stringResource(R.string.cd_action_share)) { shareCard() }
+                    ActionItem(Icons.Default.SaveAlt, stringResource(R.string.cd_action_save)) { saveToGallery() }
+                    ActionItem(Icons.Default.Texture, stringResource(R.string.cd_action_bg)) { showBackgroundSheet = true }
+                    ActionItem(
+                        if (e.highlighted) Icons.Filled.Flag else Icons.Outlined.Flag,
+                        stringResource(R.string.cd_action_highlight)
+                    ) {
+                        scope.launch { repository.save(e.copy(highlighted = !e.highlighted)) }
+                    }
+                    ActionItem(Icons.Default.Add, stringResource(R.string.cd_action_new)) { onCreate() }
+                }
+            }
+        } else {
+            // 经典停靠：与主底栏同一套原生 NavigationBar
+            NavigationBar(
+                modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth(),
+                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            ) {
+                DockedActionItem(Icons.Default.IosShare, stringResource(R.string.cd_action_share)) { shareCard() }
+                DockedActionItem(Icons.Default.SaveAlt, stringResource(R.string.cd_action_save)) { saveToGallery() }
+                DockedActionItem(Icons.Default.Texture, stringResource(R.string.cd_action_bg)) { showBackgroundSheet = true }
+                DockedActionItem(
                     if (e.highlighted) Icons.Filled.Flag else Icons.Outlined.Flag,
-                    stringResource(R.string.cd_action_highlight)
+                    stringResource(R.string.cd_action_highlight),
+                    selected = e.highlighted,
                 ) {
                     scope.launch { repository.save(e.copy(highlighted = !e.highlighted)) }
                 }
-                ActionItem(Icons.Default.Add, stringResource(R.string.cd_action_new)) { onCreate() }
+                DockedActionItem(Icons.Default.Add, stringResource(R.string.cd_action_new)) { onCreate() }
             }
         }
 

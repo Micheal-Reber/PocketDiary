@@ -182,7 +182,10 @@ fun AppNavigation(
 
     val backdrop = rememberGlassBackdrop()
 
-    CompositionLocalProvider(LocalBottomBarInset provides bottomBarInset) {
+    CompositionLocalProvider(
+        LocalBottomBarInset provides bottomBarInset,
+        LocalFloatingBar provides floatingBar,
+    ) {
         Box(Modifier.fillMaxSize()) {
             Box(
                 Modifier
