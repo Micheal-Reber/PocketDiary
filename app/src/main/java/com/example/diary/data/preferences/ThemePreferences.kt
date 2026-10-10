@@ -26,6 +26,21 @@ class ThemePreferences(context: Context) {
         val DIARY_BACKGROUND_KEY = stringPreferencesKey("diary_background_path")
         val DYNAMIC_COLOR_KEY = booleanPreferencesKey("dynamic_color")
         val EDITOR_PREVIEW_KEY = booleanPreferencesKey("editor_preview")
+        val FLOATING_BAR_KEY = booleanPreferencesKey("floating_bar")
+    }
+
+    val floatingBar: Flow<Boolean> = appContext.dataStore.data.map { preferences ->
+        preferences[FLOATING_BAR_KEY] ?: true
+    }
+
+    suspend fun setFloatingBar(enabled: Boolean) {
+        try {
+            appContext.dataStore.edit { preferences ->
+                preferences[FLOATING_BAR_KEY] = enabled
+            }
+        } catch (e: java.io.IOException) {
+            Log.w("ThemePreferences", "Failed to persist bottom bar style", e)
+        }
     }
 
     /** Editor markdown-preview toggle, persisted across editor sessions. */

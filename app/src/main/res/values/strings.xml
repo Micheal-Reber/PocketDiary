@@ -17,6 +17,9 @@
     <string name="settings_background_custom">已自定义，点击更换照片</string>
     <string name="settings_background_default">使用默认背景，点击选择照片</string>
     <string name="settings_restore_default">恢复默认</string>
+    <string name="settings_nav_bar">底部导航栏</string>
+    <string name="settings_nav_bar_floating">悬浮玻璃胶囊，可左右拖动切换</string>
+    <string name="settings_nav_bar_docked">经典停靠式导航栏</string>
     <string name="settings_section_privacy">隐私</string>
     <string name="settings_lock">日记密码锁</string>
     <string name="settings_lock_desc">打开日记页面时需要输入密码</string>

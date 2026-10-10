@@ -17,6 +17,9 @@
     <string name="settings_background_custom">Customized — tap to change the photo</string>
     <string name="settings_background_default">Using default background — tap to pick a photo</string>
     <string name="settings_restore_default">Restore default</string>
+    <string name="settings_nav_bar">Bottom navigation</string>
+    <string name="settings_nav_bar_floating">Floating glass capsule — drag sideways to switch tabs</string>
+    <string name="settings_nav_bar_docked">Classic docked navigation bar</string>
     <string name="settings_section_privacy">Privacy</string>
     <string name="settings_lock">Diary PIN lock</string>
     <string name="settings_lock_desc">Require a password to open the diary</string>
