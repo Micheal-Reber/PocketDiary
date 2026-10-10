@@ -338,7 +338,7 @@ fun AppNavigation(
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .padding(bottom = Spacing.l)
                 ) {
-                    GlassBottomBar(
+                    LiquidGlassBottomBar(
                         currentDestination = currentDestination,
                         onNavigate = navigateTab,
                         backdrop = backdrop

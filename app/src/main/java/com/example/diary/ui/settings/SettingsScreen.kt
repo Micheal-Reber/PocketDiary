@@ -24,6 +24,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Wallpaper
+import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -62,6 +63,7 @@ fun SettingsScreen(
     val context = LocalContext.current
     val isDarkMode by themePreferences.isDarkMode.collectAsStateWithLifecycle(initialValue = false)
     val dynamicColor by themePreferences.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
+    val floatingBar by themePreferences.floatingBar.collectAsStateWithLifecycle(initialValue = true)
     // Diary list background: picked photo copied into private storage; the
     // stored value is filesDir-relative (null = default color background).
     val bgPath by themePreferences.diaryBackgroundPath.collectAsStateWithLifecycle(initialValue = null)
@@ -299,6 +301,24 @@ fun SettingsScreen(
                 },
                 leading = { Icon(Icons.Default.Language, contentDescription = null) },
                 modifier = Modifier.clickable { langDialog = true }
+            )
+
+            SettingsRow(
+                headline = stringResource(R.string.settings_nav_bar),
+                supporting = if (floatingBar) {
+                    stringResource(R.string.settings_nav_bar_floating)
+                } else {
+                    stringResource(R.string.settings_nav_bar_docked)
+                },
+                leading = { Icon(Icons.Default.ViewCarousel, contentDescription = null) },
+                trailing = {
+                    Switch(
+                        checked = floatingBar,
+                        onCheckedChange = { checked ->
+                            scope.launch { themePreferences.setFloatingBar(checked) }
+                        }
+                    )
+                }
             )
 
             HorizontalDivider(
