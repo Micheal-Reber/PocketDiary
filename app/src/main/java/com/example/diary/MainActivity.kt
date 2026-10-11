@@ -65,6 +65,9 @@ class MainActivity : ComponentActivity() {
 
         // Notification deep-link: TodoNotificationHelper puts open_todo_id here.
         val openTodoId = intent.getLongExtra("open_todo_id", -1L).takeIf { it > 0 }
+        // Widget deep-link: CountdownWidgetProvider puts open_countdown_id here.
+        val openCountdownId = intent.getLongExtra("open_countdown_id", -1L).takeIf { it > 0 }
+        val openCountdownTab = intent.getBooleanExtra("open_countdown_tab", false)
 
         setContent {
             // collectAsStateWithLifecycle suspends collection when the activity
@@ -81,7 +84,9 @@ class MainActivity : ComponentActivity() {
                 AppNavigation(
                     themePreferences = themePreferences,
                     database = database,
-                    initialOpenTodoId = openTodoId
+                    initialOpenTodoId = openTodoId,
+                    initialOpenCountdownId = openCountdownId,
+                    initialOpenCountdownTab = openCountdownTab
                 )
             }
         }

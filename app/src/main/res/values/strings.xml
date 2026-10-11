@@ -304,6 +304,13 @@
     <string name="reminder_repeat_daily">每天</string>
     <string name="backup_version_gate">备份版本 %1$d 不兼容（当前支持 1..%2$d）</string>
     <string name="cd_share_target">目标日: %1$s</string>
+
+    <string name="cd_widget_desc">倒数日桌面小组件：显示还有多少天，左右滑动或点箭头切换</string>
+    <string name="cd_widget_empty">还没有倒数日</string>
+    <string name="cd_widget_empty_hint">点击添加</string>
+    <string name="cd_widget_prev">上一个</string>
+    <string name="cd_widget_next">下一个</string>
+    <string name="cd_widget_date_line">%1$s %2$s</string>
     <string-array name="month_full">
         <item>一月</item>
         <item>二月</item>

@@ -10,6 +10,7 @@ import com.example.diary.data.local.TodoItem
 import com.example.diary.data.repository.TodoRepository
 import com.example.diary.data.todo.TodoNotificationHelper
 import com.example.diary.data.todo.TodoReminderScheduler
+import com.example.diary.ui.widget.CountdownWidgetRefresh
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -28,6 +29,7 @@ class BootCompletedReceiver : BroadcastReceiver() {
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
+                CountdownWidgetRefresh.scheduleMidnight(context)
                 val db = AppDatabase.getInstance(context)
                 val repo = TodoRepository(db.todoDao(), context)
                 TodoReminderScheduler.rescheduleAll(context, repo)

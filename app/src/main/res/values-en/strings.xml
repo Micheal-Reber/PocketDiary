@@ -304,6 +304,13 @@
     <string name="reminder_repeat_daily">daily</string>
     <string name="backup_version_gate">Backup version %1$d is incompatible (supported: 1..%2$d)</string>
     <string name="cd_share_target">Target date: %1$s</string>
+
+    <string name="cd_widget_desc">Countdown home-screen widget: days left, swipe or tap the arrows to switch events</string>
+    <string name="cd_widget_empty">No countdowns yet</string>
+    <string name="cd_widget_empty_hint">Tap to add</string>
+    <string name="cd_widget_prev">Previous</string>
+    <string name="cd_widget_next">Next</string>
+    <string name="cd_widget_date_line">%1$s %2$s</string>
     <string-array name="month_full">
         <item>January</item>
         <item>February</item>

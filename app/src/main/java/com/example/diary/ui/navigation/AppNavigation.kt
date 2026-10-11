@@ -103,13 +103,15 @@ fun AppNavigation(
     themePreferences: ThemePreferences,
     database: AppDatabase,
     initialOpenTodoId: Long? = null,
+    initialOpenCountdownId: Long? = null,
+    initialOpenCountdownTab: Boolean = false,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val navController = rememberNavController()
     val diaryRepository = remember { DiaryRepository(database.diaryDao()) }
     val habitRepository = remember { HabitRepository(database.habitDao()) }
-    val countdownRepository = remember { CountdownRepository(database.countdownDao()) }
+    val countdownRepository = remember { CountdownRepository(database.countdownDao(), context) }
     val todoRepository = remember { TodoRepository(database.todoDao(), context) }
     val appLockPreferences = remember { AppLockPreferences(context) }
     val languagePreferences = remember { LanguagePreferences(context) }
@@ -133,6 +135,21 @@ fun AppNavigation(
     LaunchedEffect(initialOpenTodoId) {
         if (initialOpenTodoId != null && initialOpenTodoId > 0) {
             navController.navigate(Screen.Todo.route) {
+                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
+
+    // 小组件点进来：读 open_countdown_id / open_countdown_tab → 直达倒数日
+    LaunchedEffect(initialOpenCountdownId, initialOpenCountdownTab) {
+        if (initialOpenCountdownId != null && initialOpenCountdownId > 0) {
+            navController.navigate("countdown_detail/$initialOpenCountdownId") {
+                launchSingleTop = true
+            }
+        } else if (initialOpenCountdownTab) {
+            navController.navigate(Screen.Countdown.route) {
                 popUpTo(navController.graph.findStartDestination().id) { saveState = true }
                 launchSingleTop = true
                 restoreState = true

@@ -70,6 +70,7 @@ app/src/main/java/com/example/diary/
 └── ui/
     ├── components/         # SharedUi：SwipeDelete/Confirm/Search/UtcDatePicker/PresetChip（多屏共用）
     ├── countdown/          # 倒数日：列表/编辑/详情 三屏 + 共享件（双卡片风格：CLASSIC / PHOTO_CARD）
+    ├── widget/             # 倒数日桌面小组件（RemoteViews）：Provider / Model 纯逻辑 / Refresh 调度 / State 选中项 / Renderer 背景位图
     ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索（250ms 防抖）
     ├── editor/             # 编辑器：无边框书写、Markdown 预览、📷插图（日期/chips 无描边）
     ├── habits/             # 打卡日历 + 统计图表（LineChart 自研）
@@ -100,6 +101,7 @@ app/src/main/java/com/example/diary/
 | 打卡日历 | `ui/habits/CalendarComponents.kt` + `HabitsViewModel.kt` | 多习惯彩点、月份分割 |
 | 倒数日正倒判定 | `data/countdown/DateMath.kt` + 单测 | 三态 Today/Countdown/Countup；+1日；重复滚动；**改动必跑 JUnit** |
 | 倒数日界面 | `ui/countdown/*Screen.kt` + `CountdownUi.kt` | 色板下标 0=自动(倒蓝/正橙)；过程式纹理 TextureBackdrop |
+| 倒数日桌面小组件 | `ui/widget/CountdownWidgetProvider.kt` + `CountdownWidgetModel.kt` + `CountdownWidgetRefresh.kt` + `CountdownWidgetState.kt` + `CountdownWidgetRenderer.kt` + `res/layout/countdown_widget.xml` + `res/xml/countdown_widget_info.xml` | **纯 RemoteViews，零新依赖**（不用 Glance/WorkManager）；单层扁平树，`‹ ›` 切换；`save/delete` → `updateAll` 触发刷新。**改之前先读「桌面小组件」约定与坑点 19-22** |
 | 分享图生成 | `data/countdown/ShareCardRenderer.kt` | 纯 android.graphics 离屏 1080×1440；FileProvider 在 Manifest |
 | 亮暗/开屏 | `Theme.kt` + `themes.xml` + `MainActivity.kt` | 独立于系统 |
 | 背景图缓存 | `data/image/BackgroundImageStore.kt` | 覆盖同名文件后必须 `clearCache()`；倒数日每事件图走 EventImageStore |
@@ -135,6 +137,7 @@ app/src/main/java/com/example/diary/
 | `BackupRepository.export/importData` | suspend | data/backup | 迁移唯一入口（Uri SAF）；内部走 Export/ImportService |
 | `BackgroundImageStore.normalizeStoredPath` | fun | data/image | 绝对路径 → filesDir 相对（备份/导入用） |
 | `DateUtils.format*` | fun | util | 日期/提醒共享格式化——**新屏必须复用，勿复制** |
+| `CountdownWidgetModel.responsiveNumberSp` | fun | ui/widget/CountdownWidgetModel.kt | 小组件数字字号自适应（按 cell 尺寸 + 位数），纯函数便于单测 |
 
 ## 关键约定（务必遵守）
 
@@ -171,6 +174,18 @@ app/src/main/java/com/example/diary/
 - 解析用 `org.commonmark:commonmark`，渲染用自研子集（`ui/editor/MarkdownText.kt`）——**不要**引入 mikepenz/richtext 等渲染库
 - 列表卡片预览必须走 `markdownToPlainText()` 剥离语法
 
+### 桌面小组件（RemoteViews）
+参考实现：<https://github.com/ybhgl/Reminder>（同类倒数日 App，实测能在 MIUI 桌面正常显示；本项目 widget 结构即按它本地化重写）
+
+- **单层扁平树，禁用嵌套**：`StackView` + `addView(子 RemoteViews)` + `setDisplayedChild` 的轮播方案在 MIUI 桌面 `LauncherWidgetLayoutFactory.AutoScale` 递归里**只建出容器、子 View 全部丢失**，且不抛异常（踩过）。要轮播就用 `‹ ›` 按钮 → `PendingIntent.getBroadcast` → 重排索引 → 重建整棵 RemoteViews
+- **widget 布局里禁止出现任何 `@string`**：`android:text="@string/…"` / `contentDescription="@string/…"` 会让桌面 inflate 时抛 `Resources$NotFoundException`（报错文案是「载入窗口小部件时出现问题」，异常在 `com.miui.home` 进程里，本包 logcat 看不到）。文字一律 `tools:text` 占位 + 代码 `setTextViewText`/`setContentDescription`；`@drawable`/`@color`/`@layout` 可正常使用
+- **语言/暗色必须自取**：widget 进程 context 由桌面提供，`Locale.getDefault()`/`uiMode` 不可靠——用 `LocaleHelper.wrap(context)` 与 `ThemePreferences.isDarkMode`，再 `setTextViewText` 传字符串
+- **响应式字号**：`views.setFloat(viewId, "setTextSize", sp)`，尺寸取 `OPTION_APPWIDGET_MIN_WIDTH/HEIGHT`；算法见 `CountdownWidgetModel.responsiveNumberSp()`（纯函数，已本地化自 Reminder）
+- **强调色**：`views.setInt(id, "setColorFilter", color)` 染 shape drawable；透明度 `setInt(id, "setImageAlpha", alpha)`
+- **背景位图预算**：单页 ≤192px + `RGB_565`（Binder 传输上限约 1MB），生成见 `CountdownWidgetRenderer`
+- **刷新时机**：`updatePeriodMillis=1800000`（系统硬下限 30 分钟）+ 系统广播 `DATE_CHANGED`/`TIME_SET`/`TIMEZONE_CHANGED`/`USER_PRESENT`（`USER_PRESENT` = 解锁刷新，性价比最高）+ 零点 `AlarmManager`；数据变更走 `CountdownRepository.save/delete` → `CountdownWidgetRefresh.updateAll`
+- 后续做 4×2 列表直接抄 Reminder：`RemoteViewsService` + `ListView` + `setRemoteAdapter` + `setPendingIntentTemplate`/`setOnClickFillInIntent`，注意模板 PendingIntent **必须 `FLAG_MUTABLE`** 否则 fill-in 失效
+
 ### 代码风格
 - **不写新代码注释**（除用户明确要求）
 - 命名/风格跟随邻近文件；改 UI 前先读相邻实现再动手
@@ -195,6 +210,10 @@ app/src/main/java/com/example/diary/
 16. **Robolectric**：4.11 最高官方 SDK 34，而 targetSdk=35——用 Robolectric 的测试类必须 `@Config(sdk = [34])`，否则 `Package targetSdkVersion=35 > maxSdkVersion=34` 初始化失败
 17. **备份安全**：导入必须先过版本闸门（`version < 1 || > CURRENT_VERSION` → Failure）；ZIP 解压防滑移（禁 `..`）；STORED 需 CRC 校验；日记背景路径入库前 `normalizeStoredPath`
 18. **Kotlin DSL 签名配置**：`build.gradle.kts` 里用 `java.util.Properties` 必须文件头 `import java.util.Properties`（脚本内 `java.util` 会 Unresolved）
+19. **widget 崩溃看不到日志（踩过）**：桌面 inflate 我们布局的异常发生在 **`com.miui.home` 进程**，本包 logcat 一片干净，别据此判断"没问题"。看 `adb logcat -s LauncherWidgetLayoutFactory:V Launcher.Widget:V`；两个决定性信号：**① 有没有 `InflateException`/`Resources$NotFoundException`；② `LauncherWidgetLayoutFactory` 逐节点打印的 `app:id/xxx` 是否覆盖全部子 View**（只打出容器、没有子节点 = 嵌套层被截断）
+20. **`adb shell am broadcast` 可能被 MIUI 拦（踩过）**：`W/BroadcastQueue: Greezer Denial: ... need cached broadcast`——目标进程处于 cached 状态时 MIUI 直接丢弃来自 shell(uid 2000) 的广播，**本包进程压根没起来**，于是"广播后 logcat 无异常"是假象。验证 widget 前必须先 `am start -n com.example.diary/.MainActivity` 预热进程再发广播；代码内 `updateAll` 是 App 自己在前台 `sendBroadcast`，不受影响
+21. **桌面会缓存坏掉的 widget 视图**：inflate 失败后那个「载入窗口小部件时出现问题」的占位框会被复用，改代码重装**不会**让它自动重建（复装后 logcat 只有 `Launcher.Widget: updateAppWidget: N`，没有 `LauncherWidgetLayoutFactory` 记录 = 没重新 inflate）。必须让用户**长按移除 → 从小组件列表重新添加**，别让用户反复重启手机
+22. **widget 更新必须广播 APPWIDGET_UPDATE**：`CountdownWidgetRefresh.updateAll` 用 `setClass` 显式指向 provider——MIUI 对 `getAppWidgetIds` 查不到的 receiver 不会自动补发
 
 ## 工作流约定
 

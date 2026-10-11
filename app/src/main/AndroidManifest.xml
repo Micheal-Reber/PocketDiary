@@ -65,5 +65,24 @@
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <!-- 倒数日桌面小组件：2×2 单事件卡片（‹ › 切换 + 系统广播兜底刷新） -->
+        <receiver
+            android:name=".ui.widget.CountdownWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.intent.action.USER_PRESENT" />
+                <action android:name="com.example.diary.action.CD_WIDGET_NEXT" />
+                <action android:name="com.example.diary.action.CD_WIDGET_PREV" />
+                <action android:name="com.example.diary.action.CD_WIDGET_MIDNIGHT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/countdown_widget_info" />
+        </receiver>
     </application>
 </manifest>
