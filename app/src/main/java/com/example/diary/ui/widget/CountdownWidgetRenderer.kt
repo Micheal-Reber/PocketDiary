@@ -33,11 +33,12 @@ object CountdownWidgetRenderer {
         context: Context,
         event: CountdownEvent,
         accentArgb: Int,
-        widthPx: Int,
-        heightPx: Int
+        widthDp: Int,
+        heightDp: Int
     ): Bitmap? = withContext(Dispatchers.IO) {
-        val w = max(widthPx, 1)
-        val h = max(heightPx, 1)
+        val density = context.resources.displayMetrics.density
+        val w = max((widthDp * density).roundToInt(), 1)
+        val h = max((heightDp * density).roundToInt(), 1)
         val photo = loadPhoto(context, event)
         val cap = when {
             photo != null -> PHOTO_MAX_PX
@@ -47,7 +48,7 @@ object CountdownWidgetRenderer {
         val k = minOf(1f, cap.toFloat() / max(w, h))
         val bw = max(1, (w * k).roundToInt())
         val bh = max(1, (h * k).roundToInt())
-        val corner = CORNER_DP * context.resources.displayMetrics.density * k
+        val corner = CORNER_DP * density * k
 
         val bmp = Bitmap.createBitmap(bw, bh, Bitmap.Config.RGB_565)
         val canvas = Canvas(bmp)

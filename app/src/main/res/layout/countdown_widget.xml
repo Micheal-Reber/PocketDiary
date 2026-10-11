@@ -8,7 +8,8 @@
         android:id="@+id/cd_bg"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:scaleType="centerCrop" />
+        android:scaleType="centerCrop"
+        android:src="@drawable/cd_widget_bg" />
 
     <ImageView
         android:id="@+id/cd_scrim"
@@ -57,32 +58,29 @@
             android:gravity="center"
             android:orientation="vertical">
 
-            <LinearLayout
+            <TextView
+                android:id="@+id/cd_number"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:gravity="bottom"
-                android:orientation="horizontal">
+                android:layout_gravity="center_horizontal"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="#FFFFFFFF"
+                android:textSize="56sp"
+                android:textStyle="bold" />
 
-                <TextView
-                    android:id="@+id/cd_number"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:includeFontPadding="false"
-                    android:maxLines="1"
-                    android:textColor="#FFFFFFFF"
-                    android:textSize="44sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/cd_unit"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:layout_marginBottom="4dp"
-                    android:maxLines="1"
-                    android:textColor="#E6FFFFFF"
-                    android:textSize="14sp" />
-            </LinearLayout>
+            <TextView
+                android:id="@+id/cd_unit"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="4dp"
+                android:gravity="center"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:textColor="#E6FFFFFF"
+                android:textSize="18sp" />
         </LinearLayout>
 
         <FrameLayout
@@ -138,7 +136,7 @@
         android:id="@+id/cd_empty"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:background="#FF191C1A"
+        android:background="@drawable/cd_widget_empty_bg"
         android:gravity="center"
         android:orientation="vertical"
         android:padding="14dp"

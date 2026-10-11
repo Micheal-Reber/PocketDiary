@@ -173,22 +173,20 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         root.setTextViewText(R.id.cd_unit, unit)
         root.setTextViewText(R.id.cd_date, dateLine)
 
-        applyResponsiveSize(context, widgetId, root, number.length, unit.length)
+        applyResponsiveSize(context, widgetId, root, number.length)
 
         val options = runCatching {
             AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId)
         }.getOrNull()
-        val widthPx = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
-        val heightPx = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
+        val widthDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
+        val heightDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
 
-        val bitmap = CountdownWidgetRenderer.render(context, event, accent, widthPx, heightPx)
+        val bitmap = CountdownWidgetRenderer.render(context, event, accent, widthDp, heightDp)
         if (bitmap != null) {
             root.setImageViewBitmap(R.id.cd_bg, bitmap)
-            root.setViewVisibility(R.id.cd_bg, View.VISIBLE)
             root.setViewVisibility(R.id.cd_scrim, View.VISIBLE)
         } else {
-            root.setInt(R.id.cd_bg, "setBackgroundColor", accent)
-            root.setViewVisibility(R.id.cd_bg, View.VISIBLE)
+            root.setInt(R.id.cd_bg, "setColorFilter", accent)
             root.setViewVisibility(R.id.cd_scrim, View.GONE)
         }
         root.setInt(R.id.cd_header_bar, "setColorFilter", accent)
@@ -217,8 +215,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         context: Context,
         widgetId: Int,
         root: RemoteViews,
-        numberLen: Int,
-        unitLen: Int
+        numberLen: Int
     ) {
         val metrics = context.resources.displayMetrics
         val options = runCatching {
@@ -228,7 +225,6 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         val heightDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
         val numberSp = CountdownWidgetModel.responsiveNumberSp(
             numberLen = numberLen,
-            unitLen = unitLen,
             widthDp = widthDp,
             heightDp = heightDp,
             density = metrics.density,
