@@ -129,7 +129,7 @@ private fun Modifier.clickableNoRipple(onClick: () -> Unit): Modifier = composed
 
 /** 经典全屏内容：支持 fontDark 字色切换（黑/白），纹理背景委托 TextureLibrary。 */
 @Composable
-private fun ClassicFullscreenContent(
+internal fun ClassicFullscreenContent(
     photoBitmap: ImageBitmap?,
     textureIndex: Int,
     accent: androidx.compose.ui.graphics.Color,
@@ -509,6 +509,7 @@ fun CountdownDetailScreen(
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onEditPhoto: () -> Unit,
+    onEditClassicPhoto: () -> Unit,
     onCreate: () -> Unit
 ) {
     val context = LocalContext.current
@@ -776,7 +777,7 @@ fun CountdownDetailScreen(
                                         showBackgroundSheet = false
                                         scope.launch {
                                             repository.save(e.copy(textureIndex = -1))
-                                            onEditPhoto()
+                                            onEditClassicPhoto()
                                         }
                                     },
                                     onResetPhoto = {

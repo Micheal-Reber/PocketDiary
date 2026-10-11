@@ -66,6 +66,7 @@ import com.example.diary.ui.countdown.CountdownDetailScreen
 import com.example.diary.ui.countdown.CountdownEditScreen
 import com.example.diary.ui.countdown.CountdownListScreen
 import com.example.diary.ui.countdown.PhotoCardEditorScreen
+import com.example.diary.ui.countdown.ClassicFullscreenEditorScreen
 import com.example.diary.ui.diary.DiaryListScreen
 import com.example.diary.ui.editor.DiaryEditorScreen
 import com.example.diary.ui.habits.HabitsScreen
@@ -304,6 +305,7 @@ fun AppNavigation(
                                 onBack = { navController.popBackStack() },
                                 onEdit = { navController.navigate("countdown_edit?id=$id") },
                                 onEditPhoto = { navController.navigate("countdown_photo_edit/$id") },
+                                onEditClassicPhoto = { navController.navigate("countdown_classic_photo_edit/$id") },
                                 onCreate = { navController.navigate("countdown_edit?id=0") }
                             )
                         }
@@ -315,6 +317,19 @@ fun AppNavigation(
                         ) { backStackEntry ->
                             val id = backStackEntry.arguments?.getLong("id") ?: return@composable
                             PhotoCardEditorScreen(
+                                eventId = id,
+                                repository = countdownRepository,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(
+                            route = "countdown_classic_photo_edit/{id}",
+                            arguments = listOf(navArgument("id") { type = NavType.LongType }),
+                            enterTransition = SlideUpEnter,
+                            popExitTransition = SlideUpPopExit
+                        ) { backStackEntry ->
+                            val id = backStackEntry.arguments?.getLong("id") ?: return@composable
+                            ClassicFullscreenEditorScreen(
                                 eventId = id,
                                 repository = countdownRepository,
                                 onBack = { navController.popBackStack() }

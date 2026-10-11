@@ -176,7 +176,7 @@ fun SearchToggleButton(
             if (searchActive) Icons.Default.Close else Icons.Default.Search,
             contentDescription = if (searchActive) stringResource(R.string.search_close)
             else stringResource(R.string.search_open, contentDescriptionBase),
-            tint = tint
+            tint = if (tint == Color.Unspecified) LocalContentColor.current else tint
         )
     }
 }
