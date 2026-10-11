@@ -30,3 +30,6 @@ Thumbs.db
 # Misc
 *.log
 *.tmp
+
+# AI agent scratch dirs
+.omo/
