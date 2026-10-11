@@ -2,20 +2,8 @@
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@android:id/background"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
-
-    <ImageView
-        android:id="@+id/cd_bg"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:scaleType="centerCrop"
-        android:src="@drawable/cd_widget_bg" />
-
-    <ImageView
-        android:id="@+id/cd_scrim"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:src="@drawable/cd_widget_scrim" />
+    android:layout_height="match_parent"
+    android:background="@drawable/cd_widget_bg">
 
     <LinearLayout
         android:id="@+id/cd_content"

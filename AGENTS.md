@@ -70,7 +70,7 @@ app/src/main/java/com/example/diary/
 └── ui/
     ├── components/         # SharedUi：SwipeDelete/Confirm/Search/UtcDatePicker/PresetChip（多屏共用）
     ├── countdown/          # 倒数日：列表/编辑/详情 三屏 + 共享件（双卡片风格：CLASSIC / PHOTO_CARD）
-    ├── widget/             # 倒数日桌面小组件（RemoteViews）：Provider / Model 纯逻辑 / Refresh 调度 / State 选中项 / Renderer 背景位图
+    ├── widget/             # 倒数日桌面小组件（RemoteViews）：Provider / Model 纯逻辑 / Refresh 调度 / State 选中项
     ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索（250ms 防抖）
     ├── editor/             # 编辑器：无边框书写、Markdown 预览、📷插图（日期/chips 无描边）
     ├── habits/             # 打卡日历 + 统计图表（LineChart 自研）
@@ -101,7 +101,7 @@ app/src/main/java/com/example/diary/
 | 打卡日历 | `ui/habits/CalendarComponents.kt` + `HabitsViewModel.kt` | 多习惯彩点、月份分割 |
 | 倒数日正倒判定 | `data/countdown/DateMath.kt` + 单测 | 三态 Today/Countdown/Countup；+1日；重复滚动；**改动必跑 JUnit** |
 | 倒数日界面 | `ui/countdown/*Screen.kt` + `CountdownUi.kt` | 色板下标 0=自动(倒蓝/正橙)；过程式纹理 TextureBackdrop |
-| 倒数日桌面小组件 | `ui/widget/CountdownWidgetProvider.kt` + `CountdownWidgetModel.kt` + `CountdownWidgetRefresh.kt` + `CountdownWidgetState.kt` + `CountdownWidgetRenderer.kt` + `res/layout/countdown_widget.xml` + `res/xml/countdown_widget_info.xml` | **纯 RemoteViews，零新依赖**（不用 Glance/WorkManager）；单层扁平树，`‹ ›` 切换；`save/delete` → `updateAll` 触发刷新。**改之前先读「桌面小组件」约定与坑点 19-22** |
+| 倒数日桌面小组件 | `ui/widget/CountdownWidgetProvider.kt` + `CountdownWidgetModel.kt` + `CountdownWidgetRefresh.kt` + `CountdownWidgetState.kt` + `res/layout/countdown_widget.xml` + `res/xml/countdown_widget_info.xml` | **纯 RemoteViews，零新依赖**（不用 Glance/WorkManager）；单层扁平树，`‹ ›` 切换；`save/delete` → `updateAll` 触发刷新。**改之前先读「桌面小组件」约定与坑点 19-22** |
 | 分享图生成 | `data/countdown/ShareCardRenderer.kt` | 纯 android.graphics 离屏 1080×1440；FileProvider 在 Manifest |
 | 亮暗/开屏 | `Theme.kt` + `themes.xml` + `MainActivity.kt` | 独立于系统 |
 | 背景图缓存 | `data/image/BackgroundImageStore.kt` | 覆盖同名文件后必须 `clearCache()`；倒数日每事件图走 EventImageStore |
@@ -182,7 +182,7 @@ app/src/main/java/com/example/diary/
 - **语言/暗色必须自取**：widget 进程 context 由桌面提供，`Locale.getDefault()`/`uiMode` 不可靠——用 `LocaleHelper.wrap(context)` 与 `ThemePreferences.isDarkMode`，再 `setTextViewText` 传字符串
 - **响应式字号**：`views.setFloat(viewId, "setTextSize", sp)`，尺寸取 `OPTION_APPWIDGET_MIN_WIDTH/HEIGHT`；算法见 `CountdownWidgetModel.responsiveNumberSp()`（纯函数，已本地化自 Reminder）
 - **强调色**：`views.setInt(id, "setColorFilter", color)` 染 shape drawable；透明度 `setInt(id, "setImageAlpha", alpha)`
-- **背景位图预算**：单页 ≤192px + `RGB_565`（Binder 传输上限约 1MB），生成见 `CountdownWidgetRenderer`
+- **背景是纯黑 + 28dp 圆角 shape，不要背景位图**（用户明确要求取消背景图功能）：位图要走 Binder 传输（约 1MB 上限），且 `OPTION_APPWIDGET_MIN_*` 是 **dp 不是 px**——当成 px 会把位图压到几十 px 再拉伸，渐变全糊。保持零位图就没有这些问题
 - **刷新时机**：`updatePeriodMillis=1800000`（系统硬下限 30 分钟）+ 系统广播 `DATE_CHANGED`/`TIME_SET`/`TIMEZONE_CHANGED`/`USER_PRESENT`（`USER_PRESENT` = 解锁刷新，性价比最高）+ 零点 `AlarmManager`；数据变更走 `CountdownRepository.save/delete` → `CountdownWidgetRefresh.updateAll`
 - 后续做 4×2 列表直接抄 Reminder：`RemoteViewsService` + `ListView` + `setRemoteAdapter` + `setPendingIntentTemplate`/`setOnClickFillInIntent`，注意模板 PendingIntent **必须 `FLAG_MUTABLE`** 否则 fill-in 失效
 

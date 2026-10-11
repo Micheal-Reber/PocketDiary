@@ -139,8 +139,6 @@ class CountdownWidgetProvider : AppWidgetProvider() {
 
         if (events.isEmpty()) {
             root.setViewVisibility(R.id.cd_content, View.GONE)
-            root.setViewVisibility(R.id.cd_bg, View.GONE)
-            root.setViewVisibility(R.id.cd_scrim, View.GONE)
             root.setViewVisibility(R.id.cd_empty, View.VISIBLE)
             root.setViewVisibility(R.id.cd_prev, View.GONE)
             root.setViewVisibility(R.id.cd_next, View.GONE)
@@ -174,21 +172,6 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         root.setTextViewText(R.id.cd_date, dateLine)
 
         applyResponsiveSize(context, widgetId, root, number.length)
-
-        val options = runCatching {
-            AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId)
-        }.getOrNull()
-        val widthDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
-        val heightDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
-
-        val bitmap = CountdownWidgetRenderer.render(context, event, accent, widthDp, heightDp)
-        if (bitmap != null) {
-            root.setImageViewBitmap(R.id.cd_bg, bitmap)
-            root.setViewVisibility(R.id.cd_scrim, View.VISIBLE)
-        } else {
-            root.setInt(R.id.cd_bg, "setColorFilter", accent)
-            root.setViewVisibility(R.id.cd_scrim, View.GONE)
-        }
         root.setInt(R.id.cd_header_bar, "setColorFilter", accent)
 
         root.setViewVisibility(R.id.cd_content, View.VISIBLE)
