@@ -210,20 +210,28 @@ private fun EventCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (event.pinned) {
-                        Icon(
-                            Icons.Default.PushPin, stringResource(R.string.cd_pinned),
-                            tint = accent,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(Modifier.width(Spacing.xs))
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         event.name,
                         style = MaterialTheme.typography.titleMedium,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
+                    // 置顶标记后置：前置会让置顶/普通卡片的标题左边界错开，列表参差不齐。
+                    // fill=false 保证名字够短时紧贴文字、过长时仍能省略号截断。
+                    if (event.pinned) {
+                        Spacer(Modifier.width(Spacing.xs))
+                        Icon(
+                            Icons.Default.PushPin,
+                            stringResource(R.string.cd_pinned),
+                            tint = accent.copy(alpha = 0.7f),
+                            modifier = Modifier.size(12.dp)
+                        )
+                    }
                 }
                 Spacer(Modifier.height(Spacing.xs))
                 Text(
