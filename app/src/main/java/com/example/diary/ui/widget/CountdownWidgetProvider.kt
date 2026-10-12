@@ -151,13 +151,13 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         val state = CountdownWidgetModel.stateOf(event, today)
         val accent = eventAccent(event.colorIndex, state).toArgb()
 
+        val isToday = state is DateMath.CountState.Today
         val number = when (state) {
-            is DateMath.CountState.Today -> ""
+            is DateMath.CountState.Today -> localized.getString(R.string.cd_badge_today)
             is DateMath.CountState.Countdown -> state.days.toString()
             is DateMath.CountState.Countup -> state.days.toString()
         }
-        val unit = if (state is DateMath.CountState.Today) localized.getString(R.string.cd_badge_today)
-        else localized.getString(R.string.cd_unit_days)
+        val unit = if (isToday) "" else localized.getString(R.string.cd_unit_days)
 
         val target = runCatching { LocalDate.parse(event.date) }.getOrNull()
         val dateLine = if (target == null) "" else localized.getString(
@@ -169,6 +169,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         root.setTextViewText(R.id.cd_header_title, event.name)
         root.setTextViewText(R.id.cd_number, number)
         root.setTextViewText(R.id.cd_unit, unit)
+        root.setViewVisibility(R.id.cd_unit, if (isToday) View.GONE else View.VISIBLE)
         root.setTextViewText(R.id.cd_date, dateLine)
 
         applyResponsiveSize(context, widgetId, root, number.length)

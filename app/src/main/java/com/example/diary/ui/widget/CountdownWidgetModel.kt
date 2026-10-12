@@ -44,7 +44,7 @@ object CountdownWidgetModel {
         val headerPx = 14f * scaledDensity + 14f * density
         val dividerPx = 0.6f * density
         val footerPx = 11f * scaledDensity + 8f * density
-        val unitLinePx = 24f * scaledDensity + 6f * density
+        val unitLinePx = 18f * scaledDensity + 2f * density
         val contentPaddingPx = 12f * density * 2
 
         val availableHeightPx = heightPx - headerPx - dividerPx - footerPx - unitLinePx
@@ -58,9 +58,9 @@ object CountdownWidgetModel {
     }
 
     const val DEFAULT_NUMBER_SP = 56f
-    const val UNIT_SP_RATIO = 0.32f
+    const val UNIT_SP_RATIO = 0.26f
     private const val CHAR_WIDTH_FACTOR = 0.62f
-    private const val FILL_FACTOR = 0.9f
+    private const val FILL_FACTOR = 0.82f
     private const val MIN_NUMBER_SP = 16f
-    private const val MAX_NUMBER_SP = 60f
+    private const val MAX_NUMBER_SP = 48f
 }
