@@ -271,6 +271,24 @@ fun SettingsScreen(
             )
 
             SettingsRow(
+                headline = stringResource(R.string.settings_nav_bar),
+                supporting = if (floatingBar) {
+                    stringResource(R.string.settings_nav_bar_floating)
+                } else {
+                    stringResource(R.string.settings_nav_bar_docked)
+                },
+                leading = { Icon(Icons.Default.ViewCarousel, contentDescription = null) },
+                trailing = {
+                    Switch(
+                        checked = floatingBar,
+                        onCheckedChange = { checked ->
+                            scope.launch { themePreferences.setFloatingBar(checked) }
+                        }
+                    )
+                }
+            )
+
+            SettingsRow(
                 headline = stringResource(R.string.settings_background),
                 supporting = if (bgPath != null) stringResource(R.string.settings_background_custom)
                 else stringResource(R.string.settings_background_default),
@@ -301,24 +319,6 @@ fun SettingsScreen(
                 },
                 leading = { Icon(Icons.Default.Language, contentDescription = null) },
                 modifier = Modifier.clickable { langDialog = true }
-            )
-
-            SettingsRow(
-                headline = stringResource(R.string.settings_nav_bar),
-                supporting = if (floatingBar) {
-                    stringResource(R.string.settings_nav_bar_floating)
-                } else {
-                    stringResource(R.string.settings_nav_bar_docked)
-                },
-                leading = { Icon(Icons.Default.ViewCarousel, contentDescription = null) },
-                trailing = {
-                    Switch(
-                        checked = floatingBar,
-                        onCheckedChange = { checked ->
-                            scope.launch { themePreferences.setFloatingBar(checked) }
-                        }
-                    )
-                }
             )
 
             HorizontalDivider(
