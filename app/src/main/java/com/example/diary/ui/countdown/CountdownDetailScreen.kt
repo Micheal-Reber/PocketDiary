@@ -431,7 +431,7 @@ private fun PhotoCardBackgroundSheet(
     }
 }
 
-/** 经典模式背景底表：字色切换 + 纹理选择 + 选图/恢复默认。 */
+/** 经典模式背景底表：字色切换 + 选图 + 纹理选择 + 有图时恢复默认。 */
 @Composable
 private fun ClassicBackgroundSheet(
     hasPhoto: Boolean,
@@ -475,14 +475,16 @@ private fun ClassicBackgroundSheet(
                 .fillMaxWidth()
                 .clickable(onClick = onPickPhoto)
         )
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.cd_reset_no_bg)) },
-            leadingContent = { Icon(Icons.Default.Close, null) },
-            colors = ListItemDefaults.colors(containerColor = Color.Transparent),
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onResetPhoto)
-        )
+        if (hasPhoto) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.cd_reset_no_bg)) },
+                leadingContent = { Icon(Icons.Default.Close, null) },
+                colors = ListItemDefaults.colors(containerColor = Color.Transparent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onResetPhoto)
+            )
+        }
         if (!hasPhoto) {
             Text(
                 stringResource(R.string.cd_texture_title),

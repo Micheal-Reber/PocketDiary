@@ -6,10 +6,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,7 +16,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -164,24 +161,6 @@ fun ClassicFullscreenEditorScreen(
         bottomBar = {
             Surface(color = MaterialTheme.colorScheme.surface) {
                 Column(Modifier.padding(horizontal = Spacing.l, vertical = Spacing.m)) {
-                    if (photoBitmap != null) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            TextButton(onClick = {
-                                scope.launch {
-                                    EventImageStore.clear(context, eventId)
-                                    repository.save(currentEvent.copy(textureIndex = -1))
-                                    imageVersion++
-                                }
-                            }) {
-                                Icon(Icons.Default.Close, null)
-                                Spacer(Modifier.size(Spacing.xs))
-                                Text(stringResource(R.string.cd_reset_no_bg))
-                            }
-                        }
-                    }
                     Button(
                         onClick = {
                             pickPhotoLauncher.launch(
