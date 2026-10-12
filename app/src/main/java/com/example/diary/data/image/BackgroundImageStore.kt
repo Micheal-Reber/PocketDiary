@@ -127,7 +127,8 @@ object BackgroundImageStore {
         bitmap
     }
 
-    /** 按背景文件本身解码（相对/绝对统一入口）。 */
+    /** 按背景文件本身解码（相对/绝对统一入口）。当前无调用方，保留待用；新代码直接用 decode()。 */
+    @Deprecated("统一走 decode(context, path, maxDim)", ReplaceWith("decode(context, stored, maxDim)"))
     suspend fun decodeBackground(context: Context, maxDim: Int): ImageBitmap? {
         val stored = runCatching {
             // 直接按规范路径读，避免再走 DataStore

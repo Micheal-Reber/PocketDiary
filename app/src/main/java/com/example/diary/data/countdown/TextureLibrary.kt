@@ -1,7 +1,6 @@
 package com.example.diary.data.countdown
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -163,11 +162,5 @@ object TextureLibrary {
                 }
             }
         }
-    }
-
-    // 兼容：旧 Brush API 已移除，预览请用 TexturePreviewThumb
-    @Deprecated("改用 TexturePreviewThumb Canvas 预览", ReplaceWith("TexturePreviewThumb(index, accent, modifier)"))
-    fun getTextureBrush(@Suppress("UNUSED_PARAMETER") index: Int): androidx.compose.ui.graphics.Brush {
-        return androidx.compose.ui.graphics.Brush.linearGradient(listOf(Color.Transparent, Color.Transparent))
     }
 }

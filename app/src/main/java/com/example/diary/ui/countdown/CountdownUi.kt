@@ -1,11 +1,9 @@
 package com.example.diary.ui.countdown
 
 import android.content.Context
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.unit.dp
 import com.example.diary.R
 import com.example.diary.data.countdown.DateMath
 import com.example.diary.data.countdown.DateMath.CountState
@@ -52,13 +50,6 @@ fun stateLabel(context: Context, state: DateMath.CountState): String = when (sta
     is CountState.Today -> context.getString(R.string.cd_state_today)
     is CountState.Countdown -> context.getString(R.string.cd_state_remaining, state.days)
     is CountState.Countup -> context.getString(R.string.cd_state_elapsed, state.days)
-}
-
-/** 照片卡顶栏短语（日历页风，不含天数）：还有 / 已经 / 今天。 */
-fun headerStatePhrase(context: Context, state: DateMath.CountState): String = when (state) {
-    is CountState.Today -> context.getString(R.string.cd_header_today)
-    is CountState.Countdown -> context.getString(R.string.cd_header_remaining)
-    is CountState.Countup -> context.getString(R.string.cd_header_elapsed)
 }
 
 /** 内置过程式纹理数量（详情页背景选项），同步 TextureLibrary.TEXTURE_COUNT。 */

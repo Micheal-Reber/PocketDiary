@@ -174,9 +174,6 @@
     <string name="cd_state_today">Today is the day</string>
     <string name="cd_state_remaining">%1$d days to go</string>
     <string name="cd_state_elapsed">%1$d days since</string>
-    <string name="cd_header_today">Today</string>
-    <string name="cd_header_remaining">In</string>
-    <string name="cd_header_elapsed">Ago</string>
     <string name="cd_view_list">List view</string>
     <string name="cd_view_grid">Grid view</string>
     <string name="cd_search_base">events</string>

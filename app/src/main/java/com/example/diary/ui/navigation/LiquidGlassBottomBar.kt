@@ -74,7 +74,6 @@ import com.kyant.backdrop.shadow.Shadow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.math.abs
-import kotlin.math.roundToInt
 import kotlin.math.sign
 
 private val BarHeight = 64.dp

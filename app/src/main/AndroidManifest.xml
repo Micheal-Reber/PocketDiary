@@ -20,7 +20,7 @@
         android:name=".DiaryApplication"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
-        android:label="Pocket Diary"
+        android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.PocketDiary">
         
