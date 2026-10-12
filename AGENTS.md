@@ -118,7 +118,7 @@ app/src/main/java/com/example/diary/
 | `DampedDragAnimation` | class | ui/navigation/liquid/DampedDragAnimation.kt | 弹簧/阻尼跟随：`initialVelocity` + `CoroutineStart.UNDISPATCHED` + `gestureActive` + `animatedTarget` + Job 化取消 + `releaseAfterSettle()` |
 | `DragGestureInspector` | fun | ui/navigation/liquid/DragGestureInspector.kt | `inspectDragGestures(consumeChanges)` 统一手势层归属（固定输入层，不与 tab clickable 抢事件） |
 | `InteractiveHighlight` | class | ui/navigation/liquid/InteractiveHighlight.kt | 按压 radialGradient 光晕 + 由指示器中心派生 |
-| `GlassCapsule` / `GlassFab` | @Composable | ui/navigation/GlassSurface.kt | 玻璃胶囊 / 悬浮按钮；`glassContainerColor()` = surfaceContainer α0.40（**@Composable，必须在 lambda 外算好捕获**） |
+| `GlassCapsule` / `GlassFab` | @Composable | ui/navigation/GlassSurface.kt | 玻璃胶囊 / 悬浮按钮：**同一套配方**（blur 8dp + lens 24/24 + `glassContainerColor()`），仅形状不同；`glassContainerColor()` = surfaceContainer α0.40（**@Composable，必须在 lambda 外算好捕获**） |
 | `LocalBottomBarInset` / `LocalFloatingBar` | CompositionLocal | ui/navigation/GlassSurface.kt | 双模底栏的内容避让与模式广播（倒数日详情页据此选胶囊 or 原生栏） |
 | `DiaryRepository.saveEntry` | suspend | data/repository | 日记唯一写入口（插入/更新/搬移/冲突判定） |
 | `BackgroundImageStore.decode` | suspend | data/image | 内存缓存解码（path+mtime+maxDim 键） |
@@ -163,7 +163,7 @@ app/src/main/java/com/example/diary/
 
 ### 液态玻璃（backdrop 1.0.6）
 - **API 面已核实**：1.0.6 自带 `drawBackdrop(highlight/shadow/innerShadow)`、`Highlight`/`Shadow`/`InnerShadow`、`rememberCombinedBackdrop`、`colorControls`、`drawPlainBackdrop`——**不需要升级到 2.x**（本地参考源码在 `E:\AndroidLiquidGlass-kmp\AndroidLiquidGlass-kmp`，是 2.0.1，仅供读源码，别照抄 API）
-- 玻璃配方（胶囊）：`RoundedCornerShape(50.dp)` + `blur(8.dp)` + `lens(24.dp, 24.dp)` + `glassContainerColor()`（surfaceContainer α0.40）
+- 玻璃配方（胶囊与 FAB 加号共用）：`blur(8.dp)` + `lens(24.dp, 24.dp)` + `glassContainerColor()`（surfaceContainer α0.40）——**两者必须完全一致**，只允许形状不同（胶囊 `RoundedCornerShape(50.dp)` / 加号 `CircleShape`）。参数在 `GlassSurface.kt` 里收敛为 `GlassBlurRadius`/`GlassRefraction` 两个常量，改一处即两处生效；**不要**给 `GlassFab` 单独加染色层或高光渐变，那会让它在亮色下发白不透明、看起来不是玻璃
 - **降级**：`lens` 需 API33、`blur` 需 API31+，minSdk 26 由库内部自动降级，不要自己写版本分支
 - `glassContainerColor()` 是 `@Composable`——**必须在 `drawBackdrop` lambda 外先算好并捕获**，写在里面会编译失败
 - 图标/文字间距与倒数日 `ActionItem` 保持一致：`Arrangement.Center` + `Spacer(Spacing.xs)` + `lineHeight = 12.sp`

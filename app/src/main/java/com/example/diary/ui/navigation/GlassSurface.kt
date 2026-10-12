@@ -19,7 +19,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
@@ -37,11 +36,9 @@ val LocalFloatingBar = staticCompositionLocalOf { true }
 val BottomBarContentInset: Dp
     @Composable get() = LocalBottomBarInset.current
 
-private val GlassBlurRadius = 20.dp
-
-// 与主底栏 LiquidGlassBottomBar 同一套玻璃配方，保证胶囊和底栏质感一致
-private val CapsuleBlurRadius = 8.dp
-private val CapsuleRefraction = 24.dp
+// 与主底栏 LiquidGlassBottomBar 同一套玻璃配方：胶囊、底栏、FAB 加号质感必须一致
+private val GlassBlurRadius = 8.dp
+private val GlassRefraction = 24.dp
 
 @Composable
 private fun glassContainerColor(): Color =
@@ -80,8 +77,8 @@ fun GlassCapsule(
                 shape = { RoundedCornerShape(50.dp) },
                 effects = {
                     vibrancy()
-                    blur(CapsuleBlurRadius.toPx())
-                    lens(CapsuleRefraction.toPx(), CapsuleRefraction.toPx())
+                    blur(GlassBlurRadius.toPx())
+                    lens(GlassRefraction.toPx(), GlassRefraction.toPx())
                 },
                 onDrawSurface = { drawRect(containerColor) }
             )
@@ -103,7 +100,7 @@ fun GlassFab(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit,
 ) {
-    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val containerColor = glassContainerColor()
     Box(
         modifier
             .size(56.dp)
@@ -113,19 +110,9 @@ fun GlassFab(
                 effects = {
                     vibrancy()
                     blur(GlassBlurRadius.toPx())
-                    lens(16.dp.toPx(), 32.dp.toPx())
+                    lens(GlassRefraction.toPx(), GlassRefraction.toPx())
                 },
-                onDrawSurface = {
-                    drawRect(if (dark) Color.Black.copy(alpha = 0.50f) else Color.White.copy(alpha = 0.48f))
-                    drawRect(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = if (dark) 0.20f else 0.50f),
-                                Color.White.copy(alpha = 0f)
-                            )
-                        )
-                    )
-                }
+                onDrawSurface = { drawRect(containerColor) }
             )
             .clip(CircleShape)
             .clickable(
