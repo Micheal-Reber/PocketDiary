@@ -5,9 +5,12 @@ import android.net.Uri
 import android.os.ParcelFileDescriptor
 import androidx.room.withTransaction
 import com.example.diary.R
+import com.example.diary.data.calendar.SystemCalendarSync
+import com.example.diary.data.countdown.CountdownReminderScheduler
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.preferences.ThemePreferences
+import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.data.repository.TodoRepository
 import com.example.diary.data.todo.TodoReminderScheduler
 import kotlinx.coroutines.Dispatchers
@@ -111,6 +114,7 @@ class ImportService(
 
             // Capture pre-import todo ids so stale alarms can be cancelled after success.
             val oldTodoIds = database.todoDao().getAll().map { it.id }
+            val oldCountdownIds = database.countdownDao().getAllOnce().map { it.id }
             val oldPreferences = PreferencesData(
                 darkMode = themePreferences.isDarkMode.first(),
                 diaryBackgroundPath = themePreferences.diaryBackgroundPath.first(),
@@ -153,6 +157,12 @@ class ImportService(
                 val todoRepository = TodoRepository(database.todoDao(), context)
                 oldTodoIds.forEach { TodoReminderScheduler.cancel(context, it) }
                 TodoReminderScheduler.rescheduleAll(context, todoRepository)
+
+                // 倒数日提醒：旧 id 的闹钟要清掉，导入进来的按新数据重排
+                val countdownRepository = CountdownRepository(database.countdownDao(), context)
+                oldCountdownIds.forEach { CountdownReminderScheduler.cancel(context, it) }
+                CountdownReminderScheduler.rescheduleAll(context, countdownRepository.getAllWithReminder())
+                SystemCalendarSync.rescheduleAll(context, countdownRepository)
 
                 ImportResult.Success(
                     diaryEntriesImported = counts.diary,

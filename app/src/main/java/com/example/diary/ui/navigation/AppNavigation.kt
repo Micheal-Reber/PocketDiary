@@ -55,6 +55,7 @@ import com.example.diary.R
 import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.preferences.AppLockPreferences
+import com.example.diary.data.preferences.CalendarPreferences
 import com.example.diary.data.preferences.LanguagePreferences
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.CountdownRepository
@@ -115,6 +116,7 @@ fun AppNavigation(
     val todoRepository = remember { TodoRepository(database.todoDao(), context) }
     val appLockPreferences = remember { AppLockPreferences(context) }
     val languagePreferences = remember { LanguagePreferences(context) }
+    val calendarPreferences = remember { CalendarPreferences(context) }
     var diaryUnlocked by remember { mutableStateOf(false) }
     val lockMode by appLockPreferences.lockMode.collectAsStateWithLifecycle(initialValue = AppLockPreferences.MODE_EVERY_APP)
     val backupRepository = remember {
@@ -341,9 +343,11 @@ fun AppNavigation(
                             SettingsScreen(
                                 themePreferences = themePreferences,
                                 backupRepository = backupRepository,
-                                appLockPreferences = appLockPreferences,
-                                languagePreferences = languagePreferences,
-                            )
+appLockPreferences = appLockPreferences,
+                languagePreferences = languagePreferences,
+                calendarPreferences = calendarPreferences,
+                countdownRepository = countdownRepository,
+            )
                         }
                         composable(
                             route = "editor?date={date}",

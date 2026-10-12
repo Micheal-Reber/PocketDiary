@@ -24,6 +24,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.diary.R
+import android.os.Build
+import androidx.core.content.ContextCompat
+import com.example.diary.data.countdown.CountdownNotificationHelper
 import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.ui.components.ConfirmDialog
@@ -48,6 +51,13 @@ fun CountdownEditScreen(
     val snackbar = remember { SnackbarHostState() }
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { }
+    val exactAlarmLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { }
+
     var loaded by rememberSaveable { mutableStateOf(existingId == null) }
     var name by rememberSaveable { mutableStateOf("") }
     var dateStr by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
@@ -59,6 +69,14 @@ fun CountdownEditScreen(
     var endDateStr by rememberSaveable { mutableStateOf("") }   // 空 = 未设
     var timeText by rememberSaveable { mutableStateOf("") }     // 空 = 未设
     var advancedOpen by rememberSaveable { mutableStateOf(false) }
+
+    // 提醒：-1 = 关闭；>=0 = 提前天数
+    var remindDaysBefore by rememberSaveable { mutableIntStateOf(CountdownEvent.REMIND_OFF) }
+    var remindDaysText by rememberSaveable { mutableStateOf("") }
+
+    // 原始事件：persist 用 copy 改字段，未被本页编辑的字段（photoOffsetY/photoScale 等
+    // 由照片卡编辑器单独写入）必须原样保留，逐字段重建实体会静默清空它们。
+    var original by remember { mutableStateOf<CountdownEvent?>(null) }
 
     // 卡片风格：0=经典全屏(CLASSIC)，1=照片卡片(PHOTO_CARD)
     var cardStyle by rememberSaveable { mutableIntStateOf(CountdownEvent.CARD_STYLE_CLASSIC) }
@@ -83,6 +101,9 @@ fun CountdownEditScreen(
                 blurRadius = e.blurRadius
                 fontDark = e.fontDark
                 textureIndex = e.textureIndex
+                remindDaysBefore = e.remindDaysBefore
+                remindDaysText = if (e.remindDaysBefore >= 0) e.remindDaysBefore.toString() else ""
+                original = e
             }
             loaded = true
         }
@@ -96,24 +117,71 @@ fun CountdownEditScreen(
     fun persist() {
         if (!canSave) return
         scope.launch {
-            repository.save(
-                CountdownEvent(
-                    id = existingId ?: 0L,
-                    name = name.trim(),
-                    date = dateStr,
-                    pinned = pinned,
-                    repeatRule = repeatRule,
-                    plusOne = plusOne,
-                    colorIndex = colorIndex,
-                    highlighted = highlighted,
-                    endDate = if (endDateStr.isBlank()) null else endDateStr,
-                    time = if (timeText.isBlank()) null else timeText.trim(),
-                    textureIndex = textureIndex,
-                    cardStyle = cardStyle,
-                    blurRadius = blurRadius,
-                    fontDark = fontDark
-                )
+            val edited = CountdownEvent(
+                id = existingId ?: 0L,
+                name = name.trim(),
+                date = dateStr,
+                pinned = pinned,
+                repeatRule = repeatRule,
+                plusOne = plusOne,
+                colorIndex = colorIndex,
+                highlighted = highlighted,
+                endDate = if (endDateStr.isBlank()) null else endDateStr,
+                time = if (timeText.isBlank()) null else timeText.trim(),
+                textureIndex = textureIndex,
+                cardStyle = cardStyle,
+                blurRadius = blurRadius,
+                fontDark = fontDark,
+                remindDaysBefore = remindDaysBefore
             )
+            val base = original
+            val toSave = if (base != null) {
+                base.copy(
+                    name = edited.name,
+                    date = edited.date,
+                    pinned = edited.pinned,
+                    repeatRule = edited.repeatRule,
+                    plusOne = edited.plusOne,
+                    colorIndex = edited.colorIndex,
+                    highlighted = edited.highlighted,
+                    endDate = edited.endDate,
+                    time = edited.time,
+                    textureIndex = edited.textureIndex,
+                    cardStyle = edited.cardStyle,
+                    blurRadius = edited.blurRadius,
+                    fontDark = edited.fontDark,
+                    remindDaysBefore = edited.remindDaysBefore
+                )
+            } else {
+                edited
+            }
+            repository.save(toSave)
+            if (remindDaysBefore >= 0) {
+                CountdownNotificationHelper.ensureChannel(context)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                    ContextCompat.checkSelfPermission(
+                        context, android.Manifest.permission.POST_NOTIFICATIONS
+                    ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val am = context.getSystemService(android.app.AlarmManager::class.java)
+                    if (am != null && !am.canScheduleExactAlarms()) {
+                        scope.launch {
+                            snackbar.showSnackbar(context.getString(R.string.cd_perm_exact))
+                        }
+                        runCatching {
+                            exactAlarmLauncher.launch(
+                                android.content.Intent(
+                                    android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                    android.net.Uri.fromParts("package", context.packageName, null)
+                                )
+                            )
+                        }
+                    }
+                }
+            }
             onBack()
         }
     }
@@ -303,6 +371,60 @@ fun CountdownEditScreen(
                     ) {
                         Text(stringResource(R.string.cd_highlight))
                         Switch(checked = highlighted, onCheckedChange = { highlighted = it })
+                    }
+
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(stringResource(R.string.cd_remind))
+                            Text(
+                                if (remindDaysBefore >= 0) {
+                                    stringResource(
+                                        R.string.cd_remind_summary,
+                                        remindDaysBefore,
+                                        timeText.ifBlank { "09:00" }
+                                    )
+                                } else {
+                                    stringResource(R.string.cd_remind_days_hint)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = remindDaysBefore >= 0,
+                            onCheckedChange = { on ->
+                                if (on) {
+                                    remindDaysBefore = remindDaysText.toIntOrNull() ?: 0
+                                    if (remindDaysBefore < 0) remindDaysBefore = 0
+                                    if (remindDaysBefore > CountdownEvent.REMIND_MAX_DAYS) {
+                                        remindDaysBefore = CountdownEvent.REMIND_MAX_DAYS
+                                    }
+                                    remindDaysText = remindDaysBefore.toString()
+                                } else {
+                                    remindDaysBefore = CountdownEvent.REMIND_OFF
+                                }
+                            }
+                        )
+                    }
+
+                    if (remindDaysBefore >= 0) {
+                        OutlinedTextField(
+                            value = remindDaysText,
+                            onValueChange = { input ->
+                                val digits = input.filter { it.isDigit() }.take(3)
+                                remindDaysText = digits
+                                digits.toIntOrNull()?.let { remindDaysBefore = it }
+                            },
+                            label = { Text(stringResource(R.string.cd_remind_days)) },
+                            isError = (remindDaysText.toIntOrNull() ?: 0) > CountdownEvent.REMIND_MAX_DAYS,
+                            singleLine = true,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
 
                     // 颜色色板：首格「自动」

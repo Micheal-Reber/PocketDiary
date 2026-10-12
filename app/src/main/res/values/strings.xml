@@ -20,6 +20,12 @@
     <string name="settings_nav_bar">底部导航栏</string>
     <string name="settings_nav_bar_floating">悬浮玻璃胶囊，可左右拖动切换</string>
     <string name="settings_nav_bar_docked">经典停靠式导航栏</string>
+    <string name="settings_calendar_sync">同步到系统日历</string>
+    <string name="settings_calendar_sync_on">倒数日会写入系统日历，便于在日历中查看</string>
+    <string name="settings_calendar_sync_off">关闭：不向系统日历写入任何事件</string>
+    <string name="settings_calendar_perm_denied">未授予日历权限，无法同步倒数日到系统日历</string>
+    <string name="cd_perm_notification">未授予通知权限，倒数日提醒将无法显示</string>
+    <string name="cd_perm_exact">未授予精确闹钟权限，提醒可能不够准时</string>
     <string name="settings_section_privacy">隐私</string>
     <string name="settings_lock">日记密码锁</string>
     <string name="settings_lock_desc">打开日记页面时需要输入密码</string>
@@ -124,6 +130,8 @@
     <string name="notif_channel_alarm_desc">待办到点闹钟响铃</string>
     <string name="notif_alarm_title">闹钟</string>
     <string name="notif_missed_title">错过的提醒</string>
+    <string name="notif_channel_countdown">倒数日提醒</string>
+    <string name="notif_channel_countdown_desc">倒数日事件提醒</string>
     <string name="notif_default_title">待办提醒</string>
     <string name="todo_title">待办</string>
     <string name="todo_fab">新建待办</string>
@@ -206,6 +214,11 @@
     <string name="cd_clear">清除</string>
     <string name="cd_time_label">精确时间（HH:mm，可选）</string>
     <string name="cd_time_hint">如 20:00</string>
+    <string name="cd_remind">事件提醒</string>
+    <string name="cd_remind_days">提前天数</string>
+    <string name="cd_remind_days_hint">0 表示当天提醒，未设置精确时间则 09:00 触发</string>
+    <string name="cd_remind_summary">提前 %1$d 天 · %2$s</string>
+    <string name="cd_notif_text">%1$s</string>
     <string name="cd_plus_one">+1日</string>
     <string name="cd_plus_one_hint">计数含首尾当天整体 +1</string>
     <string name="cd_highlight">高亮旗标</string>

@@ -20,6 +20,9 @@ interface CountdownDao {
     @Query("SELECT * FROM countdown_events WHERE id = :id")
     suspend fun getById(id: Long): CountdownEvent?
 
+    @Query("SELECT * FROM countdown_events WHERE remindDaysBefore >= 0")
+    suspend fun getAllWithReminder(): List<CountdownEvent>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(event: CountdownEvent): Long
 

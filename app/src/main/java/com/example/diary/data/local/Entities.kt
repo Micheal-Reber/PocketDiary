@@ -78,7 +78,8 @@ data class CountdownEvent(
     val colorIndex: Int = 0,
     val highlighted: Boolean = false,        // 高亮旗标（卡片描边强调）
     val endDate: String? = null,             // 进阶：结束日 yyyy-MM-dd（详情脚注展示）
-    val time: String? = null,                // 进阶：精确时间 HH:mm（详情脚注展示）
+    /** 进阶：精确时间 HH:mm。既是详情脚注展示，也是提醒触发时刻（未设则提醒默认 09:00） */
+    val time: String? = null,
     /** -1 = 无纹理；>=0 用过程式纹理背景（详情页），照片背景按文件存在与否优先 */
     val textureIndex: Int = -1,
     /** 0 = 经典全屏（CLASSIC）；1 = 照片卡片（PHOTO_CARD） */
@@ -90,7 +91,9 @@ data class CountdownEvent(
     /** 照片卡图片垂直位置：-1..1，0 为居中，随卡片尺寸自适应 */
     val photoOffsetY: Float = 0f,
     /** 照片卡缩放比例：1 为自动铺满，最小不能低于 1 */
-    val photoScale: Float = 1f
+    val photoScale: Float = 1f,
+    /** 提醒：-1 = 不提醒；0 = 当天；N = 提前 N 天，触发时刻取 time（未设则 09:00） */
+    val remindDaysBefore: Int = REMIND_OFF
 ) {
     companion object {
         const val REPEAT_NONE = 0
@@ -99,6 +102,9 @@ data class CountdownEvent(
         const val CARD_STYLE_CLASSIC = 0
         const val CARD_STYLE_PHOTO_CARD = 1
         const val BLUR_MAX = 25
+        const val REMIND_OFF = -1
+        const val REMIND_MAX_DAYS = 365
+        const val REMIND_DEFAULT_HOUR = 9
     }
 }
 

@@ -20,6 +20,12 @@
     <string name="settings_nav_bar">Bottom navigation</string>
     <string name="settings_nav_bar_floating">Floating glass capsule — drag sideways to switch tabs</string>
     <string name="settings_nav_bar_docked">Classic docked navigation bar</string>
+    <string name="settings_calendar_sync">Sync to system calendar</string>
+    <string name="settings_calendar_sync_on">Countdown events are written to your system calendar</string>
+    <string name="settings_calendar_sync_off">Off: nothing is written to the system calendar</string>
+    <string name="settings_calendar_perm_denied">Calendar permission not granted — cannot sync countdown events</string>
+    <string name="cd_perm_notification">Notification permission not granted — countdown reminders will not show</string>
+    <string name="cd_perm_exact">Exact alarm permission not granted — reminders may not be on time</string>
     <string name="settings_section_privacy">Privacy</string>
     <string name="settings_lock">Diary PIN lock</string>
     <string name="settings_lock_desc">Require a password to open the diary</string>
@@ -124,6 +130,8 @@
     <string name="notif_channel_alarm_desc">Alarm rings when a todo is due</string>
     <string name="notif_alarm_title">Alarm</string>
     <string name="notif_missed_title">Missed reminder</string>
+    <string name="notif_channel_countdown">Countdown reminders</string>
+    <string name="notif_channel_countdown_desc">Reminders for countdown events</string>
     <string name="notif_default_title">Todo reminders</string>
     <string name="todo_title">Todos</string>
     <string name="todo_fab">New todo</string>
@@ -206,6 +214,11 @@
     <string name="cd_clear">Clear</string>
     <string name="cd_time_label">Exact time (HH:mm, optional)</string>
     <string name="cd_time_hint">E.g. 20:00</string>
+    <string name="cd_remind">Event reminder</string>
+    <string name="cd_remind_days">Days before</string>
+    <string name="cd_remind_days_hint">0 means on the day itself; fires at 09:00 unless an exact time is set</string>
+    <string name="cd_remind_summary">%1$d day(s) before · %2$s</string>
+    <string name="cd_notif_text">%1$s</string>
     <string name="cd_plus_one">+1 day</string>
     <string name="cd_plus_one_hint">Counts both the start and end days (+1)</string>
     <string name="cd_highlight">Highlight flag</string>

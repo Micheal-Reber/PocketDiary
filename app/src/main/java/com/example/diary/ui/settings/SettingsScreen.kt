@@ -37,8 +37,11 @@ import com.example.diary.BuildConfig
 import com.example.diary.R
 import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.backup.ImportResult
+import com.example.diary.data.calendar.SystemCalendarManager
+import com.example.diary.data.calendar.SystemCalendarSync
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.preferences.AppLockPreferences
+import com.example.diary.data.preferences.CalendarPreferences
 import com.example.diary.data.preferences.LanguagePreferences
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.ui.lock.AppLockScreen
@@ -55,12 +58,35 @@ fun SettingsScreen(
     backupRepository: BackupRepository,
     appLockPreferences: AppLockPreferences,
     languagePreferences: LanguagePreferences,
+    calendarPreferences: CalendarPreferences,
+    countdownRepository: com.example.diary.data.repository.CountdownRepository,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
     val isDarkMode by themePreferences.isDarkMode.collectAsStateWithLifecycle(initialValue = false)
     val dynamicColor by themePreferences.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
     val floatingBar by themePreferences.floatingBar.collectAsStateWithLifecycle(initialValue = true)
+    val calendarSync by calendarPreferences.syncToSystemCalendar.collectAsStateWithLifecycle(initialValue = false)
+    // 开关先开、权限后授权的场景：靠这个标记在权限回调里补同步
+    var pendingCalendarSync by remember { mutableStateOf(false) }
+    val calendarPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        // 授权回调：拿到权限就立刻补全量对账，否则用户看不到任何反馈
+        val ok = grants[android.Manifest.permission.READ_CALENDAR] == true &&
+            grants[android.Manifest.permission.WRITE_CALENDAR] == true
+        if (ok) {
+            pendingCalendarSync = false
+            SystemCalendarSync.syncNow(context, countdownRepository)
+        } else {
+            scope.launch {
+                snackbarHostState.showSnackbar(
+                    context.getString(R.string.settings_calendar_perm_denied)
+                )
+            }
+        }
+    }
     // Diary list background: picked photo copied into private storage; the
     // stored value is filesDir-relative (null = default color background).
     val bgPath by themePreferences.diaryBackgroundPath.collectAsStateWithLifecycle(initialValue = null)
@@ -125,6 +151,7 @@ fun SettingsScreen(
     Box(Modifier.fillMaxSize()) {
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             topBar = {
                 TopAppBar(
                     title = { Text(stringResource(R.string.settings_title), fontWeight = FontWeight.Bold) },
@@ -280,6 +307,41 @@ fun SettingsScreen(
                         checked = floatingBar,
                         onCheckedChange = { checked ->
                             scope.launch { themePreferences.setFloatingBar(checked) }
+                        }
+                    )
+                }
+            )
+
+            SettingsRow(
+                headline = stringResource(R.string.settings_calendar_sync),
+                supporting = if (calendarSync) stringResource(R.string.settings_calendar_sync_on)
+                else stringResource(R.string.settings_calendar_sync_off),
+                leading = { Icon(Icons.Default.Schedule, contentDescription = null) },
+                trailing = {
+                    Switch(
+                        checked = calendarSync,
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                // 无论当前是否已授权都先存开关：
+                                // 授权走异步弹窗，结果回来后再补一次全量对账，
+                                // 否则"先开开关后授权"的组合会让已存在的倒数日永远不同步。
+                                scope.launch {
+                                    calendarPreferences.setSyncToSystemCalendar(true)
+                                }
+                                if (SystemCalendarManager.hasPermission(context)) {
+                                    SystemCalendarSync.syncNow(context, countdownRepository)
+                                } else {
+                                    pendingCalendarSync = true
+                                    calendarPermissionLauncher.launch(
+                                        arrayOf(
+                                            android.Manifest.permission.READ_CALENDAR,
+                                            android.Manifest.permission.WRITE_CALENDAR
+                                        )
+                                    )
+                                }
+                            } else {
+                                scope.launch { calendarPreferences.setSyncToSystemCalendar(false) }
+                            }
                         }
                     )
                 }

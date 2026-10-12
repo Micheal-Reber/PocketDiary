@@ -5,8 +5,14 @@ import android.content.Context
 import android.content.Intent
 import android.util.Log
 import com.example.diary.R
+import com.example.diary.data.calendar.SystemCalendarSync
+import com.example.diary.data.countdown.CountdownNotificationHelper
+import com.example.diary.data.countdown.CountdownReminder
+import com.example.diary.data.countdown.CountdownReminderScheduler
 import com.example.diary.data.local.AppDatabase
+import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.local.TodoItem
+import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.data.repository.TodoRepository
 import com.example.diary.data.todo.TodoNotificationHelper
 import com.example.diary.data.todo.TodoReminderScheduler
@@ -33,8 +39,24 @@ class BootCompletedReceiver : BroadcastReceiver() {
                 val db = AppDatabase.getInstance(context)
                 val repo = TodoRepository(db.todoDao(), context)
                 TodoReminderScheduler.rescheduleAll(context, repo)
-                // 错过的非重复提醒：关机期间到期的，开机后补一条通知（用户仍可完成/清除）
+
+                val countdownRepo = CountdownRepository(db.countdownDao(), context)
                 val now = System.currentTimeMillis()
+                countdownRepo.getAllWithReminder().forEach { event ->
+                    val at = CountdownReminder.remindAt(event)
+                    when {
+                        at == null -> CountdownReminderScheduler.cancel(context, event.id)
+                        at <= now && event.repeatRule == CountdownEvent.REPEAT_NONE ->
+                            CountdownNotificationHelper.show(
+                                context, event,
+                                titleOverride = context.getString(R.string.notif_missed_title)
+                            )
+                        else -> CountdownReminderScheduler.sync(context, event)
+                    }
+                }
+                SystemCalendarSync.rescheduleAll(context, countdownRepo)
+
+                // 错过的非重复提醒：关机期间到期的，开机后补一条通知（用户仍可完成/清除）
                 repo.getDueReminders(now)
                     .filter { it.repeatRule == TodoItem.REPEAT_NONE }
                     .forEach { item ->

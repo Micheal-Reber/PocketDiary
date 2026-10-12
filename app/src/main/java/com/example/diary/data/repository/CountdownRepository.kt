@@ -1,6 +1,8 @@
 package com.example.diary.data.repository
 
 import android.content.Context
+import com.example.diary.data.calendar.SystemCalendarSync
+import com.example.diary.data.countdown.CountdownReminderScheduler
 import com.example.diary.data.local.CountdownDao
 import com.example.diary.data.local.CountdownEvent
 import com.example.diary.ui.widget.CountdownWidgetRefresh
@@ -19,6 +21,8 @@ class CountdownRepository(private val dao: CountdownDao, context: Context) {
 
     suspend fun getAllOnce(): List<CountdownEvent> = dao.getAllOnce()
 
+    suspend fun getAllWithReminder(): List<CountdownEvent> = dao.getAllWithReminder()
+
     /** id == 0 插入并返回新 id；否则按主键整条更新。 */
     suspend fun save(event: CountdownEvent): Long {
         val id = if (event.id == 0L) dao.insert(event)
@@ -27,6 +31,8 @@ class CountdownRepository(private val dao: CountdownDao, context: Context) {
             event.id
         }
         CountdownWidgetRefresh.updateAll(appContext)
+        CountdownReminderScheduler.sync(appContext, if (event.id == 0L) event.copy(id = id) else event)
+        SystemCalendarSync.onEventSaved(appContext, if (event.id == 0L) event.copy(id = id) else event)
         return id
     }
 
@@ -34,5 +40,7 @@ class CountdownRepository(private val dao: CountdownDao, context: Context) {
     suspend fun delete(id: Long) {
         dao.deleteById(id)
         CountdownWidgetRefresh.updateAll(appContext)
+        CountdownReminderScheduler.cancel(appContext, id)
+        SystemCalendarSync.onEventDeleted(appContext, id)
     }
 }

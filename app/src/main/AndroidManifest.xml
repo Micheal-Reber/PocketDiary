@@ -9,6 +9,10 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- 倒数日提醒 + 同步到系统日历 -->
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+
     <!-- Network for weather lookup -->
     <uses-permission android:name="android.permission.INTERNET" />
 
@@ -46,6 +50,7 @@
         </provider>
 
         <receiver android:name=".receiver.TodoAlarmReceiver" android:exported="false" />
+        <receiver android:name=".receiver.CountdownAlarmReceiver" android:exported="false" />
 
         <!-- 待办闹钟响铃页：锁屏亮屏全屏拉起 -->
         <activity
