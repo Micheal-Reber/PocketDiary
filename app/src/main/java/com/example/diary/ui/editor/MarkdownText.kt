@@ -5,17 +5,21 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
@@ -25,6 +29,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
@@ -44,9 +49,29 @@ import org.commonmark.node.SoftLineBreak
 import org.commonmark.node.StrongEmphasis
 import org.commonmark.node.ThematicBreak
 import org.commonmark.node.Text as MdText
+import org.commonmark.ext.gfm.strikethrough.Strikethrough
+import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
+import org.commonmark.ext.gfm.tables.TableBlock
+import org.commonmark.ext.gfm.tables.TableBody
+import org.commonmark.ext.gfm.tables.TableCell
+import org.commonmark.ext.gfm.tables.TableHead
+import org.commonmark.ext.gfm.tables.TableRow
+import org.commonmark.ext.gfm.tables.TablesExtension
+import org.commonmark.ext.task.list.items.TaskListItemMarker
+import org.commonmark.ext.task.list.items.TaskListItemsExtension
 import org.commonmark.parser.Parser
 
-private val markdownParser = Parser.builder().build()
+internal fun buildMarkdownParser(): Parser = Parser.builder()
+    .extensions(
+        listOf(
+            TablesExtension.create(),
+            StrikethroughExtension.create(),
+            TaskListItemsExtension.create()
+        )
+    )
+    .build()
+
+private val markdownParser = buildMarkdownParser()
 
 private inline fun Node.forEachChild(block: (Node) -> Unit) {
     var child = firstChild
@@ -83,7 +108,10 @@ private fun RenderBlock(node: Node, depth: Int) {
             style = when (node.level) {
                 1 -> MaterialTheme.typography.titleLarge
                 2 -> MaterialTheme.typography.titleMedium
-                else -> MaterialTheme.typography.titleSmall
+                3 -> MaterialTheme.typography.titleSmall
+                4 -> MaterialTheme.typography.labelLarge
+                5 -> MaterialTheme.typography.labelMedium
+                else -> MaterialTheme.typography.labelSmall
             }.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface,
             modifier = indent.padding(top = 6.dp, bottom = 2.dp)
@@ -118,10 +146,65 @@ private fun RenderBlock(node: Node, depth: Int) {
         is FencedCodeBlock -> CodeBlock(node.literal, indent)
         is IndentedCodeBlock -> CodeBlock(node.literal, indent)
 
+        is TableBlock -> RenderTable(node, depth)
+
         is ThematicBreak -> HorizontalDivider(Modifier.padding(vertical = 10.dp))
 
-        // Unhandled block types (images, tables…) are deliberately skipped.
+        // Unhandled block types (images…) are deliberately skipped.
         else -> Unit
+    }
+}
+
+@Composable
+private fun RenderTable(table: TableBlock, depth: Int) {
+    val headRows = mutableListOf<Node>()
+    val bodyRows = mutableListOf<Node>()
+    table.forEachChild { section ->
+        val target = if (section is TableHead) headRows else bodyRows
+        section.forEachChild { target += it }
+    }
+    if (headRows.isEmpty() && bodyRows.isEmpty()) return
+    Surface(
+        modifier = Modifier.padding(start = (depth * 16).dp, top = 4.dp, bottom = 6.dp),
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Column(Modifier.fillMaxWidth().padding(8.dp)) {
+            headRows.forEach { RenderTableRow(it, header = true) }
+            if (headRows.isNotEmpty()) {
+                HorizontalDivider(Modifier.padding(vertical = 2.dp), thickness = 1.dp)
+            }
+            bodyRows.forEach { RenderTableRow(it, header = false) }
+        }
+    }
+}
+
+@Composable
+private fun RenderTableRow(row: Node, header: Boolean) {
+    val cells = mutableListOf<Node>()
+    row.forEachChild { cells += it }
+    if (cells.isEmpty()) return
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        cells.forEach { cell ->
+            val alignment = (cell as? TableCell)?.alignment ?: TableCell.Alignment.LEFT
+            Text(
+                text = cell.toInlineText(),
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (header) FontWeight.Bold else null,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = when (alignment) {
+                    TableCell.Alignment.CENTER -> TextAlign.Center
+                    TableCell.Alignment.RIGHT -> TextAlign.End
+                    TableCell.Alignment.LEFT -> TextAlign.Start
+                },
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 6.dp, vertical = 3.dp)
+            )
+        }
     }
 }
 
@@ -129,29 +212,48 @@ private fun RenderBlock(node: Node, depth: Int) {
 private fun RenderListItems(list: Node, ordered: Boolean, depth: Int) {
     var number = (list as? OrderedList)?.startNumber ?: 1
     list.forEachChild { item ->
-        val prefix = if (ordered) "${number}. " else "• "
+        val marker = taskMarkerOf(item)
         var firstBlock = true
-            item.forEachChild { child ->
-                if (firstBlock && child is Paragraph) {
+        item.forEachChild { child ->
+            when {
+                child is TaskListItemMarker -> Unit
+                firstBlock && child is Paragraph -> {
                     Row(Modifier.padding(start = (depth * 16).dp)) {
-                        Text(
-                            prefix,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        if (marker != null) {
+                            Checkbox(
+                                checked = marker.isChecked,
+                                onCheckedChange = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                        } else {
+                            Text(
+                                if (ordered) "${number}. " else "• ",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                         Text(
                             text = child.toInlineText(),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                } else {
-                    RenderBlock(child, depth + 1)
+                    firstBlock = false
                 }
-                firstBlock = false
+                else -> {
+                    RenderBlock(child, depth + 1)
+                    firstBlock = false
+                }
             }
+        }
         if (ordered) number++
     }
+}
+
+internal fun taskMarkerOf(item: Node): TaskListItemMarker? {
+    (item.firstChild as? TaskListItemMarker)?.let { return it }
+    return (item.firstChild as? Paragraph)?.firstChild as? TaskListItemMarker
 }
 
 @Composable
@@ -208,6 +310,10 @@ private fun Node.appendInline(
                 ) { node.appendInline(builder, codeBackground, linkColor) }
                 builder.pop()
             }
+            is Strikethrough -> builder.withStyle(
+                SpanStyle(textDecoration = TextDecoration.LineThrough)
+            ) { node.appendInline(builder, codeBackground, linkColor) }
+            is TaskListItemMarker -> Unit
             // 单回车（软换行）按手机日记直觉直接换行，等同 Typora/GFM breaks 行为；
             // CommonMark 标准的「渲染成空格」不符合纯文本编辑器的用户预期
             is SoftLineBreak -> builder.append('\n')
@@ -217,7 +323,7 @@ private fun Node.appendInline(
     }
 }
 
-private val plainTextSpecials = charArrayOf('*', '#', '`', '>', '~', '_', '[')
+private val plainTextSpecials = charArrayOf('*', '#', '`', '>', '~', '_', '[', '|')
 
 // Precompiled once — constructing ~10 Regex per card preview was per-recomposition work.
 private val codeBlockRe = Regex("```[\\s\\S]*?(```|$)")
@@ -231,6 +337,8 @@ private val italicAsteriskRe = Regex("\\*([^*\\n]+)\\*")
 private val strikethroughRe = Regex("~~([^~]+)~~")
 private val inlineCodeRe = Regex("`([^`\\n]+)`")
 private val taskRe = Regex("(?m)^([-*+]\\s+)\\[[ xX]\\]\\s")
+private val tableSepRe = Regex("(?m)^\\s*\\|[\\s:|-]+\\|\\s*$\\n?")
+private val tableRowRe = Regex("(?m)^\\s*\\|(.+?)\\|\\s*$")
 private val blockquoteRe = Regex("(?m)^>\\s?")
 private val bulletRe = Regex("(?m)^[-*+]\\s+")
 private val multiBlankRe = Regex("\\n{3,}")
@@ -256,6 +364,10 @@ fun markdownToPlainText(markdown: String): String {
         .replace(strikethroughRe, "$1")
         .replace(inlineCodeRe, "$1")
         .replace(taskRe, "$1")
+        .replace(tableSepRe, "")
+        .replace(tableRowRe) { m ->
+            m.groupValues[1].split('|').joinToString(" · ") { it.trim() }
+        }
         .replace(blockquoteRe, "")
         .replace(bulletRe, "· ")
         .replace(multiBlankRe, "\n\n")

@@ -2,12 +2,16 @@ package com.example.diary.ui.editor
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -16,9 +20,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -58,12 +64,21 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 // Mood & weather presets (inspired by MyDiary → localized)
 private val moodPresets = listOf("😊", "😐", "😢", "😡", "😰")
 private val weatherPresets = listOf("☀️", "🌤️", "☁️", "🌧️", "⛈️", "❄️", "🌫️")
+
+private enum class PhotoSource { Gallery, Camera }
+
+private sealed interface ThumbState {
+    data object Loading : ThumbState
+    data object Failed : ThumbState
+    data class Ready(val bitmap: ImageBitmap) : ThumbState
+}
 
 @Composable
 private fun moodLabels() = listOf(
@@ -143,25 +158,51 @@ fun DiaryEditorScreen(
     // Diary photos: markers in content reference file names; files live in
     // tmp/ until the entry is saved (then baked into the entry folder).
     val photoNames = remember(content) { DiaryPhotoStore.photoNamesIn(content) }
+    var fullscreenPhoto by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbarHostState = remember { SnackbarHostState() }
-    var isImportingPhoto by remember { mutableStateOf(false) }
+    var importingSource by remember { mutableStateOf<PhotoSource?>(null) }
+    val isImportingPhoto = importingSource != null
+
+    val importPhoto: (Uri, PhotoSource) -> Unit = { uri, source ->
+        importingSource = source
+        scope.launch {
+            try {
+                DiaryPhotoStore.importFromUri(context, uri)?.let { name ->
+                    body = insertBlockAtCursor(body, DiaryPhotoStore.markerOf(name))
+                } ?: run {
+                    snackbarHostState.showSnackbar(context.getString(R.string.editor_import_failed), duration = SnackbarDuration.Short)
+                }
+            } finally {
+                importingSource = null
+            }
+        }
+    }
+
     val pickPhotoLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) {
-            isImportingPhoto = true
-            scope.launch {
-                try {
-                    DiaryPhotoStore.importFromUri(context, uri)?.let { name ->
-                        body = insertBlockAtCursor(body, DiaryPhotoStore.markerOf(name))
-                    } ?: run {
-                        snackbarHostState.showSnackbar(context.getString(R.string.editor_import_failed), duration = SnackbarDuration.Short)
-                    }
-                } finally {
-                    isImportingPhoto = false
-                }
-            }
-        }
+        if (uri != null) importPhoto(uri, PhotoSource.Gallery)
+    }
+
+    var captureUri by rememberSaveable { mutableStateOf<String?>(null) }
+    val capturePhotoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { ok ->
+        val saved = captureUri
+        captureUri = null
+        if (ok && saved != null) importPhoto(Uri.parse(saved), PhotoSource.Camera)
+    }
+
+    fun launchCamera() {
+        if (isImportingPhoto || photoNames.size >= DiaryPhotoStore.MAX_PHOTOS_PER_ENTRY) return
+        val dir = File(context.cacheDir, "capture").apply { mkdirs() }
+        val uri = FileProvider.getUriForFile(
+            context,
+            "${context.packageName}.fileprovider",
+            File(dir, "cap_${System.currentTimeMillis()}.jpg")
+        )
+        captureUri = uri.toString()
+        capturePhotoLauncher.launch(uri)
     }
 
     // Metadata fields
@@ -460,7 +501,25 @@ fun DiaryEditorScreen(
                     },
                     enabled = !isImportingPhoto && photoNames.size < DiaryPhotoStore.MAX_PHOTOS_PER_ENTRY
                 ) {
-                    if (isImportingPhoto) {
+                    if (importingSource == PhotoSource.Gallery) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(20.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Icon(
+                            Icons.Default.PhotoLibrary,
+                            contentDescription = stringResource(R.string.editor_pick_photo),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                IconButton(
+                    onClick = { launchCamera() },
+                    enabled = !isImportingPhoto && photoNames.size < DiaryPhotoStore.MAX_PHOTOS_PER_ENTRY
+                ) {
+                    if (importingSource == PhotoSource.Camera) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(20.dp),
                             strokeWidth = 2.dp,
@@ -469,7 +528,7 @@ fun DiaryEditorScreen(
                     } else {
                         Icon(
                             Icons.Default.PhotoCamera,
-                            contentDescription = stringResource(R.string.editor_insert_photo),
+                            contentDescription = stringResource(R.string.editor_take_photo),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -593,18 +652,49 @@ fun DiaryEditorScreen(
                         horizontalArrangement = Arrangement.spacedBy(Spacing.s)
                     ) {
                         items(photoNames) { name ->
-                            val thumb by produceState<ImageBitmap?>(initialValue = null, name) {
+                            val thumb by produceState<ThumbState>(ThumbState.Loading, name) {
                                 val f = DiaryPhotoStore.resolve(context, existingId, name)
-                                value = f?.let { BackgroundImageStore.decode(context, it.absolutePath, maxDim = 400) }
+                                value = if (f == null) {
+                                    ThumbState.Failed
+                                } else {
+                                    BackgroundImageStore.decode(context, f.absolutePath, maxDim = 400)
+                                        ?.let(ThumbState::Ready) ?: ThumbState.Failed
+                                }
                             }
                             Box(
                                 Modifier
                                     .size(88.dp)
                                     .clip(MaterialTheme.shapes.small)
+                                    .clickable { fullscreenPhoto = name }
                             ) {
-                                thumb?.let {
-                                    Image(
-                                        bitmap = it,
+                                when (val state = thumb) {
+                                    ThumbState.Loading -> Box(
+                                        Modifier
+                                            .matchParentSize()
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(20.dp),
+                                            strokeWidth = 2.dp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    ThumbState.Failed -> Box(
+                                        Modifier
+                                            .matchParentSize()
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            Icons.Default.BrokenImage,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.outline,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    is ThumbState.Ready -> Image(
+                                        bitmap = state.bitmap,
                                         contentDescription = null,
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.matchParentSize()
@@ -635,6 +725,14 @@ fun DiaryEditorScreen(
                 }
             }
         }
+    }
+
+    fullscreenPhoto?.let { name ->
+        PhotoFullscreenDialog(
+            fileName = name,
+            entryId = existingId,
+            onDismiss = { fullscreenPhoto = null }
+        )
     }
 
     if (showDatePicker) {

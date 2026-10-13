@@ -86,6 +86,8 @@
     <string name="editor_delete_entry">删除整篇</string>
     <string name="editor_delete_title">删除日记</string>
     <string name="editor_insert_photo">插入图片</string>
+    <string name="editor_pick_photo">从相册选择</string>
+    <string name="editor_take_photo">拍照</string>
     <string name="editor_md_bold">加粗</string>
     <string name="editor_md_italic">斜体</string>
     <string name="editor_md_heading">标题</string>

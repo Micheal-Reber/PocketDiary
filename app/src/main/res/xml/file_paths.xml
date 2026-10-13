@@ -2,4 +2,6 @@
 <!-- 分享图缓存目录：cacheDir/share/ 经 FileProvider 授予临时读权限 -->
 <paths>
     <cache-path name="share" path="share/" />
+    <!-- 拍照暂存：cacheDir/capture/ 经 FileProvider 交给系统相机写入 -->
+    <cache-path name="capture" path="capture/" />
 </paths>

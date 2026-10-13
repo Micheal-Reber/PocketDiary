@@ -88,4 +88,13 @@ class MarkdownPlainTextTest {
     fun `empty string passes through`() {
         assertEquals("", markdownToPlainText(""))
     }
+
+    @Test
+    fun `table rows flatten into cells`() {
+        assertEquals("a · b", markdownToPlainText("| a | b |"))
+        assertEquals(
+            "h · h\n1 · 2",
+            markdownToPlainText("| h | h |\n| - | - |\n| 1 | 2 |")
+        )
+    }
 }

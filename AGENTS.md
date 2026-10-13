@@ -47,7 +47,7 @@ $env:GRADLE_USER_HOME = "E:\dev\.gradle"
 4. `git commit`（中文一行、分号分隔）→ `git push origin main`
 5. **发布/替换安装包须用户确认**：`gh release upload v<版本> app\build\outputs\apk\release\app-release.apk --clobber --repo Micheal-Reber/PocketDiary`（`--clobber` 用于替换同一 Release 的旧包）；`gh release view <tag> --json assets` 核对 digest
 
-- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `BlurCacheTest` / `CountdownWidgetModelTest` / `CountdownReminderTest` / `MarkdownEditingTest` / `MarkdownPlainTextTest`
+- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `BlurCacheTest` / `CountdownWidgetModelTest` / `CountdownReminderTest` / `MarkdownEditingTest` / `MarkdownPlainTextTest` / `MarkdownExtParseTest`
 
 ## 架构
 
@@ -122,7 +122,8 @@ app/src/main/java/com/example/diary/
 | `LocalBottomBarInset` / `LocalFloatingBar` | CompositionLocal | ui/navigation/GlassSurface.kt | 双模底栏的内容避让与模式广播（倒数日详情页据此选胶囊 or 原生栏） |
 | `DiaryRepository.saveEntry` | suspend | data/repository | 日记唯一写入口（插入/更新/搬移/冲突判定） |
 | `BackgroundImageStore.decode` | suspend | data/image | 内存缓存解码（path+mtime+maxDim 键） |
-| `markdownToPlainText` | fun | ui/editor/MarkdownText.kt | 列表预览语法剥离 |
+| `markdownToPlainText` | fun | ui/editor/MarkdownText.kt | 列表预览语法剥离（含表格拍平） |
+| `PhotoFullscreenDialog` | @Composable | ui/editor/DiaryContentView.kt | 图片全屏查看（编辑器缩略图与预览共用） |
 | `applyListContinuation` | fun | ui/editor/MarkdownEditing.kt | 回车自动续行列表/引用（IME composing 放行、空项退出、有序进位） |
 | `MarkdownFormatBar` | @Composable | ui/editor/MarkdownFormatBar.kt | 键盘上方格式条，只发 `MarkdownAction`、不碰正文状态 |
 | `HabitsViewModel.loadAllStats` | private | ui/habits/HabitsViewModel.kt | 四数据集全量刷新入口 |
@@ -173,8 +174,10 @@ app/src/main/java/com/example/diary/
 - **鸣谢**：README.md / README.zh-CN.md 已列 Kyant0/AndroidLiquidGlass 与 perchA5uka/Niriko——新增玻璃实现/移植其代码时保持鸣谢
 
 ### Markdown
-- 解析用 `org.commonmark:commonmark`，渲染用自研子集（`ui/editor/MarkdownText.kt`）——**不要**引入 mikepenz/richtext 等渲染库
-- 列表卡片预览必须走 `markdownToPlainText()` 剥离语法
+- 解析用 `org.commonmark:commonmark` + **三个同族 GFM 解析扩展**（`commonmark-ext-gfm-tables` / `-gfm-strikethrough` / `-task-list-items`，**注意最后一个是 `-items` 后缀**），渲染用自研子集（`ui/editor/MarkdownText.kt`）——扩展**只扩 AST、不是渲染库**，仍受「不引 mikepenz/richtext 等渲染库」约束
+- 统一从 `buildMarkdownParser()`（`MarkdownText.kt`，internal）拿 Parser，别自己 `Parser.builder().build()`，否则测试与线上解析行为不一致
+- 列表卡片预览必须走 `markdownToPlainText()` 剥离语法（表格行拍平成 `a · b`）
+- **表格渲染用 `fillMaxWidth()` + `weight(1f)` 均分列宽，禁止直接套 `horizontalScroll`**（无界约束会让 `weight` 失效、列对不上）
 - **编辑 = 纯文本 + `TextFieldValue`**：正文状态 `var body: TextFieldValue`（`rememberSaveable` + `TextFieldValueSaver`），读取一律走同一次组合里的 `val content = body.text`——⚠️ **Kotlin 局部属性不能写 `get()`**，写 `val content get() = body.text` 是语法错误
 - 回车续行列表、光标处插图、格式条、链接可点、预览长按选中全在 `ui/editor/MarkdownEditing.kt`（纯函数，可单测）+ `MarkdownFormatBar.kt`；细节看 `ui/editor/AGENTS.md`
 - **格式条只在编辑态常显**（`Scaffold.bottomBar` 里 `if (!showPreview)`），Scaffold 根挂 `Modifier.imePadding()`；**不做自动配对**（`{}`、`[]` 成对括号——Joplin 等实现有 wonkiness 反馈，且移动端 IME 更容易踩）

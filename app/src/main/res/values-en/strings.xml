@@ -86,6 +86,8 @@
     <string name="editor_delete_entry">Delete entry</string>
     <string name="editor_delete_title">Delete diary</string>
     <string name="editor_insert_photo">Insert photo</string>
+    <string name="editor_pick_photo">Choose from album</string>
+    <string name="editor_take_photo">Take photo</string>
     <string name="editor_md_bold">Bold</string>
     <string name="editor_md_italic">Italic</string>
     <string name="editor_md_heading">Heading</string>

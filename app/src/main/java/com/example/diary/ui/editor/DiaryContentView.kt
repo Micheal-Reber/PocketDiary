@@ -90,40 +90,54 @@ fun DiaryContentView(
                         Image(
                             bitmap = imageBitmap,
                             contentDescription = stringResource(R.string.diary_image_desc),
-                            contentScale = ContentScale.Crop,
+                            contentScale = ContentScale.Fit,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .aspectRatio(1.3f)
+                                .aspectRatio(imageBitmap.width.toFloat() / imageBitmap.height.toFloat())
                                 .clip(MaterialTheme.shapes.small)
                                 .clickable { fullscreen = true }
                         )
                     }
                     if (fullscreen) {
-                        Dialog(
-                            onDismissRequest = { fullscreen = false },
-                            properties = DialogProperties(usePlatformDefaultWidth = false)
-                        ) {
-                            Box(
-                                Modifier
-                                    .fillMaxSize()
-                                    .background(Color.Black)
-                                    .clickable { fullscreen = false },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                bmp?.let { imageBitmap ->
-                                    Image(
-                                        bitmap = imageBitmap,
-                                        contentDescription = stringResource(R.string.diary_image_desc),
-                                        contentScale = ContentScale.FillWidth,
-                                        modifier = Modifier.fillMaxWidth()
-                                    )
-                                }
-                            }
-                        }
+                        PhotoFullscreenDialog(
+                            fileName = seg.fileName,
+                            entryId = entryId,
+                            onDismiss = { fullscreen = false }
+                        )
                     }
                 }
             }
         }
     }
+    }
+}
+
+@Composable
+fun PhotoFullscreenDialog(fileName: String, entryId: Long?, onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val bmp by produceState<ImageBitmap?>(initialValue = null, fileName, entryId) {
+        val f = DiaryPhotoStore.resolve(context, entryId, fileName)
+        value = f?.let { BackgroundImageStore.decode(context, it.absolutePath, maxDim = 1600) }
+    }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black)
+                .clickable { onDismiss() },
+            contentAlignment = Alignment.Center
+        ) {
+            bmp?.let { imageBitmap ->
+                Image(
+                    bitmap = imageBitmap,
+                    contentDescription = stringResource(R.string.diary_image_desc),
+                    contentScale = ContentScale.FillWidth,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
     }
 }

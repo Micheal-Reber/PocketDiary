@@ -94,6 +94,10 @@ dependencies {
     implementation("androidx.core:core-splashscreen:1.0.1")
     // Markdown parsing (CommonMark spec); rendering is a local Compose subset
     implementation("org.commonmark:commonmark:0.24.0")
+    // 同族 GFM 解析扩展（只扩 AST，渲染仍是我们自己的 Compose 子集，不是渲染库）
+    implementation("org.commonmark:commonmark-ext-gfm-tables:0.24.0")
+    implementation("org.commonmark:commonmark-ext-gfm-strikethrough:0.24.0")
+    implementation("org.commonmark:commonmark-ext-task-list-items:0.24.0")
 
     // Serialization for backup/import
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")

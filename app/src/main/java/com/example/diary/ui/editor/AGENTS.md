@@ -5,8 +5,8 @@
 ## 结构
 
 - `DiaryEditorScreen.kt`：编辑器主体——日期胶囊、心情/天气 chips（共享 `PresetChipRow`）、定位、正文、保存/删除/改期；日期/删除/放弃弹窗走 `ui/components` 共享件
-- `MarkdownText.kt`：`MarkdownText` 渲染器 + `markdownToPlainText` 预览剥离
-- `DiaryContentView.kt`：图文混排（`[img:]` 标记切段 + 全屏查看 + 根部 `SelectionContainer` 长按选中）
+- `MarkdownText.kt`：`MarkdownText` 渲染器 + `markdownToPlainText` 预览剥离；解析器用 `buildMarkdownParser()`（**internal，单测复用同一套 extensions**）
+- `DiaryContentView.kt`：图文混排（`[img:]` 标记切段 + 全屏查看 + 根部 `SelectionContainer` 长按选中）+ 公共 `PhotoFullscreenDialog`（编辑器缩略图也调它）
 - `MarkdownEditing.kt`：编辑纯函数（**单测只测这一层**）——`TextFieldValueSaver` / `applyListContinuation` / `wrapOrUnwrap` / `toggleLinePrefix` / `insertAtCursor` / `insertBlockAtCursor`
 - `MarkdownFormatBar.kt`：键盘上方格式条——`MarkdownAction` 枚举 + `MarkdownFormatBar(onAction)`；**它只发动作，不碰正文状态**
 
@@ -22,6 +22,17 @@
 | 回车自动续行 | `MarkdownEditing.kt` 的 `applyListContinuation`，挂在 TextField `onValueChange` |
 | 格式条动作分发 | `DiaryEditorScreen` 的 `applyMarkdownAction` lambda（**文件底部，Scaffold 之前**） |
 | 链接可点 / 预览可选中 | `MarkdownText.kt` 的 `Link` 分支（`LinkAnnotation.Url`）+ `DiaryContentView` 的 `SelectionContainer` |
+| 表格 / 删除线 / 任务勾选 | `MarkdownText.kt` 的 `RenderTable` / `appendInline` 的 `Strikethrough` 分支 / `taskMarkerOf` |
+| 图片全屏 / 占位 / 拍照 | `PhotoFullscreenDialog`（DiaryContentView.kt）+ `DiaryEditorScreen` 的 `ThumbState` 三态与 `launchCamera()` |
+
+## 图片
+
+- **正文图按原图比例显示**：`aspectRatio(bmp.width / bmp.height)` + `ContentScale.Fit`，**不要**写死 `aspectRatio(1.3f)` + `Crop`（会把竖图切头切脚）。缩略图条 88dp 方格仍用 `Crop`（方格里放原比例只会留白边）
+- **加载/失败占位**：`ThumbState` 三态（`Loading` 转圈 / `Failed` `BrokenImage` / `Ready`），别再用 `bmp?.let {}` 让未加载时是透明空块
+- **缩略图可点开全屏**：`Box` 挂 `clickable`，删除按钮**必须声明在后面**（内层 `IconButton` 先吃点击）
+- **拍照走 `TakePicture` + FileProvider**：authority `${applicationId}.fileprovider`，暂存 `cacheDir/capture/`（`res/xml/file_paths.xml` 已加 `<cache-path name="capture">`），`captureUri` 用 `rememberSaveable` 存字符串防进程回收；成功复用 `importFromUri`（内建采样到 1600px）。**不申请 `CAMERA` 权限**（系统相机 Intent 自带）
+- **导入态用 `importingSource: PhotoSource?` 而不是布尔**：相册/拍照两个按钮各自显示转圈，不能共用一个 `isImportingPhoto` 布尔（会不知道该在哪颗按钮上转圈）
+- `MAX_PHOTOS_PER_ENTRY = 7`，两颗按钮与格式条图片键共用同一 `enabled` 条件
 
 ## 约定
 
@@ -37,7 +48,8 @@
 ## 已知限制
 
 - **续行不做 fenced code block 感知**：代码块里行首 `- ` / `1. ` 仍会被当成列表续行。要做得在 `applyListContinuation` 里回扫 ``` 围栏计数（纯函数、可加测），目前按「手机日记很少写代码块」取舍
-- **预览不渲染表格 / 删除线节点**（commonmark 只是核心子集；`markdownToPlainText` 已剥 `~~x~~`，但 `MarkdownText` 不画删除线）
+- **表格列宽均分 + 文字换行，不做横向滚动**：列宽靠 `Row(Modifier.fillMaxWidth())` + 单元格 `weight(1f)`，**这是刻意的**——`horizontalScroll` 会把行宽变成无界约束，`weight` 失效、各行各自按内容宽度算会导致**列对不上**。想加横滑得先统一所有行的宽度（例如 `Column(Modifier.width(IntrinsicSize.Max))`），别直接套 `horizontalScroll`
+- **预览不渲染表格/删除线节点以外的 GFM 扩展**（无自动链接、无脚注、无告警块）；`markdownToPlainText` 已把表格行拍平成 `a · b`
 
 ## 反模式
 
