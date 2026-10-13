@@ -86,6 +86,14 @@
     <string name="editor_delete_entry">Delete entry</string>
     <string name="editor_delete_title">Delete diary</string>
     <string name="editor_insert_photo">Insert photo</string>
+    <string name="editor_md_bold">Bold</string>
+    <string name="editor_md_italic">Italic</string>
+    <string name="editor_md_heading">Heading</string>
+    <string name="editor_md_list">Bulleted list</string>
+    <string name="editor_md_list_ordered">Numbered list</string>
+    <string name="editor_md_quote">Quote</string>
+    <string name="editor_md_link">Link</string>
+    <string name="editor_md_code">Inline code</string>
     <string name="editor_fetch_location">Fetch location</string>
     <string name="editor_save">Save</string>
     <string name="editor_import_failed">Failed to import photo</string>

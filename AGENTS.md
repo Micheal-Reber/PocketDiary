@@ -47,7 +47,7 @@ $env:GRADLE_USER_HOME = "E:\dev\.gradle"
 4. `git commit`（中文一行、分号分隔）→ `git push origin main`
 5. **发布/替换安装包须用户确认**：`gh release upload v<版本> app\build\outputs\apk\release\app-release.apk --clobber --repo Micheal-Reber/PocketDiary`（`--clobber` 用于替换同一 Release 的旧包）；`gh release view <tag> --json assets` 核对 digest
 
-- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `BlurCacheTest` / `CountdownWidgetModelTest` / `CountdownReminderTest`
+- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `BlurCacheTest` / `CountdownWidgetModelTest` / `CountdownReminderTest` / `MarkdownEditingTest` / `MarkdownPlainTextTest`
 
 ## 架构
 
@@ -123,6 +123,8 @@ app/src/main/java/com/example/diary/
 | `DiaryRepository.saveEntry` | suspend | data/repository | 日记唯一写入口（插入/更新/搬移/冲突判定） |
 | `BackgroundImageStore.decode` | suspend | data/image | 内存缓存解码（path+mtime+maxDim 键） |
 | `markdownToPlainText` | fun | ui/editor/MarkdownText.kt | 列表预览语法剥离 |
+| `applyListContinuation` | fun | ui/editor/MarkdownEditing.kt | 回车自动续行列表/引用（IME composing 放行、空项退出、有序进位） |
+| `MarkdownFormatBar` | @Composable | ui/editor/MarkdownFormatBar.kt | 键盘上方格式条，只发 `MarkdownAction`、不碰正文状态 |
 | `HabitsViewModel.loadAllStats` | private | ui/habits/HabitsViewModel.kt | 四数据集全量刷新入口 |
 | `habitColor` / `HabitColorPalette` | fun/val | ui/habits/LineChart.kt | 习惯配色（全局引用） |
 | `AppShapes` / `Spacing` | val | ui/theme | 圆角/间距令牌（禁止字面量） |
@@ -173,6 +175,9 @@ app/src/main/java/com/example/diary/
 ### Markdown
 - 解析用 `org.commonmark:commonmark`，渲染用自研子集（`ui/editor/MarkdownText.kt`）——**不要**引入 mikepenz/richtext 等渲染库
 - 列表卡片预览必须走 `markdownToPlainText()` 剥离语法
+- **编辑 = 纯文本 + `TextFieldValue`**：正文状态 `var body: TextFieldValue`（`rememberSaveable` + `TextFieldValueSaver`），读取一律走同一次组合里的 `val content = body.text`——⚠️ **Kotlin 局部属性不能写 `get()`**，写 `val content get() = body.text` 是语法错误
+- 回车续行列表、光标处插图、格式条、链接可点、预览长按选中全在 `ui/editor/MarkdownEditing.kt`（纯函数，可单测）+ `MarkdownFormatBar.kt`；细节看 `ui/editor/AGENTS.md`
+- **格式条只在编辑态常显**（`Scaffold.bottomBar` 里 `if (!showPreview)`），Scaffold 根挂 `Modifier.imePadding()`；**不做自动配对**（`{}`、`[]` 成对括号——Joplin 等实现有 wonkiness 反馈，且移动端 IME 更容易踩）
 
 ### 桌面小组件（RemoteViews）
 参考实现：<https://github.com/ybhgl/Reminder>（同类倒数日 App，实测能在 MIUI 桌面正常显示；本项目 widget 结构即按它本地化重写）

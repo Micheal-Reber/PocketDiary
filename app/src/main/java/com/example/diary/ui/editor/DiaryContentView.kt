@@ -3,6 +3,7 @@ package com.example.diary.ui.editor
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
@@ -67,6 +68,7 @@ fun DiaryContentView(
 ) {
     val context = LocalContext.current
     val segments = remember(content) { splitByImgMarker(content) }
+    SelectionContainer {
     Column(modifier) {
         segments.forEach { seg ->
             when (seg) {
@@ -122,5 +124,6 @@ fun DiaryContentView(
                 }
             }
         }
+    }
     }
 }

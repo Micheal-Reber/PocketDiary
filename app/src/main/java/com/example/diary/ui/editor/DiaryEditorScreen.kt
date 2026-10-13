@@ -37,6 +37,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.example.diary.R
@@ -98,7 +100,8 @@ fun DiaryEditorScreen(
     // mode toggle from another surface, etc.) preserves the user's in-flight
     // edits. Without this, rotating mid-edit would wipe title/content/mood.
     var dateStr by rememberSaveable { mutableStateOf(initialDate ?: today) }
-    var content by rememberSaveable { mutableStateOf("") }
+    var body by rememberSaveable(stateSaver = TextFieldValueSaver) { mutableStateOf(TextFieldValue()) }
+    val content = body.text
     var existingId by rememberSaveable { mutableStateOf<Long?>(null) }
     var showDeleteDialog by rememberSaveable { mutableStateOf(false) }
     // Markdown preview toggle — editing is raw text (markdown IS text);
@@ -150,7 +153,7 @@ fun DiaryEditorScreen(
             scope.launch {
                 try {
                     DiaryPhotoStore.importFromUri(context, uri)?.let { name ->
-                        content = (if (content.endsWith("\n")) content else "$content\n") + DiaryPhotoStore.markerOf(name)
+                        body = insertBlockAtCursor(body, DiaryPhotoStore.markerOf(name))
                     } ?: run {
                         snackbarHostState.showSnackbar(context.getString(R.string.editor_import_failed), duration = SnackbarDuration.Short)
                     }
@@ -178,7 +181,7 @@ fun DiaryEditorScreen(
         isLoaded = false
         val entry = diaryRepository.getEntryByDate(dateStr)
         if (entry != null) {
-            content = entry.content
+            body = TextFieldValue(entry.content, TextRange(entry.content.length))
             existingId = entry.id
             mood = entry.mood
             lat = entry.latitude
@@ -186,7 +189,7 @@ fun DiaryEditorScreen(
             locationName = entry.locationName
             weather = entry.weather
         } else {
-            content = ""
+            body = TextFieldValue()
             existingId = null
             mood = null
             lat = null
@@ -358,7 +361,29 @@ fun DiaryEditorScreen(
         }
     }
 
+    val applyMarkdownAction: (MarkdownAction) -> Unit = { action ->
+        body = when (action) {
+            MarkdownAction.Bold -> wrapOrUnwrap(body, "**", "**")
+            MarkdownAction.Italic -> wrapOrUnwrap(body, "*", "*")
+            MarkdownAction.Code -> wrapOrUnwrap(body, "`", "`")
+            MarkdownAction.Link -> insertAtCursor(body, "[]()", 1)
+            MarkdownAction.Heading -> toggleLinePrefix(body, "# ")
+            MarkdownAction.Bullet -> toggleLinePrefix(body, "- ")
+            MarkdownAction.Number -> toggleLinePrefix(body, "1. ")
+            MarkdownAction.Quote -> toggleLinePrefix(body, "> ")
+            MarkdownAction.Image -> {
+                if (!isImportingPhoto && photoNames.size < DiaryPhotoStore.MAX_PHOTOS_PER_ENTRY) {
+                    pickPhotoLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                }
+                body
+            }
+        }
+    }
+
     Scaffold(
+        modifier = Modifier.imePadding(),
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.editor_title), fontWeight = FontWeight.Bold) },
@@ -394,6 +419,11 @@ fun DiaryEditorScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
             )
+        },
+        bottomBar = {
+            if (!showPreview) {
+                MarkdownFormatBar(onAction = applyMarkdownAction)
+            }
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
     ) { padding ->
@@ -528,8 +558,8 @@ fun DiaryEditorScreen(
                 // Borderless writing canvas — journal apps favor an unobstructed
                 // page over a boxed field.
                 TextField(
-                value = content,
-                onValueChange = { content = it },
+                value = body,
+                onValueChange = { body = applyListContinuation(body, it) ?: it },
                 placeholder = {
                     Text(stringResource(R.string.editor_placeholder), color = MaterialTheme.colorScheme.outline)
                 },
@@ -585,7 +615,7 @@ fun DiaryEditorScreen(
                                         scope.launch {
                                             DiaryPhotoStore.deletePhoto(context, existingId, name)
                                         }
-                                        content = content.replace("[img:$name]", "")
+                                        body = TextFieldValue(body.text.replace("[img:$name]", ""))
                                     },
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)

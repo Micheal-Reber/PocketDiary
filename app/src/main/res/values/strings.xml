@@ -86,6 +86,14 @@
     <string name="editor_delete_entry">删除整篇</string>
     <string name="editor_delete_title">删除日记</string>
     <string name="editor_insert_photo">插入图片</string>
+    <string name="editor_md_bold">加粗</string>
+    <string name="editor_md_italic">斜体</string>
+    <string name="editor_md_heading">标题</string>
+    <string name="editor_md_list">无序列表</string>
+    <string name="editor_md_list_ordered">有序列表</string>
+    <string name="editor_md_quote">引用</string>
+    <string name="editor_md_link">链接</string>
+    <string name="editor_md_code">行内代码</string>
     <string name="editor_fetch_location">获取位置</string>
     <string name="editor_save">保存</string>
     <string name="editor_import_failed">图片导入失败</string>

@@ -19,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -200,9 +201,13 @@ private fun Node.appendInline(
             is Code -> builder.withStyle(
                 SpanStyle(fontFamily = FontFamily.Monospace, background = codeBackground)
             ) { builder.append(node.literal) }
-            is Link -> builder.withStyle(
-                SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
-            ) { node.appendInline(builder, codeBackground, linkColor) }
+            is Link -> {
+                builder.pushLink(LinkAnnotation.Url(node.destination))
+                builder.withStyle(
+                    SpanStyle(color = linkColor, textDecoration = TextDecoration.Underline)
+                ) { node.appendInline(builder, codeBackground, linkColor) }
+                builder.pop()
+            }
             // 单回车（软换行）按手机日记直觉直接换行，等同 Typora/GFM breaks 行为；
             // CommonMark 标准的「渲染成空格」不符合纯文本编辑器的用户预期
             is SoftLineBreak -> builder.append('\n')
@@ -212,16 +217,20 @@ private fun Node.appendInline(
     }
 }
 
-private val plainTextSpecials = charArrayOf('*', '#', '`', '>', '~', '_')
+private val plainTextSpecials = charArrayOf('*', '#', '`', '>', '~', '_', '[')
 
 // Precompiled once — constructing ~10 Regex per card preview was per-recomposition work.
 private val codeBlockRe = Regex("```[\\s\\S]*?(```|$)")
 private val imgMarkerRe = Regex("\\[img:[^\\]]+\\]")
-private val headingRe = Regex("(?m)^#{1,6}\\s+")
+private val imageLinkRe = Regex("!\\[[^\\]]*\\]\\([^)]*\\)")
+private val linkRe = Regex("\\[([^\\]]+)\\]\\([^)]*\\)")
+private val headingRe = Regex("(?m)^#{1,6}\\s*")
 private val boldAsteriskRe = Regex("\\*\\*([^*]+)\\*\\*")
 private val boldUnderscoreRe = Regex("__(.+?)__")
 private val italicAsteriskRe = Regex("\\*([^*\\n]+)\\*")
+private val strikethroughRe = Regex("~~([^~]+)~~")
 private val inlineCodeRe = Regex("`([^`\\n]+)`")
+private val taskRe = Regex("(?m)^([-*+]\\s+)\\[[ xX]\\]\\s")
 private val blockquoteRe = Regex("(?m)^>\\s?")
 private val bulletRe = Regex("(?m)^[-*+]\\s+")
 private val multiBlankRe = Regex("\\n{3,}")
@@ -238,11 +247,15 @@ fun markdownToPlainText(markdown: String): String {
     return markdown
         .replace(codeBlockRe, " ")
         .replace(imgMarkerRe, "")          // 图片标记 → 移除（图片不进文本预览）
+        .replace(imageLinkRe, "")
+        .replace(linkRe, "$1")
         .replace(headingRe, "")
         .replace(boldAsteriskRe, "$1")
         .replace(boldUnderscoreRe, "$1")
         .replace(italicAsteriskRe, "$1")
+        .replace(strikethroughRe, "$1")
         .replace(inlineCodeRe, "$1")
+        .replace(taskRe, "$1")
         .replace(blockquoteRe, "")
         .replace(bulletRe, "· ")
         .replace(multiBlankRe, "\n\n")
