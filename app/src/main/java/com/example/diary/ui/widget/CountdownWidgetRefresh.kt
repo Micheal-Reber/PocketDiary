@@ -13,8 +13,6 @@ import java.time.ZoneId
 
 object CountdownWidgetRefresh {
 
-    const val ACTION_NEXT = "com.example.diary.action.CD_WIDGET_NEXT"
-    const val ACTION_PREV = "com.example.diary.action.CD_WIDGET_PREV"
     const val ACTION_MIDNIGHT = "com.example.diary.action.CD_WIDGET_MIDNIGHT"
 
     private const val REQUEST_CODE = 4200

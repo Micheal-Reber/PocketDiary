@@ -65,9 +65,11 @@ class MainActivity : ComponentActivity() {
 
         // Notification deep-link: TodoNotificationHelper puts open_todo_id here.
         val openTodoId = intent.getLongExtra("open_todo_id", -1L).takeIf { it > 0 }
-        // Widget deep-link: CountdownWidgetProvider puts open_countdown_id here.
+        // Notification deep-link: CountdownAlarmReceiver puts open_countdown_id here.
         val openCountdownId = intent.getLongExtra("open_countdown_id", -1L).takeIf { it > 0 }
-        val openCountdownTab = intent.getBooleanExtra("open_countdown_tab", false)
+        // Widget deep-link: CountdownWidgetProvider puts open_countdown_pick + appwidget_id here.
+        val openCountdownPick = intent.getBooleanExtra("open_countdown_pick", false)
+        val pickedWidgetId = intent.getIntExtra("appwidget_id", -1)
 
         setContent {
             // collectAsStateWithLifecycle suspends collection when the activity
@@ -86,7 +88,7 @@ class MainActivity : ComponentActivity() {
                     database = database,
                     initialOpenTodoId = openTodoId,
                     initialOpenCountdownId = openCountdownId,
-                    initialOpenCountdownTab = openCountdownTab
+                    initialOpenCountdownPick = if (openCountdownPick) pickedWidgetId else null
                 )
             }
         }

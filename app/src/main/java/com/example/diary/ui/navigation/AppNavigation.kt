@@ -67,6 +67,7 @@ import com.example.diary.ui.countdown.CountdownEditScreen
 import com.example.diary.ui.countdown.CountdownListScreen
 import com.example.diary.ui.countdown.PhotoCardEditorScreen
 import com.example.diary.ui.countdown.ClassicFullscreenEditorScreen
+import com.example.diary.ui.countdown.CountdownWidgetPickScreen
 import com.example.diary.ui.diary.DiaryListScreen
 import com.example.diary.ui.editor.DiaryEditorScreen
 import com.example.diary.ui.habits.HabitsScreen
@@ -105,7 +106,7 @@ fun AppNavigation(
     database: AppDatabase,
     initialOpenTodoId: Long? = null,
     initialOpenCountdownId: Long? = null,
-    initialOpenCountdownTab: Boolean = false,
+    initialOpenCountdownPick: Int? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -144,17 +145,15 @@ fun AppNavigation(
         }
     }
 
-    // 小组件点进来：读 open_countdown_id / open_countdown_tab → 直达倒数日
-    LaunchedEffect(initialOpenCountdownId, initialOpenCountdownTab) {
+    // 小组件点进来：读 open_countdown_id → 直达详情；读 open_countdown_pick → 打开选择页
+    LaunchedEffect(initialOpenCountdownId, initialOpenCountdownPick) {
         if (initialOpenCountdownId != null && initialOpenCountdownId > 0) {
             navController.navigate("countdown_detail/$initialOpenCountdownId") {
                 launchSingleTop = true
             }
-        } else if (initialOpenCountdownTab) {
-            navController.navigate(Screen.Countdown.route) {
-                popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+        } else if (initialOpenCountdownPick != null && initialOpenCountdownPick >= 0) {
+            navController.navigate("countdown_widget_pick?widgetId=$initialOpenCountdownPick") {
                 launchSingleTop = true
-                restoreState = true
             }
         }
     }
@@ -307,6 +306,21 @@ fun AppNavigation(
                                 onEdit = { navController.navigate("countdown_edit?id=$id") },
                                 onEditPhoto = { navController.navigate("countdown_photo_edit/$id") },
                                 onEditClassicPhoto = { navController.navigate("countdown_classic_photo_edit/$id") },
+                                onCreate = { navController.navigate("countdown_edit?id=0") }
+                            )
+                        }
+                        composable(
+                            route = "countdown_widget_pick?widgetId={widgetId}",
+                            arguments = listOf(navArgument("widgetId") {
+                                type = NavType.IntType; defaultValue = -1
+                            }),
+                            enterTransition = SlideUpEnter,
+                            popExitTransition = SlideUpPopExit
+                        ) { backStackEntry ->
+                            val widgetId = backStackEntry.arguments?.getInt("widgetId") ?: -1
+                            CountdownWidgetPickScreen(
+                                widgetId = widgetId,
+                                repository = countdownRepository,
                                 onCreate = { navController.navigate("countdown_edit?id=0") }
                             )
                         }

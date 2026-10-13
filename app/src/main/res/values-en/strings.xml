@@ -315,12 +315,16 @@
     <string name="backup_version_gate">Backup version %1$d is incompatible (supported: 1..%2$d)</string>
     <string name="cd_share_target">Target date: %1$s</string>
 
-    <string name="cd_widget_desc">Countdown home-screen widget: days left, swipe or tap the arrows to switch events</string>
+    <string name="cd_widget_desc">Countdown home-screen widget: days left, tap the card to choose which countdown it shows</string>
     <string name="cd_widget_empty">No countdowns yet</string>
     <string name="cd_widget_empty_hint">Tap to add</string>
-    <string name="cd_widget_prev">Previous</string>
-    <string name="cd_widget_next">Next</string>
-    <string name="cd_widget_date_line">%1$s %2$s</string>
+    <string name="cd_widget_label_countdown">%1$s to go</string>
+    <string name="cd_widget_label_countup">%1$s ago</string>
+    <string name="cd_widget_label_today">%1$s is today</string>
+    <string name="cd_widget_date_pattern" translatable="false">MMM d, yyyy</string>
+    <string name="cd_pick_title">Choose a countdown for the widget</string>
+    <string name="cd_pick_auto">Automatic</string>
+    <string name="cd_pick_auto_desc">Follows your pinned or nearest countdown</string>
     <string-array name="month_full">
         <item>January</item>
         <item>February</item>

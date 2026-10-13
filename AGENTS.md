@@ -1,6 +1,6 @@
 # AGENTS.md — PocketDiary 开发指引
 
-**Updated:** 2026-10-12 · **Version:** 1.12.1 (code 20) · **Branch:** main
+**Updated:** 2026-10-12 · **Version:** 1.13.0 (code 21) · **Branch:** main
 
 本文件供 AI 编码代理（及新成员）快速了解本项目的构建方式、架构约定与历史坑点。
 
@@ -10,10 +10,10 @@
 
 - **语言/UI**: Kotlin 2.3.21 + Jetpack Compose (BOM 2026.01.01, Compose 1.10.2, M3 1.4) + Material 3
 - **液态玻璃**: `io.github.kyant0:backdrop:1.0.6`（Kyant0/AndroidLiquidGlass，Apache-2.0；README 已鸣谢，**改玻璃效果必须鸣谢该库**）
-- **数据库**: Room v14（v9→11 / v10→11 / v11→12→13→14 有手写迁移；v8 及更早仍破坏性回退会清数据）
+- **数据库**: Room v15（v9→11 / v10→11 / v11→12→13→14→15 有手写迁移；v8 及更早仍破坏性回退会清数据）
 - **偏好**: DataStore Preferences（`ThemePreferences`：暗色 / 壁纸取色 / 日记背景 / 编辑器预览 / **floatingBar 底栏模式**；`LanguagePreferences` 语言；`AppLockPreferences` 密码锁）
 - **SDK**: minSdk 26 / target 35 / compile 36 / JDK 17
-- **当前版本**: 1.12.1 (code 20)
+- **当前版本**: 1.13.0 (code 21)
 - **工具链**: AGP 8.13.2 / Gradle 8.14.3 / KSP 2.3.12 / Room 2.8.5（schema 走 Room Gradle 插件 `room { schemaDirectory }`）
 
 ## 构建与安装
@@ -47,7 +47,7 @@ $env:GRADLE_USER_HOME = "E:\dev\.gradle"
 4. `git commit`（中文一行、分号分隔）→ `git push origin main`
 5. **发布/替换安装包须用户确认**：`gh release upload v<版本> app\build\outputs\apk\release\app-release.apk --clobber --repo Micheal-Reber/PocketDiary`（`--clobber` 用于替换同一 Release 的旧包）；`gh release view <tag> --json assets` 核对 digest
 
-- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `BlurCacheTest`
+- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `BlurCacheTest` / `CountdownWidgetModelTest` / `CountdownReminderTest`
 
 ## 架构
 
@@ -61,7 +61,7 @@ app/src/main/java/com/example/diary/
 │   ├── backup/             # 数据导出/导入（手机迁移）：BackupData/ExportService/ImportService/BackupRepository
 │   ├── countdown/          # DateMath 正倒判定纯函数 + ShareCardRenderer 分享图 + TextureLibrary 纹理
 │   ├── image/              # BackgroundImageStore（日记背景，相对路径）/ EventImageStore（倒数日每事件背景）
-│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem（version 14）
+│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem（version 15）
 │   ├── location/           # LocationManager 封装（无 GMS）
 │   ├── photo/              # DiaryPhotoStore：日记图文混排两阶段生命周期
 │   ├── preferences/        # DataStore 三个文件：ThemePreferences（暗色/壁纸取色/编辑器预览/floatingBar）+ LanguagePreferences（语言）+ AppLockPreferences（密码锁）
@@ -69,8 +69,8 @@ app/src/main/java/com/example/diary/
 │   └── todo/               # TodoReminderScheduler(AlarmManager/setAlarmClock) + TodoNotificationHelper + TodoAlarmNotifier(全屏响铃)
 └── ui/
     ├── components/         # SharedUi：SwipeDelete/Confirm/Search/UtcDatePicker/PresetChip（多屏共用）
-    ├── countdown/          # 倒数日：列表/编辑/详情 三屏 + 共享件（双卡片风格：CLASSIC / PHOTO_CARD）
-    ├── widget/             # 倒数日桌面小组件（RemoteViews）：Provider / Model 纯逻辑 / Refresh 调度 / State 选中项
+    ├── countdown/          # 倒数日：列表/编辑/详情/小组件选择 四屏 + 共享件（双卡片风格：CLASSIC / PHOTO_CARD）
+    ├── widget/             # 倒数日桌面小组件（RemoteViews）：Provider / Model 纯逻辑 / Refresh 调度 / State（选中项按 appWidgetId 存 SharedPreferences）
     ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索（250ms 防抖）
     ├── editor/             # 编辑器：无边框书写、Markdown 预览、📷插图（日期/chips 无描边）
     ├── habits/             # 打卡日历 + 统计图表（LineChart 自研）
@@ -101,7 +101,7 @@ app/src/main/java/com/example/diary/
 | 打卡日历 | `ui/habits/CalendarComponents.kt` + `HabitsViewModel.kt` | 多习惯彩点、月份分割 |
 | 倒数日正倒判定 | `data/countdown/DateMath.kt` + 单测 | 三态 Today/Countdown/Countup；+1日；重复滚动；**改动必跑 JUnit** |
 | 倒数日界面 | `ui/countdown/*Screen.kt` + `CountdownUi.kt` | 色板下标 0=自动(倒蓝/正橙)；过程式纹理 TextureBackdrop |
-| 倒数日桌面小组件 | `ui/widget/CountdownWidgetProvider.kt` + `CountdownWidgetModel.kt` + `CountdownWidgetRefresh.kt` + `CountdownWidgetState.kt` + `res/layout/countdown_widget.xml` + `res/xml/countdown_widget_info.xml` | **纯 RemoteViews，零新依赖**（不用 Glance/WorkManager）；单层扁平树，`‹ ›` 切换；`save/delete` → `updateAll` 触发刷新。**改之前先读「桌面小组件」约定与坑点 19-22** |
+| 倒数日桌面小组件 | `ui/widget/CountdownWidgetProvider.kt` + `CountdownWidgetModel.kt` + `CountdownWidgetRefresh.kt` + `CountdownWidgetState.kt` + `ui/countdown/CountdownWidgetPickScreen.kt` + `res/layout/countdown_widget_v4.xml` + `res/xml/countdown_widget_info.xml` | **纯 RemoteViews，零新依赖**（不用 Glance/WorkManager）；单层扁平树，**只显示单个倒数日**（无 `‹ ›` 切换）；显示哪一条 = `CountdownWidgetState` 按 appWidgetId 存的选中 id，未选/失效走 `featuredEvent`；**点击进选择页 `CountdownWidgetPickScreen`（不是进详情）**，选完 `finish()` 回桌面；`save/delete` → `updateAll` 触发刷新。**改之前先读「桌面小组件」约定与坑点 19-23** |
 | 分享图生成 | `data/countdown/ShareCardRenderer.kt` | 纯 android.graphics 离屏 1080×1440；FileProvider 在 Manifest |
 | 亮暗/开屏 | `Theme.kt` + `themes.xml` + `MainActivity.kt` | 独立于系统 |
 | 背景图缓存 | `data/image/BackgroundImageStore.kt` | 覆盖同名文件后必须 `clearCache()`；倒数日每事件图走 EventImageStore |
@@ -177,7 +177,11 @@ app/src/main/java/com/example/diary/
 ### 桌面小组件（RemoteViews）
 参考实现：<https://github.com/ybhgl/Reminder>（同类倒数日 App，实测能在 MIUI 桌面正常显示；本项目 widget 结构即按它本地化重写）
 
-- **单层扁平树，禁用嵌套**：`StackView` + `addView(子 RemoteViews)` + `setDisplayedChild` 的轮播方案在 MIUI 桌面 `LauncherWidgetLayoutFactory.AutoScale` 递归里**只建出容器、子 View 全部丢失**，且不抛异常（踩过）。要轮播就用 `‹ ›` 按钮 → `PendingIntent.getBroadcast` → 重排索引 → 重建整棵 RemoteViews
+- **单层扁平树，禁用嵌套**：`StackView` + `addView(子 RemoteViews)` + `setDisplayedChild` 的轮播方案在 MIUI 桌面 `LauncherWidgetLayoutFactory.AutoScale` 递归里**只建出容器、子 View 全部丢失**，且不抛异常（踩过）。**widget 只显示单个事件**，不用 `‹ ›` 按钮轮播——RemoteViews 只支持点击、做不了滑动/长按手势
+- **显示哪一条由 `CountdownWidgetState` 决定（按 appWidgetId 存 SharedPreferences `countdown_widget_state`，key `eid_<id>`，0=未选）**：`CountdownWidgetModel.resolveEvent(events, today, selectedId)` 优先返回选中项、否则回退 `featuredEvent`（置顶优先、组内取离今天最近）。选中的事件被删时**自动回退自动模式**，不要报错。`onDeleted` 清 key、`onRestored` 迁移 oldId→newId，否则 prefs 泄漏
+- **点击进「选择要显示的倒数日」页，不是进详情**：`openPickerIntent` 带 `open_countdown_pick` + `appwidget_id`，requestCode=widgetId（多实例各自独立）→ `MainActivity` → 路由 `countdown_widget_pick?widgetId={id}` → `CountdownWidgetPickScreen`（首项「自动」+ 全部倒数日，点=选中不进详情）；**选中后写盘 + `updateAll` + `finish()` 直接回桌面**（用户明确要求）。看详情仍走倒数日列表点卡片。注意这只改 `setOnClickPendingIntent`（一个 action），**不碰布局结构 → 不需要换布局名**，MIUI 照常 apply
+- **布局里只许用带 `@RemoteView` 注解的类（踩过，就是「载入窗口小部件时出现问题」的根因）**：`AppWidgetHostView` 用 `INFLATER_FILTER = clazz.isAnnotationPresent(RemoteViews.RemoteView.class)` 强制白名单——允许 `FrameLayout`/`LinearLayout`/`RelativeLayout`/`GridLayout`/`ListView`/`GridView`/`StackView`/`ViewFlipper`/`AdapterViewFlipper` + `TextView`/`Button`/`ImageView`/`ImageButton`/`ProgressBar`/`Chronometer`/`AnalogClock`/`TextClock`（API31+ 再加 `CheckBox`/`RadioButton`/`RadioGroup`/`Switch`），且**明确声明不支持其子类**。**`Space`、裸 `View`、任何自定义 View 都不在白名单里**——加一个 `<Space>` 就让整个小组件塌成 error 占位框。留白一律用**无子节点的 `LinearLayout` + `layout_weight`**（或空 `TextView`）。此坑极难查：异常发生在 `com.miui.home` 且被吞，本包 logcat **全程零异常**、`updateAppWidget` 也照发，只能靠 uiautomator dump 看 UI 验收
+- **布局文件名带版本后缀（现为 `countdown_widget_v4.xml`）、不要改回无后缀的 `countdown_widget.xml`**：MIUI 对 `RemoteViews(context, layoutId)` 在 layoutId 不变时**只 apply action、不重新 inflate**，改完结构必须换一个**从未用过的新名**（3 处：两个 info xml 的 `initialLayout` + Provider 的 `R.layout`）才能强制重建；改回旧名可能命中它仍持有的旧 layoutId 缓存（见坑点 23）
 - **widget 布局里禁止出现任何 `@string`**：`android:text="@string/…"` / `contentDescription="@string/…"` 会让桌面 inflate 时抛 `Resources$NotFoundException`（报错文案是「载入窗口小部件时出现问题」，异常在 `com.miui.home` 进程里，本包 logcat 看不到）。文字一律 `tools:text` 占位 + 代码 `setTextViewText`/`setContentDescription`；`@drawable`/`@color`/`@layout` 可正常使用
 - **语言/暗色必须自取**：widget 进程 context 由桌面提供，`Locale.getDefault()`/`uiMode` 不可靠——用 `LocaleHelper.wrap(context)` 与 `ThemePreferences.isDarkMode`，再 `setTextViewText` 传字符串
 - **响应式字号**：`views.setFloat(viewId, "setTextSize", sp)`，尺寸取 `OPTION_APPWIDGET_MIN_WIDTH/HEIGHT`；算法见 `CountdownWidgetModel.responsiveNumberSp()`（纯函数，已本地化自 Reminder）
@@ -206,14 +210,15 @@ app/src/main/java/com/example/diary/
 12. **lerp 重载歧义**：`androidx.compose.ui.util.lerp` 的 Float/Color 重载易歧义，Color 版用全限定名
 13. **Todo 列表交互**：彻底重构后为黑底+灰卡+折叠已完成（图3），勾选即下沉/回升，无拖拽；旧 `dragAndDrop/ SwipeToDismiss` 已移除
 14. **Todo 提醒**：`POST_NOTIFICATIONS` (33+) 需运行时申请、`SCHEDULE_EXACT_ALARM` 在 S+ 需 `canScheduleExactAlarms()` 检测否则降级 `setAndAllowWhileIdle` 并 SnackBar 深链；14+ 闹钟模式需 `canUseFullScreenIntent()` 检测否则降级为响一次通知（`ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT` 深链）；`BOOT_COMPLETED`/`MY_PACKAGE_REPLACED`/`TIME_SET`/`TIMEZONE_CHANGED` 重排 + 补发错过的非重复通知（错过只补普通通知，不补响铃）；过期非重复不排；**闹钟调度只走 `TodoRepository.save/delete`**，UI 勿再直接调 Scheduler
-15. **Room 版本号同步**：每次 schema 变更必须同时更新 `AppDatabase.version` 和 `build.gradle.kts` 的 `versionCode`，两者保持同步（v9=1.8, v11=1.8.2/code 10, v14=1.9.0/code 13）；升级路径写 `addMigrations`，勿只靠破坏性回退；schema JSON 在 `app/schemas/…/14.json` **必须入库**
+15. **Room 版本号同步**：每次 schema 变更必须同时更新 `AppDatabase.version` 和 `build.gradle.kts` 的 `versionCode`，两者保持同步（v9=1.8, v11=1.8.2/code 10, v14=1.9.0/code 13, v15=1.13.0/code 21）；升级路径写 `addMigrations`，勿只靠破坏性回退；schema JSON 在 `app/schemas/…/15.json` **必须入库**
 16. **Robolectric**：4.11 最高官方 SDK 34，而 targetSdk=35——用 Robolectric 的测试类必须 `@Config(sdk = [34])`，否则 `Package targetSdkVersion=35 > maxSdkVersion=34` 初始化失败
 17. **备份安全**：导入必须先过版本闸门（`version < 1 || > CURRENT_VERSION` → Failure）；ZIP 解压防滑移（禁 `..`）；STORED 需 CRC 校验；日记背景路径入库前 `normalizeStoredPath`
 18. **Kotlin DSL 签名配置**：`build.gradle.kts` 里用 `java.util.Properties` 必须文件头 `import java.util.Properties`（脚本内 `java.util` 会 Unresolved）
 19. **widget 崩溃看不到日志（踩过）**：桌面 inflate 我们布局的异常发生在 **`com.miui.home` 进程**，本包 logcat 一片干净，别据此判断"没问题"。看 `adb logcat -s LauncherWidgetLayoutFactory:V Launcher.Widget:V`；两个决定性信号：**① 有没有 `InflateException`/`Resources$NotFoundException`；② `LauncherWidgetLayoutFactory` 逐节点打印的 `app:id/xxx` 是否覆盖全部子 View**（只打出容器、没有子节点 = 嵌套层被截断）
 20. **`adb shell am broadcast` 可能被 MIUI 拦（踩过）**：`W/BroadcastQueue: Greezer Denial: ... need cached broadcast`——目标进程处于 cached 状态时 MIUI 直接丢弃来自 shell(uid 2000) 的广播，**本包进程压根没起来**，于是"广播后 logcat 无异常"是假象。验证 widget 前必须先 `am start -n com.example.diary/.MainActivity` 预热进程再发广播；代码内 `updateAll` 是 App 自己在前台 `sendBroadcast`，不受影响
-21. **桌面会缓存坏掉的 widget 视图**：inflate 失败后那个「载入窗口小部件时出现问题」的占位框会被复用，改代码重装**不会**让它自动重建（复装后 logcat 只有 `Launcher.Widget: updateAppWidget: N`，没有 `LauncherWidgetLayoutFactory` 记录 = 没重新 inflate）。必须让用户**长按移除 → 从小组件列表重新添加**，别让用户反复重启手机
-22. **widget 更新必须广播 APPWIDGET_UPDATE**：`CountdownWidgetRefresh.updateAll` 用 `setClass` 显式指向 provider——MIUI 对 `getAppWidgetIds` 查不到的 receiver 不会自动补发
+21. **桌面会缓存坏掉的 widget 视图**：inflate 失败后那个「载入窗口小部件时出现问题」的占位框会被复用，改代码重装**不会**让它自动重建（复装后 logcat 只有 `Launcher.Widget: updateAppWidget: N`，没有 `LauncherWidgetLayoutFactory` 记录 = 没重新 inflate）。改布局文件名可触发重建（见坑点 23），但**改名本身并不保证清掉已存在的 error 占位框**；确认 UI 里仍是 `com.miui.home:id/error` 时，唯一可靠手段是让用户**长按移除 → 从小组件列表重新添加**，别让用户反复重启手机
+22. **widget 更新必须广播 APPWIDGET_UPDATE**：`CountdownWidgetRefresh.updateAll` 用 `setClass` 显式指向 provider——MIUI 对 `getAppWidgetIds` 查不到的 receiver 不会自动补发；注意 shell 不能直接发 `android.appwidget.action.APPWIDGET_UPDATE`（Permission Denial），验证用自带 action `com.example.diary.action.CD_WIDGET_MIDNIGHT`，且发之前先 `am start` 预热进程（坑点 20）
+23. **改 widget 布局结构必须同时改布局文件名，且「有 inflate 日志」≠「显示正常」（踩过）**：`RemoteViews(context.packageName, R.layout.<name>)` 的 **layoutId 不变时 MIUI 只 apply action、不重新 inflate**，增删节点后桌面复用旧视图树。改名涉及 **3 处**：`res/xml/countdown_widget_info.xml` 与 `res/xml-v31/countdown_widget_info.xml` 的 `android:initialLayout` + Provider 里的 `R.layout.<name>`（漏一处编译失败或不生效）。**验收必须看 UI 而不是看日志**：`adb shell uiautomator dump /sdcard/ui.xml && adb pull` → 找 `class="android.appwidget.AppWidgetHostView"` 且 `content-desc="Pocket Diary"` 的节点——子节点是 `com.miui.home:id/error` = 还是坏的；再统计整个 dump 里 `app:id/cd_` 的出现次数，**0 = 内容根本没进去**。实测出现过：`LauncherWidgetLayoutFactory` 打印了完整节点、全程零异常、`updateAppWidget: 41` 也发了，UI 里却只剩 error。另外用 `aapt2 dump resources <apk>` 可核对 APK 内布局名与 `initialLayout` 指向（资源路径已被 shrink 打成 `res/Dd.xml` 这类短名，不能按文件名搜）。**布局名保持 `countdown_widget_v4`，不要改回 `countdown_widget.xml`**（旧 layoutId 可能仍持有坏缓存）
 
 ## 工作流约定
 
@@ -223,4 +228,4 @@ app/src/main/java/com/example/diary/
 - **提交信息**：中文、一行概括（分号分隔多点）；推送目标 `origin main`；`.omo/`（plans/drafts）**不入库**
 - **发版须用户确认**：上传/替换 GitHub Release 附件前先问
 - **密钥安全**：`pocketdiary.jks`、`keystore.properties` 已 gitignore；`build.gradle.kts` **只读** `keystore.properties`（不写死密码）。**注意：git 历史曾 4 次误提交密钥 blob（2f41123 等），工作树已删但历史仍可达——如需彻底清除需 `git filter-repo` 重写历史（须用户确认）**；建议换新 keystore。提交前 `git check-ignore` 复核
-- **KSP**：Room 走 `ksp`（非 kapt）；schema 导出 `app/schemas/…/14.json`（需入库以便迁移测试）
+- **KSP**：Room 走 `ksp`（非 kapt）；schema 导出 `app/schemas/…/15.json`（需入库以便迁移测试）

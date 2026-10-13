@@ -18,12 +18,12 @@ import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.ui.countdown.eventAccent
 import com.example.diary.ui.countdown.weekdayLabel
-import com.example.diary.util.DateUtils
 import com.example.diary.util.LocaleHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
 class CountdownWidgetProvider : AppWidgetProvider() {
 
@@ -34,27 +34,12 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         }
     }
 
-    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
-        val state = CountdownWidgetState(context)
-        appWidgetIds.forEach { state.clear(it) }
-    }
-
     override fun onEnabled(context: Context) {
         CountdownWidgetRefresh.scheduleMidnight(context)
     }
 
     override fun onDisabled(context: Context) {
         CountdownWidgetRefresh.cancelMidnight(context)
-    }
-
-    override fun onRestored(context: Context, oldIds: IntArray, newIds: IntArray) {
-        if (oldIds.size != newIds.size) return
-        val state = CountdownWidgetState(context)
-        oldIds.indices.forEach { i ->
-            val sel = state.read(oldIds[i])
-            state.clear(oldIds[i])
-            state.write(newIds[i], sel.eventId, sel.index)
-        }
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -68,85 +53,44 @@ class CountdownWidgetProvider : AppWidgetProvider() {
                 CountdownWidgetRefresh.scheduleMidnight(appContext)
                 renderAll(appContext, widgetIds(appContext))
             }
-            CountdownWidgetRefresh.ACTION_NEXT -> shiftAsync(context, intent, 1)
-            CountdownWidgetRefresh.ACTION_PREV -> shiftAsync(context, intent, -1)
         }
-    }
-
-    private fun shiftAsync(context: Context, intent: Intent, delta: Int) {
-        val widgetId = intent.getIntExtra(
-            AppWidgetManager.EXTRA_APPWIDGET_ID,
-            AppWidgetManager.INVALID_APPWIDGET_ID
-        )
-        if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return
-        runAsync(context) { appContext -> shift(appContext, widgetId, delta) }
     }
 
     private fun widgetIds(context: Context): List<Int> = AppWidgetManager.getInstance(context)
         .getAppWidgetIds(ComponentName(context, CountdownWidgetProvider::class.java))
         .toList()
 
-    private suspend fun shift(context: Context, widgetId: Int, delta: Int) {
-        val events = CountdownWidgetModel.visibleEvents(repository(context).getAllOnce())
-        if (events.isEmpty()) return
-        val stateStore = CountdownWidgetState(context)
-        val sel = stateStore.read(widgetId)
-        val current = CountdownWidgetModel.resolveIndex(events, sel.eventId, sel.index)
-        val next = ((current + delta) % events.size + events.size) % events.size
-        stateStore.write(widgetId, events[next].id, next)
-        renderOne(context, widgetId, events, next)
-    }
-
     private suspend fun renderAll(context: Context, widgetIds: List<Int>) {
-        val events = CountdownWidgetModel.visibleEvents(repository(context).getAllOnce())
-        val stateStore = CountdownWidgetState(context)
+        val events = repository(context).getAllOnce()
+        val today = LocalDate.now()
+        val selection = CountdownWidgetState(context)
         val manager = AppWidgetManager.getInstance(context)
         widgetIds.forEach { id ->
-            val sel = stateStore.read(id)
-            val index = CountdownWidgetModel.resolveIndex(events, sel.eventId, sel.index)
-            if (events.isEmpty()) {
-                stateStore.write(id, 0L, 0)
-            } else {
-                stateStore.write(id, events[index].id, index)
-            }
-            val views = buildViews(context, id, events, index)
+            val event = CountdownWidgetModel.resolveEvent(events, today, selection.read(id))
+            val views = buildViews(context, id, event)
             runCatching { manager.updateAppWidget(id, views) }
                 .onFailure { Log.e(TAG, "Failed to update widget $id", it) }
         }
     }
 
-    private suspend fun renderOne(context: Context, widgetId: Int, events: List<CountdownEvent>, index: Int) {
-        val views = buildViews(context, widgetId, events, index)
-        runCatching { AppWidgetManager.getInstance(context).updateAppWidget(widgetId, views) }
-            .onFailure { Log.e(TAG, "Failed to update widget $widgetId", it) }
-    }
-
     private suspend fun buildViews(
         context: Context,
         widgetId: Int,
-        events: List<CountdownEvent>,
-        index: Int
+        event: CountdownEvent?
     ): RemoteViews {
         val localized = LocaleHelper.wrap(context)
-        val root = RemoteViews(context.packageName, R.layout.countdown_widget)
+        val root = RemoteViews(context.packageName, R.layout.countdown_widget_v4)
 
         root.setTextViewText(R.id.cd_empty_title, localized.getString(R.string.cd_widget_empty))
         root.setTextViewText(R.id.cd_empty_hint, localized.getString(R.string.cd_widget_empty_hint))
-        root.setTextViewText(R.id.cd_prev, CHEVRON_PREV)
-        root.setTextViewText(R.id.cd_next, CHEVRON_NEXT)
-        root.setContentDescription(R.id.cd_prev, localized.getString(R.string.cd_widget_prev))
-        root.setContentDescription(R.id.cd_next, localized.getString(R.string.cd_widget_next))
 
-        if (events.isEmpty()) {
+        if (event == null) {
             root.setViewVisibility(R.id.cd_content, View.GONE)
             root.setViewVisibility(R.id.cd_empty, View.VISIBLE)
-            root.setViewVisibility(R.id.cd_prev, View.GONE)
-            root.setViewVisibility(R.id.cd_next, View.GONE)
-            root.setOnClickPendingIntent(R.id.cd_empty, openListIntent(context, widgetId))
+            root.setOnClickPendingIntent(R.id.cd_empty, openPickerIntent(context, widgetId))
             return root
         }
 
-        val event = events[index]
         val today = LocalDate.now()
         val state = CountdownWidgetModel.stateOf(event, today)
         val accent = eventAccent(event.colorIndex, state).toArgb()
@@ -159,39 +103,36 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         }
         val unit = if (isToday) "" else localized.getString(R.string.cd_unit_days)
 
-        val target = runCatching { LocalDate.parse(event.date) }.getOrNull()
-        val dateLine = if (target == null) "" else localized.getString(
-            R.string.cd_widget_date_line,
-            DateUtils.formatDate(target),
-            weekdayLabel(localized, target)
+        val label = localized.getString(
+            when {
+                isToday -> R.string.cd_widget_label_today
+                state is DateMath.CountState.Countup -> R.string.cd_widget_label_countup
+                else -> R.string.cd_widget_label_countdown
+            },
+            event.name
         )
 
-        root.setTextViewText(R.id.cd_header_title, event.name)
+        val target = runCatching { LocalDate.parse(event.date) }.getOrNull()
+        val datePattern = localized.getString(R.string.cd_widget_date_pattern)
+        val dateText = target?.let {
+            runCatching {
+                it.format(DateTimeFormatter.ofPattern(datePattern, LocaleHelper.resolve()))
+            }.getOrNull()
+        }.orEmpty()
+
+        root.setTextViewText(R.id.cd_label, label)
         root.setTextViewText(R.id.cd_number, number)
         root.setTextViewText(R.id.cd_unit, unit)
         root.setViewVisibility(R.id.cd_unit, if (isToday) View.GONE else View.VISIBLE)
-        root.setTextViewText(R.id.cd_date, dateLine)
+        root.setTextViewText(R.id.cd_date, dateText)
+        root.setTextViewText(R.id.cd_weekday, target?.let { weekdayLabel(localized, it) }.orEmpty())
 
         applyResponsiveSize(context, widgetId, root, number.length)
-        root.setInt(R.id.cd_header_bar, "setColorFilter", accent)
+        root.setTextColor(R.id.cd_number, accent)
 
         root.setViewVisibility(R.id.cd_content, View.VISIBLE)
         root.setViewVisibility(R.id.cd_empty, View.GONE)
-        root.setOnClickPendingIntent(R.id.cd_content, openDetailIntent(context, event.id))
-
-        val multi = events.size > 1
-        root.setViewVisibility(R.id.cd_prev, if (multi) View.VISIBLE else View.GONE)
-        root.setViewVisibility(R.id.cd_next, if (multi) View.VISIBLE else View.GONE)
-        if (multi) {
-            root.setOnClickPendingIntent(
-                R.id.cd_prev,
-                navIntent(context, widgetId, CountdownWidgetRefresh.ACTION_PREV)
-            )
-            root.setOnClickPendingIntent(
-                R.id.cd_next,
-                navIntent(context, widgetId, CountdownWidgetRefresh.ACTION_NEXT)
-            )
-        }
+        root.setOnClickPendingIntent(R.id.cd_content, openPickerIntent(context, widgetId))
         return root
     }
 
@@ -221,28 +162,27 @@ class CountdownWidgetProvider : AppWidgetProvider() {
     private fun repository(context: Context): CountdownRepository =
         CountdownRepository(AppDatabase.getInstance(context).countdownDao(), context)
 
-    private fun openDetailIntent(context: Context, eventId: Long): PendingIntent {
+    private fun openPickerIntent(context: Context, widgetId: Int): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(EXTRA_OPEN_COUNTDOWN_ID, eventId)
-        }
-        return PendingIntent.getActivity(context, eventId.toInt(), intent, PENDING_FLAGS)
-    }
-
-    private fun openListIntent(context: Context, widgetId: Int): PendingIntent {
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra(EXTRA_OPEN_COUNTDOWN_TAB, true)
+            putExtra(EXTRA_OPEN_COUNTDOWN_PICK, true)
+            putExtra(EXTRA_WIDGET_ID, widgetId)
         }
         return PendingIntent.getActivity(context, widgetId, intent, PENDING_FLAGS)
     }
 
-    private fun navIntent(context: Context, widgetId: Int, action: String): PendingIntent {
-        val intent = Intent(context, CountdownWidgetProvider::class.java).apply {
-            this.action = action
-            putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId)
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        val selection = CountdownWidgetState(context)
+        appWidgetIds.forEach { selection.clear(it) }
+    }
+
+    override fun onRestored(context: Context, oldWidgetIds: IntArray, newWidgetIds: IntArray) {
+        val selection = CountdownWidgetState(context)
+        oldWidgetIds.forEachIndexed { index, oldId ->
+            val eventId = selection.read(oldId)
+            selection.clear(oldId)
+            if (eventId > 0L) selection.write(newWidgetIds[index], eventId)
         }
-        return PendingIntent.getBroadcast(context, widgetId, intent, PENDING_FLAGS)
     }
 
     private fun runAsync(context: Context, block: suspend (Context) -> Unit) {
@@ -262,11 +202,9 @@ class CountdownWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
-        const val EXTRA_OPEN_COUNTDOWN_ID = "open_countdown_id"
-        const val EXTRA_OPEN_COUNTDOWN_TAB = "open_countdown_tab"
+        const val EXTRA_OPEN_COUNTDOWN_PICK = "open_countdown_pick"
+        const val EXTRA_WIDGET_ID = "appwidget_id"
         private const val TAG = "CountdownWidget"
-        private const val CHEVRON_PREV = "‹"
-        private const val CHEVRON_NEXT = "›"
     }
 }
 
