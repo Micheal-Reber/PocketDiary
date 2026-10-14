@@ -38,7 +38,7 @@
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:textColor="#FFFFFFFF"
-                android:textSize="52sp"
+                android:textSize="60sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -50,7 +50,7 @@
                 android:includeFontPadding="false"
                 android:maxLines="1"
                 android:textColor="#99FFFFFF"
-                android:textSize="18sp" />
+                android:textSize="20sp" />
         </LinearLayout>
 
         <TextView

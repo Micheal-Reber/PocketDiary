@@ -79,7 +79,7 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         event: CountdownEvent?
     ): RemoteViews {
         val localized = LocaleHelper.wrap(context)
-        val root = RemoteViews(context.packageName, R.layout.countdown_widget_v4)
+        val root = RemoteViews(context.packageName, R.layout.countdown_widget_v5)
 
         root.setTextViewText(R.id.cd_empty_title, localized.getString(R.string.cd_widget_empty))
         root.setTextViewText(R.id.cd_empty_hint, localized.getString(R.string.cd_widget_empty_hint))
@@ -127,36 +127,12 @@ class CountdownWidgetProvider : AppWidgetProvider() {
         root.setTextViewText(R.id.cd_date, dateText)
         root.setTextViewText(R.id.cd_weekday, target?.let { weekdayLabel(localized, it) }.orEmpty())
 
-        applyResponsiveSize(context, widgetId, root, number.length)
         root.setTextColor(R.id.cd_number, accent)
 
         root.setViewVisibility(R.id.cd_content, View.VISIBLE)
         root.setViewVisibility(R.id.cd_empty, View.GONE)
         root.setOnClickPendingIntent(R.id.cd_content, openPickerIntent(context, widgetId))
         return root
-    }
-
-    private fun applyResponsiveSize(
-        context: Context,
-        widgetId: Int,
-        root: RemoteViews,
-        numberLen: Int
-    ) {
-        val metrics = context.resources.displayMetrics
-        val options = runCatching {
-            AppWidgetManager.getInstance(context).getAppWidgetOptions(widgetId)
-        }.getOrNull()
-        val widthDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0) ?: 0
-        val heightDp = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
-        val numberSp = CountdownWidgetModel.responsiveNumberSp(
-            numberLen = numberLen,
-            widthDp = widthDp,
-            heightDp = heightDp,
-            density = metrics.density,
-            scaledDensity = metrics.scaledDensity
-        )
-        root.setFloat(R.id.cd_number, "setTextSize", numberSp)
-        root.setFloat(R.id.cd_unit, "setTextSize", numberSp * CountdownWidgetModel.UNIT_SP_RATIO)
     }
 
     private fun repository(context: Context): CountdownRepository =

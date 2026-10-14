@@ -101,7 +101,7 @@ app/src/main/java/com/example/diary/
 | 打卡日历 | `ui/habits/CalendarComponents.kt` + `HabitsViewModel.kt` | 多习惯彩点、月份分割 |
 | 倒数日正倒判定 | `data/countdown/DateMath.kt` + 单测 | 三态 Today/Countdown/Countup；+1日；重复滚动；**改动必跑 JUnit** |
 | 倒数日界面 | `ui/countdown/*Screen.kt` + `CountdownUi.kt` | 色板下标 0=自动(倒蓝/正橙)；过程式纹理 TextureBackdrop |
-| 倒数日桌面小组件 | `ui/widget/CountdownWidgetProvider.kt` + `CountdownWidgetModel.kt` + `CountdownWidgetRefresh.kt` + `CountdownWidgetState.kt` + `ui/countdown/CountdownWidgetPickScreen.kt` + `res/layout/countdown_widget_v4.xml` + `res/xml/countdown_widget_info.xml` | **纯 RemoteViews，零新依赖**（不用 Glance/WorkManager）；单层扁平树，**只显示单个倒数日**（无 `‹ ›` 切换）；显示哪一条 = `CountdownWidgetState` 按 appWidgetId 存的选中 id，未选/失效走 `featuredEvent`；**点击进选择页 `CountdownWidgetPickScreen`（不是进详情）**，选完 `finish()` 回桌面；`save/delete` → `updateAll` 触发刷新。**改之前先读「桌面小组件」约定与坑点 19-23** |
+| 倒数日桌面小组件 | `ui/widget/CountdownWidgetProvider.kt` + `CountdownWidgetModel.kt` + `CountdownWidgetRefresh.kt` + `CountdownWidgetState.kt` + `ui/countdown/CountdownWidgetPickScreen.kt` + `res/layout/countdown_widget_v5.xml` + `res/xml/countdown_widget_info.xml` | **纯 RemoteViews，零新依赖**（不用 Glance/WorkManager）；单层扁平树，**只显示单个倒数日**（无 `‹ ›` 切换）；显示哪一条 = `CountdownWidgetState` 按 appWidgetId 存的选中 id，未选/失效走 `featuredEvent`；**点击进选择页 `CountdownWidgetPickScreen`（不是进详情）**，选完 `finish()` 回桌面；`save/delete` → `updateAll` 触发刷新。**改之前先读「桌面小组件」约定与坑点 19-23** |
 | 分享图生成 | `data/countdown/ShareCardRenderer.kt` | 纯 android.graphics 离屏 1080×1440；FileProvider 在 Manifest |
 | 亮暗/开屏 | `Theme.kt` + `themes.xml` + `MainActivity.kt` | 独立于系统 |
 | 背景图缓存 | `data/image/BackgroundImageStore.kt` | 覆盖同名文件后必须 `clearCache()`；倒数日每事件图走 EventImageStore |
@@ -140,7 +140,6 @@ app/src/main/java/com/example/diary/
 | `BackupRepository.export/importData` | suspend | data/backup | 迁移唯一入口（Uri SAF）；内部走 Export/ImportService |
 | `BackgroundImageStore.normalizeStoredPath` | fun | data/image | 绝对路径 → filesDir 相对（备份/导入用） |
 | `DateUtils.format*` | fun | util | 日期/提醒共享格式化——**新屏必须复用，勿复制** |
-| `CountdownWidgetModel.responsiveNumberSp` | fun | ui/widget/CountdownWidgetModel.kt | 小组件数字字号自适应（按 cell 尺寸 + 位数），纯函数便于单测 |
 
 ## 关键约定（务必遵守）
 
@@ -189,10 +188,10 @@ app/src/main/java/com/example/diary/
 - **显示哪一条由 `CountdownWidgetState` 决定（按 appWidgetId 存 SharedPreferences `countdown_widget_state`，key `eid_<id>`，0=未选）**：`CountdownWidgetModel.resolveEvent(events, today, selectedId)` 优先返回选中项、否则回退 `featuredEvent`（置顶优先、组内取离今天最近）。选中的事件被删时**自动回退自动模式**，不要报错。`onDeleted` 清 key、`onRestored` 迁移 oldId→newId，否则 prefs 泄漏
 - **点击进「选择要显示的倒数日」页，不是进详情**：`openPickerIntent` 带 `open_countdown_pick` + `appwidget_id`，requestCode=widgetId（多实例各自独立）→ `MainActivity` → 路由 `countdown_widget_pick?widgetId={id}` → `CountdownWidgetPickScreen`（首项「自动」+ 全部倒数日，点=选中不进详情）；**选中后写盘 + `updateAll` + `finish()` 直接回桌面**（用户明确要求）。看详情仍走倒数日列表点卡片。注意这只改 `setOnClickPendingIntent`（一个 action），**不碰布局结构 → 不需要换布局名**，MIUI 照常 apply
 - **布局里只许用带 `@RemoteView` 注解的类（踩过，就是「载入窗口小部件时出现问题」的根因）**：`AppWidgetHostView` 用 `INFLATER_FILTER = clazz.isAnnotationPresent(RemoteViews.RemoteView.class)` 强制白名单——允许 `FrameLayout`/`LinearLayout`/`RelativeLayout`/`GridLayout`/`ListView`/`GridView`/`StackView`/`ViewFlipper`/`AdapterViewFlipper` + `TextView`/`Button`/`ImageView`/`ImageButton`/`ProgressBar`/`Chronometer`/`AnalogClock`/`TextClock`（API31+ 再加 `CheckBox`/`RadioButton`/`RadioGroup`/`Switch`），且**明确声明不支持其子类**。**`Space`、裸 `View`、任何自定义 View 都不在白名单里**——加一个 `<Space>` 就让整个小组件塌成 error 占位框。留白一律用**无子节点的 `LinearLayout` + `layout_weight`**（或空 `TextView`）。此坑极难查：异常发生在 `com.miui.home` 且被吞，本包 logcat **全程零异常**、`updateAppWidget` 也照发，只能靠 uiautomator dump 看 UI 验收
-- **布局文件名带版本后缀（现为 `countdown_widget_v4.xml`）、不要改回无后缀的 `countdown_widget.xml`**：MIUI 对 `RemoteViews(context, layoutId)` 在 layoutId 不变时**只 apply action、不重新 inflate**，改完结构必须换一个**从未用过的新名**（3 处：两个 info xml 的 `initialLayout` + Provider 的 `R.layout`）才能强制重建；改回旧名可能命中它仍持有的旧 layoutId 缓存（见坑点 23）
+- **布局文件名带版本后缀（现为 `countdown_widget_v5.xml`）、不要改回无后缀的 `countdown_widget.xml`**：MIUI 对 `RemoteViews(context, layoutId)` 在 layoutId 不变时**只 apply action、不重新 inflate**，改完结构必须换一个**从未用过的新名**（3 处：两个 info xml 的 `initialLayout` + Provider 的 `R.layout`）才能强制重建；改回旧名可能命中它仍持有的旧 layoutId 缓存（见坑点 23）
 - **widget 布局里禁止出现任何 `@string`**：`android:text="@string/…"` / `contentDescription="@string/…"` 会让桌面 inflate 时抛 `Resources$NotFoundException`（报错文案是「载入窗口小部件时出现问题」，异常在 `com.miui.home` 进程里，本包 logcat 看不到）。文字一律 `tools:text` 占位 + 代码 `setTextViewText`/`setContentDescription`；`@drawable`/`@color`/`@layout` 可正常使用
 - **语言/暗色必须自取**：widget 进程 context 由桌面提供，`Locale.getDefault()`/`uiMode` 不可靠——用 `LocaleHelper.wrap(context)` 与 `ThemePreferences.isDarkMode`，再 `setTextViewText` 传字符串
-- **响应式字号**：`views.setFloat(viewId, "setTextSize", sp)`，尺寸取 `OPTION_APPWIDGET_MIN_WIDTH/HEIGHT`；算法见 `CountdownWidgetModel.responsiveNumberSp()`（纯函数，已本地化自 Reminder）
+- **固定字号**：数字 `60sp`、单位「天」`20sp`，直接写在 `countdown_widget_v5.xml` 里，**没有运行时 `setTextSize`**（曾做响应式算法，因不同 OEM 桌面对 `OPTION_APPWIDGET_MIN_WIDTH/HEIGHT` 报告不一致导致跨机型字号不一，已删——不要再引入自适应字号）
 - **强调色**：`views.setInt(id, "setColorFilter", color)` 染 shape drawable；透明度 `setInt(id, "setImageAlpha", alpha)`
 - **背景是纯黑 + 28dp 圆角 shape，不要背景位图**（用户明确要求取消背景图功能）：位图要走 Binder 传输（约 1MB 上限），且 `OPTION_APPWIDGET_MIN_*` 是 **dp 不是 px**——当成 px 会把位图压到几十 px 再拉伸，渐变全糊。保持零位图就没有这些问题
 - **刷新时机**：`updatePeriodMillis=1800000`（系统硬下限 30 分钟）+ 系统广播 `DATE_CHANGED`/`TIME_SET`/`TIMEZONE_CHANGED`/`USER_PRESENT`（`USER_PRESENT` = 解锁刷新，性价比最高）+ 零点 `AlarmManager`；数据变更走 `CountdownRepository.save/delete` → `CountdownWidgetRefresh.updateAll`
