@@ -14,16 +14,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -37,11 +40,22 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.diary.R
+import com.example.diary.data.focus.FocusNotifier
+import com.example.diary.data.focus.FocusRecord
+import com.example.diary.data.focus.FocusRuntime
+import com.example.diary.data.focus.FocusService
+import com.example.diary.data.focus.FocusTimer
+import com.example.diary.data.local.FocusSession
+import com.example.diary.data.local.FocusTask
 import com.example.diary.data.local.TodoItem
+import com.example.diary.data.preferences.FocusPreferences
+import com.example.diary.data.repository.FocusRepository
 import com.example.diary.data.repository.TodoRepository
 import com.example.diary.data.todo.TodoAlarmNotifier
 import com.example.diary.data.todo.TodoNotificationHelper
 import com.example.diary.ui.components.SwipeDeleteCard
+import com.example.diary.ui.focus.FocusTaskCard
+import com.example.diary.ui.focus.FocusTaskEditSheet
 import com.example.diary.ui.navigation.BottomBarContentInset
 import com.example.diary.ui.navigation.GlassFab
 import com.example.diary.ui.navigation.glassStroke
@@ -49,26 +63,38 @@ import com.example.diary.ui.navigation.glassTint
 import com.example.diary.ui.navigation.rememberGlassBackdrop
 import com.example.diary.ui.theme.Spacing
 import com.example.diary.util.DateUtils
+import com.kyant.backdrop.backdrops.LayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import kotlinx.coroutines.launch
+import android.os.SystemClock
 
 /**
  * 待办列表 - 贴合图一浅色整体 + 图三已完成折叠
  * 主题跟随 MaterialTheme（亮/暗自动），不再硬编码黑底/黄FAB
+ *
+ * 学习模式（设置页开关）打开时，本 Tab 换成专注形态：顶部番茄钟卡片 + 专注任务列表，
+ * 原来的普通待办收进默认折叠的分区。折叠只影响渲染 —— observeAll() 照常订阅，
+ * 所以被折叠的待办到点提醒照旧由 AlarmManager 弹出，不受任何影响。
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TodoListScreen(
     repository: TodoRepository,
+    focusRepository: FocusRepository,
+    focusPreferences: FocusPreferences,
+    onOpenFocus: (Long?) -> Unit = {},
 ) {
     // remember: 避免每次重组新建 Flow → collectAsState 取消重订阅
     val allItems by remember { repository.observeAll() }
         .collectAsStateWithLifecycle(initialValue = emptyList())
+    val studyMode by focusPreferences.studyMode.collectAsStateWithLifecycle(initialValue = false)
     val active = remember(allItems) { allItems.filter { !it.done } }
     val completed = remember(allItems) { allItems.filter { it.done } }
     var completedCollapsed by rememberSaveable { mutableStateOf(false) }
     var showEditSheet by remember { mutableStateOf(false) }
     var editingItem by remember { mutableStateOf<TodoItem?>(null) }
+    var showTaskSheet by remember { mutableStateOf(false) }
+    var editingFocusTask by remember { mutableStateOf<FocusTask?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
@@ -76,6 +102,7 @@ fun TodoListScreen(
     LaunchedEffect(Unit) {
         TodoNotificationHelper.ensureChannel(context)
         TodoAlarmNotifier.ensureChannel(context)
+        FocusNotifier.ensureChannel(context)
     }
 
     fun hasNotificationPermission(): Boolean =
@@ -227,15 +254,56 @@ fun TodoListScreen(
         },
         floatingActionButton = {
             GlassFab(
-                onClick = { editingItem = null; showEditSheet = true },
+                onClick = {
+                    if (studyMode) {
+                        editingFocusTask = null
+                        showTaskSheet = true
+                    } else {
+                        editingItem = null
+                        showEditSheet = true
+                    }
+                },
                 backdrop = listBackdrop,
                 modifier = Modifier.padding(bottom = BottomBarContentInset)
             ) {
-                Icon(Icons.Filled.Add, stringResource(R.string.todo_fab), tint = MaterialTheme.colorScheme.primary)
+                Icon(
+                    Icons.Filled.Add,
+                    stringResource(if (studyMode) R.string.focus_task_fab else R.string.todo_fab),
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
         }
     ) { padding ->
-        if (active.isEmpty() && completed.isEmpty()) {
+        if (studyMode) {
+            StudyTodoTab(
+                repository = repository,
+                focusRepository = focusRepository,
+                allItems = allItems,
+                padding = padding,
+                listBackdrop = listBackdrop,
+                onOpenFocus = onOpenFocus,
+                onEditTask = { task -> editingFocusTask = task; showTaskSheet = true },
+                onStartFocus = { task ->
+                    // 先同步发布初始记录再拉服务：否则跳到番茄钟页时
+                    // 运行态还没到，会闪一下 00:00 且「开始」是禁用的
+                    val existing = FocusRuntime.current()
+                    if (existing?.taskId != task.id || !existing.running) {
+                        FocusRuntime.publish(
+                            existing?.copy(taskId = task.id, taskTitle = task.title)
+                                ?: FocusRecord(taskId = task.id, taskTitle = task.title)
+                        )
+                    }
+                    val intent = Intent(context, FocusService::class.java).apply {
+                        action = FocusService.ACTION_START
+                        putExtra(FocusService.EXTRA_TASK_ID, task.id)
+                        putExtra(FocusService.EXTRA_TASK_TITLE, task.title)
+                    }
+                    runCatching { context.startForegroundService(intent) }
+                    onOpenFocus(task.id)
+                },
+                onArchiveTask = { task -> scope.launch { focusRepository.archiveTask(task.id) } }
+            )
+        } else if (active.isEmpty() && completed.isEmpty()) {
             Box(Modifier.fillMaxSize().padding(padding).layerBackdrop(listBackdrop), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
@@ -328,6 +396,24 @@ fun TodoListScreen(
             onDismiss = { showEditSheet = false }
         )
     }
+
+    if (showTaskSheet) {
+        FocusTaskEditSheet(
+            existingTask = editingFocusTask,
+            onSave = { title ->
+                scope.launch {
+                    val base = editingFocusTask
+                    if (base == null) {
+                        focusRepository.addTask(title, 0)
+                    } else {
+                        focusRepository.saveTask(base.copy(title = title))
+                    }
+                    showTaskSheet = false
+                }
+            },
+            onDismiss = { showTaskSheet = false }
+        )
+    }
 }
 
 @Composable
@@ -377,6 +463,227 @@ private fun TodoCard(item: TodoItem, isCompleted: Boolean, onToggle: () -> Unit,
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * 学习模式下的待办 Tab：番茄钟卡片 + 专注任务列表 + 折叠的普通待办。
+ *
+ * 普通待办的 Flow 依然在父 composable 里订阅着，这里只是把渲染折叠起来 ——
+ * 所以「看不见」不等于「不提醒」，闹钟照旧由 AlarmManager 触发。
+ */
+@Composable
+private fun StudyTodoTab(
+    repository: TodoRepository,
+    focusRepository: FocusRepository,
+    allItems: List<TodoItem>,
+    padding: PaddingValues,
+    listBackdrop: LayerBackdrop,
+    onOpenFocus: (Long?) -> Unit,
+    onEditTask: (FocusTask) -> Unit,
+    onStartFocus: (FocusTask) -> Unit,
+    onArchiveTask: (FocusTask) -> Unit
+) {
+    val tasks by remember { focusRepository.observeActiveTasks() }
+        .collectAsStateWithLifecycle(initialValue = emptyList())
+    val record by FocusRuntime.record.collectAsStateWithLifecycle()
+    var tick by remember { mutableIntStateOf(0) }
+    var normalExpanded by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(record?.running) {
+        while (record?.running == true) {
+            kotlinx.coroutines.delay(1000L)
+            tick++
+        }
+    }
+
+    val remaining = record?.let {
+        FocusTimer.remainingMs(it.toSession(), remember(tick, record) { SystemClock.elapsedRealtime() }, it.segments())
+    } ?: 0L
+    val normalActive = remember(allItems) { allItems.filter { !it.done } }
+    val normalDone = remember(allItems) { allItems.filter { it.done } }
+    val scope = rememberCoroutineScope()
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .layerBackdrop(listBackdrop),
+        contentPadding = PaddingValues(
+            start = Spacing.l, end = Spacing.l, top = Spacing.m, bottom = BottomBarContentInset
+        ),
+        verticalArrangement = Arrangement.spacedBy(Spacing.s)
+    ) {
+        item {
+            FocusTimerCard(
+                record = record,
+                remainingMs = remaining,
+                onClick = { onOpenFocus(record?.taskId) }
+            )
+        }
+
+        item {
+            Text(
+                stringResource(R.string.focus_task_section),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(top = Spacing.s)
+            )
+        }
+
+        if (tasks.isEmpty()) {
+            item {
+                Text(
+                    stringResource(R.string.focus_task_empty_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline,
+                    modifier = Modifier.padding(vertical = Spacing.m)
+                )
+            }
+        } else {
+            items(tasks, key = { it.id }) { task ->
+                FocusTaskCard(
+                    task = task,
+                    onOpen = { onEditTask(task) },
+                    onStartFocus = { onStartFocus(task) },
+                    onArchive = { onArchiveTask(task) }
+                )
+            }
+        }
+
+        if (allItems.isNotEmpty()) {
+            item {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable { normalExpanded = !normalExpanded }
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        if (normalExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        stringResource(R.string.focus_normal_todos, allItems.count { !it.done }),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+            if (normalExpanded) {
+                items(normalActive, key = { "n${it.id}" }) { item ->
+                    TodoCard(
+                        item = item,
+                        isCompleted = false,
+                        onToggle = { scope.launch { repository.save(item.copy(done = true)) } },
+                        onClick = {},
+                        onDelete = { scope.launch { repository.delete(item.id) } }
+                    )
+                }
+                if (normalDone.isNotEmpty()) {
+                    item {
+                        Text(
+                            stringResource(R.string.todo_completed, normalDone.size),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline,
+                            modifier = Modifier.padding(top = Spacing.s)
+                        )
+                    }
+                    items(normalDone, key = { "d${it.id}" }) { item ->
+                        TodoCard(
+                            item = item,
+                            isCompleted = true,
+                            onToggle = { scope.launch { repository.save(item.copy(done = false)) } },
+                            onClick = {},
+                            onDelete = { scope.launch { repository.delete(item.id) } }
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** 学习模式顶部的迷你番茄钟卡片：点进番茄钟页 */
+@Composable
+private fun FocusTimerCard(
+    record: FocusRecord?,
+    remainingMs: Long,
+    onClick: () -> Unit
+) {
+    val phase = record?.phase
+    val accent = when (phase) {
+        FocusSession.PHASE_SHORT_BREAK -> MaterialTheme.colorScheme.tertiary
+        FocusSession.PHASE_LONG_BREAK -> MaterialTheme.colorScheme.secondary
+        else -> MaterialTheme.colorScheme.primary
+    }
+    val phaseText = stringResource(
+        when (phase) {
+            FocusSession.PHASE_SHORT_BREAK -> R.string.focus_phase_short_break
+            FocusSession.PHASE_LONG_BREAK -> R.string.focus_phase_long_break
+            else -> R.string.focus_phase_focus
+        }
+    )
+    val statusText = if (record == null) {
+        stringResource(R.string.focus_idle_hint)
+    } else if (record.running) {
+        stringResource(R.string.focus_status_running, FocusTimer.formatDuration(remainingMs))
+    } else {
+        stringResource(R.string.focus_status_paused, FocusTimer.formatDuration(remainingMs))
+    }
+
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }
+    ) {
+        Row(
+            Modifier.padding(Spacing.l),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                Modifier.size(44.dp).clip(CircleShape).background(accent.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.Timer,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(Modifier.width(Spacing.m))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    phaseText,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    statusText,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                val title = record?.taskTitle?.takeIf { it.isNotBlank() }
+                    ?: stringResource(R.string.focus_task_fallback)
+                Text(
+                    title,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }

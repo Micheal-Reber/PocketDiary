@@ -349,4 +349,53 @@
         <item>十一月</item>
         <item>十二月</item>
     </string-array>
+
+    <!-- 待办学习模式（番茄钟） -->
+    <string name="settings_section_todo">待办</string>
+    <string name="settings_todo_study_mode">学习模式</string>
+    <string name="settings_todo_study_mode_on">待办页显示专注任务与番茄钟，普通待办折叠</string>
+    <string name="settings_todo_study_mode_off">待办页只显示普通待办</string>
+    <string name="settings_focus_durations">番茄钟时长</string>
+    <string name="settings_focus_durations_value">专注 %1$d 分 · 短休 %2$d 分 · 长休 %3$d 分 · 每 %4$d 个长休</string>
+    <string name="settings_focus_minutes">专注时长</string>
+    <string name="settings_focus_short_break">短休息</string>
+    <string name="settings_focus_long_break">长休息</string>
+    <string name="settings_focus_interval">长休间隔</string>
+
+    <string name="focus_title">专注</string>
+    <string name="focus_phase_focus">专注</string>
+    <string name="focus_phase_short_break">短休息</string>
+    <string name="focus_phase_long_break">长休息</string>
+    <string name="focus_status_running">%1$s</string>
+    <string name="focus_status_paused">已暂停 %1$s</string>
+    <string name="focus_idle_hint">开始一段专注</string>
+    <string name="focus_cycle">第 %1$d / %2$d 个番茄</string>
+    <string name="focus_pause">暂停</string>
+    <string name="focus_resume">继续</string>
+    <string name="focus_skip">跳过</string>
+    <string name="focus_abandon">放弃本段</string>
+    <string name="focus_pick_task">选择专注事项</string>
+    <string name="focus_start_generic">开始</string>
+    <string name="focus_start_action">开始专注</string>
+    <string name="focus_task_fallback">自由专注</string>
+    <string name="focus_task_section">专注任务</string>
+    <string name="focus_task_empty_hint">还没有专注任务，点右下角 + 添加一个</string>
+    <string name="focus_task_fab">新建专注任务</string>
+    <string name="focus_task_input_hint">要专注做什么？</string>
+    <string name="focus_task_meta">%1$d 段 · 已专注 %2$s</string>
+    <string name="focus_task_total">累计已专注 %1$s</string>
+    <string name="focus_archive_title">归档专注任务</string>
+    <string name="focus_archive_message">确定要归档“%1$s”吗？已记录的专注时长会保留在统计里。</string>
+    <string name="focus_normal_todos">普通待办 (%1$d)</string>
+    <string name="focus_quit_dialog_title">专注正在进行中</string>
+    <string name="focus_quit_dialog_message">关闭学习模式会中断当前专注，已专注的时长会计入统计。</string>
+    <string name="focus_quit_dialog_confirm">中断并关闭</string>
+
+    <string name="focus_done_focus">专注完成</string>
+    <string name="focus_done_break">休息结束</string>
+
+    <string name="notif_channel_focus">专注计时</string>
+    <string name="notif_channel_focus_desc">番茄钟进行中的常驻通知</string>
+    <string name="notif_channel_focus_alert">专注提醒</string>
+    <string name="notif_channel_focus_alert_desc">番茄钟每段结束时提醒</string>
 </resources>

@@ -24,15 +24,20 @@ import androidx.sqlite.db.SupportSQLiteDatabase
  *  - v12: CountdownEvent 新增照片卡图片垂直位置。
  *  - v13: CountdownEvent 新增照片卡图片缩放比例。
  *  - v14: TodoItem 新增 alarmMode（通知提醒 / 闹钟响铃）。
+ *  - v15: CountdownEvent 新增 remindDaysBefore（提前几天提醒）。
+ *  - v16: 新增 FocusTask / FocusSession（待办学习模式·番茄钟）。纯新增两张表，
+ *    todo_items / habit_records 等旧表一列未动 —— 学习模式开关只改 UI 呈现，
+ *    普通待办的提醒调度完全不受影响。
  *
  * Migrations:
  *  - v9 与 v11 的 todo_items 结构等价 → MIGRATION_9_11 为空（保数据升级）。
  *  - v10 → v11 删两列 → 表重建（兼容 API 26–33，不用 DROP COLUMN）。
+ *  - v15 → v16 只建新表与索引，不触碰任何旧表。
  *  - v8 及更早无手写迁移 → 仍走 fallbackToDestructiveMigration（清库）。
  */
 @Database(
-    entities = [DiaryEntry::class, Habit::class, HabitRecord::class, CountdownEvent::class, TodoItem::class],
-    version = 15,
+    entities = [DiaryEntry::class, Habit::class, HabitRecord::class, CountdownEvent::class, TodoItem::class, FocusTask::class, FocusSession::class],
+    version = 16,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -40,6 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun habitDao(): HabitDao
     abstract fun countdownDao(): CountdownDao
     abstract fun todoDao(): TodoDao
+    abstract fun focusDao(): FocusDao
 
     companion object {
         @Volatile
@@ -116,6 +122,57 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v15 → v16：只新增 focus_tasks / focus_sessions 两张表。
+         * 旧表一律不碰 —— 学习模式是 UI 层开关，不该逼用户迁数据。
+         */
+        private val MIGRATION_15_16 = object : Migration(15, 16) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `focus_tasks` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `sortOrder` INTEGER NOT NULL,
+                        `focusMillis` INTEGER NOT NULL,
+                        `sessionCount` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        `archived` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_focus_tasks_sortOrder` ON `focus_tasks` (`sortOrder`)"
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `focus_sessions` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `taskId` INTEGER,
+                        `date` TEXT NOT NULL,
+                        `startedAt` INTEGER NOT NULL,
+                        `endedAt` INTEGER NOT NULL,
+                        `plannedMs` INTEGER NOT NULL,
+                        `actualMs` INTEGER NOT NULL,
+                        `phase` INTEGER NOT NULL,
+                        `completed` INTEGER NOT NULL,
+                        `cycleIndex` INTEGER NOT NULL,
+                        FOREIGN KEY(`taskId`) REFERENCES `focus_tasks`(`id`) ON UPDATE NO ACTION ON DELETE SET NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_focus_sessions_taskId` ON `focus_sessions` (`taskId`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_focus_sessions_date` ON `focus_sessions` (`date`)"
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_focus_sessions_date_phase` ON `focus_sessions` (`date`, `phase`)"
+                )
+            }
+        }
+
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -123,7 +180,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "pocket_diary.db"
                 )
-                    .addMigrations(MIGRATION_9_11, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                    .addMigrations(MIGRATION_9_11, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { INSTANCE = it }

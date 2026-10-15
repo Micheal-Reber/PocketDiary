@@ -9,6 +9,10 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- 番茄钟：离开 UI 后仍需计时，故跑一个前台服务 -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
     <!-- 倒数日提醒 + 同步到系统日历 -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.WRITE_CALENDAR" />
@@ -51,6 +55,16 @@
 
         <receiver android:name=".receiver.TodoAlarmReceiver" android:exported="false" />
         <receiver android:name=".receiver.CountdownAlarmReceiver" android:exported="false" />
+
+        <!-- 番茄钟前台服务：计时真值是持久化快照的差值，服务只负责保活与到点结算 -->
+        <service
+            android:name=".data.focus.FocusService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Pomodoro timer must keep counting after leaving the app" />
+        </service>
 
         <!-- 待办闹钟响铃页：锁屏亮屏全屏拉起 -->
         <activity

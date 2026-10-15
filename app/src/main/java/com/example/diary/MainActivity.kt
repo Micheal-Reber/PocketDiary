@@ -70,6 +70,9 @@ class MainActivity : ComponentActivity() {
         // Widget deep-link: CountdownWidgetProvider puts open_countdown_pick + appwidget_id here.
         val openCountdownPick = intent.getBooleanExtra("open_countdown_pick", false)
         val pickedWidgetId = intent.getIntExtra("appwidget_id", -1)
+        // Notification deep-link: FocusNotifier puts these here.
+        val openFocus = intent.getBooleanExtra(EXTRA_OPEN_FOCUS, false)
+        val focusTaskId = intent.getLongExtra(EXTRA_FOCUS_TASK_ID, -1L).takeIf { it > 0L }
 
         setContent {
             // collectAsStateWithLifecycle suspends collection when the activity
@@ -88,7 +91,9 @@ class MainActivity : ComponentActivity() {
                     database = database,
                     initialOpenTodoId = openTodoId,
                     initialOpenCountdownId = openCountdownId,
-                    initialOpenCountdownPick = if (openCountdownPick) pickedWidgetId else null
+                    initialOpenCountdownPick = if (openCountdownPick) pickedWidgetId else null,
+                    initialOpenFocus = openFocus,
+                    initialFocusTaskId = focusTaskId
                 )
             }
         }
@@ -119,5 +124,11 @@ class MainActivity : ComponentActivity() {
             window.setBackgroundDrawable(appWindowBackground)
             windowBackgroundInstalled = true
         }
+    }
+
+    companion object {
+        /** 番茄钟通知点击回到专注页 */
+        const val EXTRA_OPEN_FOCUS = "open_focus"
+        const val EXTRA_FOCUS_TASK_ID = "focus_task_id"
     }
 }

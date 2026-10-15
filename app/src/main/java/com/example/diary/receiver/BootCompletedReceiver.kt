@@ -4,9 +4,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import android.os.SystemClock
 import com.example.diary.R
 import com.example.diary.data.calendar.SystemCalendarSync
 import com.example.diary.data.countdown.CountdownNotificationHelper
+import com.example.diary.data.focus.FocusAlarmScheduler
+import com.example.diary.data.focus.FocusSessionStore
+import com.example.diary.data.focus.FocusTimer
 import com.example.diary.data.countdown.CountdownReminder
 import com.example.diary.data.countdown.CountdownReminderScheduler
 import com.example.diary.data.local.AppDatabase
@@ -55,6 +59,22 @@ class BootCompletedReceiver : BroadcastReceiver() {
                     }
                 }
                 SystemCalendarSync.rescheduleAll(context, countdownRepo)
+
+                // 番茄钟：重启后 elapsedRealtime 归零，旧时间戳全部作废 ——
+                // FocusSessionStore.load() 靠 bootInstant 哨兵识别并丢弃陈旧会话，
+                // 所以这里只需在还剩有效会话时把到点闹钟重新排上。
+                val focusStore = FocusSessionStore(context)
+                focusStore.load()?.let { record ->
+                    if (record.running && record.startElapsed > 0L) {
+                        val remaining = FocusTimer.remainingMs(
+                            record.toSession(), SystemClock.elapsedRealtime(), record.segments()
+                        )
+                        FocusAlarmScheduler.schedule(
+                            context, record.taskId,
+                            SystemClock.elapsedRealtime() + remaining.coerceAtLeast(0L)
+                        )
+                    }
+                }
 
                 // 错过的非重复提醒：关机期间到期的，开机后补一条通知（用户仍可完成/清除）
                 repo.getDueReminders(now)

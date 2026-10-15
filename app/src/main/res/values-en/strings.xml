@@ -349,4 +349,53 @@
         <item>November</item>
         <item>December</item>
     </string-array>
+
+    <!-- Todo study mode (pomodoro) -->
+    <string name="settings_section_todo">Todo</string>
+    <string name="settings_todo_study_mode">Study mode</string>
+    <string name="settings_todo_study_mode_on">Todo tab shows focus tasks and the pomodoro timer; regular todos collapsed</string>
+    <string name="settings_todo_study_mode_off">Todo tab shows only regular todos</string>
+    <string name="settings_focus_durations">Timer lengths</string>
+    <string name="settings_focus_durations_value">Focus %1$d min · Short %2$d min · Long %3$d min · Long every %4$d</string>
+    <string name="settings_focus_minutes">Focus length</string>
+    <string name="settings_focus_short_break">Short break</string>
+    <string name="settings_focus_long_break">Long break</string>
+    <string name="settings_focus_interval">Long break every</string>
+
+    <string name="focus_title">Focus</string>
+    <string name="focus_phase_focus">Focus</string>
+    <string name="focus_phase_short_break">Short break</string>
+    <string name="focus_phase_long_break">Long break</string>
+    <string name="focus_status_running">%1$s</string>
+    <string name="focus_status_paused">Paused %1$s</string>
+    <string name="focus_idle_hint">Start a focus session</string>
+    <string name="focus_cycle">Pomodoro %1$d of %2$d</string>
+    <string name="focus_pause">Pause</string>
+    <string name="focus_resume">Resume</string>
+    <string name="focus_skip">Skip</string>
+    <string name="focus_abandon">Give up</string>
+    <string name="focus_pick_task">Pick a focus task</string>
+    <string name="focus_start_generic">Start</string>
+    <string name="focus_start_action">Start focus</string>
+    <string name="focus_task_fallback">Free focus</string>
+    <string name="focus_task_section">Focus tasks</string>
+    <string name="focus_task_empty_hint">No focus tasks yet. Tap + to add one</string>
+    <string name="focus_task_fab">New focus task</string>
+    <string name="focus_task_input_hint">What are you focusing on?</string>
+    <string name="focus_task_meta">%1$d sessions · %2$s focused</string>
+    <string name="focus_task_total">Total %1$s focused</string>
+    <string name="focus_archive_title">Archive focus task</string>
+    <string name="focus_archive_message">Archive \"%1$s\"? Recorded focus time stays in your stats.</string>
+    <string name="focus_normal_todos">Regular todos (%1$d)</string>
+    <string name="focus_quit_dialog_title">A focus session is running</string>
+    <string name="focus_quit_dialog_message">Turning study mode off interrupts the current session. Focus time already spent still counts.</string>
+    <string name="focus_quit_dialog_confirm">Stop and turn off</string>
+
+    <string name="focus_done_focus">Focus complete</string>
+    <string name="focus_done_break">Break over</string>
+
+    <string name="notif_channel_focus">Focus timer</string>
+    <string name="notif_channel_focus_desc">Ongoing notification while the pomodoro runs</string>
+    <string name="notif_channel_focus_alert">Focus alerts</string>
+    <string name="notif_channel_focus_alert_desc">Alert when each pomodoro segment ends</string>
 </resources>

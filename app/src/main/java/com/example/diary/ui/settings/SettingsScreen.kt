@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Wallpaper
 import androidx.compose.material.icons.filled.ViewCarousel
 import androidx.compose.material3.*
@@ -39,6 +40,7 @@ import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.backup.ImportResult
 import com.example.diary.data.calendar.SystemCalendarManager
 import com.example.diary.data.calendar.SystemCalendarSync
+import com.example.diary.data.focus.FocusRuntime
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.preferences.AppLockPreferences
 import com.example.diary.data.preferences.CalendarPreferences
@@ -60,10 +62,26 @@ fun SettingsScreen(
     languagePreferences: LanguagePreferences,
     calendarPreferences: CalendarPreferences,
     countdownRepository: com.example.diary.data.repository.CountdownRepository,
+    focusPreferences: com.example.diary.data.preferences.FocusPreferences,
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val studyMode by focusPreferences.studyMode.collectAsStateWithLifecycle(initialValue = false)
+    val focusMinutes by focusPreferences.focusMinutes.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_FOCUS_MINUTES
+    )
+    val shortBreakMinutes by focusPreferences.shortBreakMinutes.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_SHORT_BREAK_MINUTES
+    )
+    val longBreakMinutes by focusPreferences.longBreakMinutes.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_LONG_BREAK_MINUTES
+    )
+    val longBreakInterval by focusPreferences.longBreakInterval.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_LONG_BREAK_INTERVAL
+    )
+    var showQuitStudyModeDialog by remember { mutableStateOf(false) }
+    var showFocusSettingsDialog by remember { mutableStateOf(false) }
     val isDarkMode by themePreferences.isDarkMode.collectAsStateWithLifecycle(initialValue = false)
     val dynamicColor by themePreferences.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
     val floatingBar by themePreferences.floatingBar.collectAsStateWithLifecycle(initialValue = true)
@@ -385,6 +403,52 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.outlineVariant
             )
 
+            // Todo / 学习模式（番茄钟）
+            Text(
+                stringResource(R.string.settings_section_todo),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            )
+
+            SettingsRow(
+                headline = stringResource(R.string.settings_todo_study_mode),
+                supporting = if (studyMode) stringResource(R.string.settings_todo_study_mode_on)
+                else stringResource(R.string.settings_todo_study_mode_off),
+                leading = { Icon(Icons.Default.Timer, contentDescription = null) },
+                trailing = {
+                    Switch(
+                        checked = studyMode,
+                        onCheckedChange = { checked ->
+                            // 正在计时时关开关会让前台服务和到点闹钟失去归属，先确认
+                            if (!checked && FocusRuntime.isRunning) {
+                                showQuitStudyModeDialog = true
+                            } else {
+                                scope.launch { focusPreferences.setStudyMode(checked) }
+                            }
+                        }
+                    )
+                }
+            )
+
+            if (studyMode) {
+                SettingsRow(
+                    headline = stringResource(R.string.settings_focus_durations),
+                    supporting = stringResource(
+                        R.string.settings_focus_durations_value,
+                        focusMinutes, shortBreakMinutes, longBreakMinutes, longBreakInterval
+                    ),
+                    leading = { Icon(Icons.Default.Schedule, contentDescription = null) },
+                    modifier = Modifier.clickable { showFocusSettingsDialog = true }
+                )
+            }
+
+            HorizontalDivider(
+                modifier = Modifier.padding(horizontal = 16.dp),
+                color = MaterialTheme.colorScheme.outlineVariant
+            )
+
             // Privacy section
             Text(
                 stringResource(R.string.settings_section_privacy),
@@ -532,6 +596,67 @@ fun SettingsScreen(
         }
         }
 
+        // 正在计时时关闭学习模式：先确认，避免留一个没有归属的前台服务
+        if (showQuitStudyModeDialog) {
+            AlertDialog(
+                onDismissRequest = { showQuitStudyModeDialog = false },
+                title = { Text(stringResource(R.string.focus_quit_dialog_title)) },
+                text = { Text(stringResource(R.string.focus_quit_dialog_message)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        showQuitStudyModeDialog = false
+                        scope.launch {
+                            val intent = android.content.Intent(context, com.example.diary.data.focus.FocusService::class.java).apply {
+                                action = com.example.diary.data.focus.FocusService.ACTION_STOP
+                            }
+                            runCatching { context.startService(intent) }
+                            focusPreferences.setStudyMode(false)
+                        }
+                    }) {
+                        Text(
+                            stringResource(R.string.focus_quit_dialog_confirm),
+                            color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showQuitStudyModeDialog = false }) {
+                        Text(stringResource(R.string.common_cancel))
+                    }
+                }
+            )
+        }
+
+        // 番茄钟段长设置
+        if (showFocusSettingsDialog) {
+            AlertDialog(
+                onDismissRequest = { showFocusSettingsDialog = false },
+                title = { Text(stringResource(R.string.settings_focus_durations)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                        FocusDurationRow(
+                            stringResource(R.string.settings_focus_minutes), focusMinutes, 1..180
+                        ) { scope.launch { focusPreferences.setFocusMinutes(it) } }
+                        FocusDurationRow(
+                            stringResource(R.string.settings_focus_short_break), shortBreakMinutes, 1..60
+                        ) { scope.launch { focusPreferences.setShortBreakMinutes(it) } }
+                        FocusDurationRow(
+                            stringResource(R.string.settings_focus_long_break), longBreakMinutes, 1..90
+                        ) { scope.launch { focusPreferences.setLongBreakMinutes(it) } }
+                        FocusDurationRow(
+                            stringResource(R.string.settings_focus_interval), longBreakInterval, 2..12
+                        ) { scope.launch { focusPreferences.setLongBreakInterval(it) } }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showFocusSettingsDialog = false }) {
+                        Text(stringResource(R.string.common_done))
+                    }
+                }
+            )
+        }
+
         // 验证时机选择
         if (showLockModeDialog) {
             AlertDialog(
@@ -617,6 +742,46 @@ fun SettingsScreen(
 
 private fun showToast(context: android.content.Context, message: String) {
     android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+}
+
+/** 段长微调行：− / 数值 / +，范围外按钮置灰 */
+@Composable
+private fun FocusDurationRow(
+    label: String,
+    value: Int,
+    range: IntRange,
+    onChange: (Int) -> Unit
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(
+            onClick = { if (value > range.first) onChange(value - 1) },
+            enabled = value > range.first
+        ) {
+            Icon(Icons.Default.KeyboardArrowDown, contentDescription = null)
+        }
+        Text(
+            "$value",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.widthIn(min = 36.dp)
+        )
+        IconButton(
+            onClick = { if (value < range.last) onChange(value + 1) },
+            enabled = value < range.last
+        ) {
+            Icon(Icons.Default.KeyboardArrowUp, contentDescription = null)
+        }
+    }
 }
 
 @Composable

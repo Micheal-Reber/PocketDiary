@@ -56,10 +56,12 @@ import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.preferences.AppLockPreferences
 import com.example.diary.data.preferences.CalendarPreferences
+import com.example.diary.data.preferences.FocusPreferences
 import com.example.diary.data.preferences.LanguagePreferences
 import com.example.diary.data.preferences.ThemePreferences
 import com.example.diary.data.repository.CountdownRepository
 import com.example.diary.data.repository.DiaryRepository
+import com.example.diary.data.repository.FocusRepository
 import com.example.diary.data.repository.HabitRepository
 import com.example.diary.data.repository.TodoRepository
 import com.example.diary.ui.countdown.CountdownDetailScreen
@@ -70,6 +72,7 @@ import com.example.diary.ui.countdown.ClassicFullscreenEditorScreen
 import com.example.diary.ui.countdown.CountdownWidgetPickScreen
 import com.example.diary.ui.diary.DiaryListScreen
 import com.example.diary.ui.editor.DiaryEditorScreen
+import com.example.diary.ui.focus.FocusScreen
 import com.example.diary.ui.habits.HabitsScreen
 import com.example.diary.ui.habits.HabitsViewModel
 import com.example.diary.ui.habits.HabitsViewModelFactory
@@ -107,6 +110,8 @@ fun AppNavigation(
     initialOpenTodoId: Long? = null,
     initialOpenCountdownId: Long? = null,
     initialOpenCountdownPick: Int? = null,
+    initialOpenFocus: Boolean = false,
+    initialFocusTaskId: Long? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -115,6 +120,8 @@ fun AppNavigation(
     val habitRepository = remember { HabitRepository(database.habitDao()) }
     val countdownRepository = remember { CountdownRepository(database.countdownDao(), context) }
     val todoRepository = remember { TodoRepository(database.todoDao(), context) }
+    val focusRepository = remember { FocusRepository(database.focusDao(), context) }
+    val focusPreferences = remember { FocusPreferences(context) }
     val appLockPreferences = remember { AppLockPreferences(context) }
     val languagePreferences = remember { LanguagePreferences(context) }
     val calendarPreferences = remember { CalendarPreferences(context) }
@@ -153,6 +160,17 @@ fun AppNavigation(
             }
         } else if (initialOpenCountdownPick != null && initialOpenCountdownPick >= 0) {
             navController.navigate("countdown_widget_pick?widgetId=$initialOpenCountdownPick") {
+                launchSingleTop = true
+            }
+        }
+    }
+
+    // 番茄钟通知点进来：回专注页（子路由不进底栏）
+    LaunchedEffect(initialOpenFocus) {
+        if (initialOpenFocus) {
+            navController.navigate(
+                if (initialFocusTaskId != null && initialFocusTaskId > 0L) "focus?taskId=$initialFocusTaskId" else "focus?taskId=0"
+            ) {
                 launchSingleTop = true
             }
         }
@@ -351,7 +369,38 @@ fun AppNavigation(
                             )
                         }
                         composable(Screen.Todo.route) {
-                            TodoListScreen(repository = todoRepository)
+                            TodoListScreen(
+                                repository = todoRepository,
+                                focusRepository = focusRepository,
+                                focusPreferences = focusPreferences,
+                                onOpenFocus = { taskId ->
+                                    navController.navigate(
+                                        if (taskId != null && taskId > 0L) "focus?taskId=$taskId" else "focus?taskId=0"
+                                    )
+                                }
+                            )
+                        }
+                        composable(
+                            route = "focus?taskId={taskId}",
+                            arguments = listOf(navArgument("taskId") {
+                                type = NavType.LongType; defaultValue = 0L
+                            }),
+                            enterTransition = SlideUpEnter,
+                            popExitTransition = SlideUpPopExit
+                        ) { backStackEntry ->
+                            val taskId = backStackEntry.arguments?.getLong("taskId") ?: 0L
+                            FocusScreen(
+                                focusTaskId = taskId.takeIf { it > 0L },
+                                onBack = { navController.popBackStack() },
+                                onPickTask = {
+                                    navController.popBackStack()
+                                    navController.navigate(Screen.Todo.route) {
+                                        popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+                                        launchSingleTop = true
+                                        restoreState = true
+                                    }
+                                }
+                            )
                         }
                         composable(Screen.Settings.route) {
                             SettingsScreen(
@@ -361,6 +410,7 @@ appLockPreferences = appLockPreferences,
                 languagePreferences = languagePreferences,
                 calendarPreferences = calendarPreferences,
                 countdownRepository = countdownRepository,
+                focusPreferences = focusPreferences,
             )
                         }
                         composable(
