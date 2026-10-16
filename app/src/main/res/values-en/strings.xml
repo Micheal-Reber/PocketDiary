@@ -394,7 +394,7 @@
     <string name="focus_done_focus">Focus complete</string>
     <string name="focus_done_break">Break over</string>
 
-    <string name="focus_stats_entry">Focus statistics</string>
+    <string name="focus_stats_empty">No focus sessions yet — run a pomodoro first</string>
     <string name="focus_stats_title">Focus Statistics</string>
     <string name="focus_stats_today_goal">Daily Goal</string>
     <string name="focus_stats_today">Today</string>
@@ -420,7 +420,12 @@
     <string name="focus_stats_task_free">Free focus</string>
     <string name="focus_stats_task_sessions">%1$d pomodoros</string>
     <string name="focus_stats_task_archived">Archived</string>
-    <string name="focus_stats_empty">No focus sessions yet — run a pomodoro first</string>
+    <string name="focus_notif_running">%1$s · %2$s left</string>
+    <string name="focus_notif_paused">%1$s · %2$s left · paused</string>
+    <string name="focus_notif_next">Up next: %1$s (%2$s)</string>
+    <string name="settings_focus_notif_enhanced">Detailed ongoing notification</string>
+    <string name="settings_focus_notif_enhanced_desc">Adds pause/abandon/skip buttons and a segmented progress bar, and requests the status bar countdown chip</string>
+    <string name="focus_stats_entry">No focus sessions yet — run a pomodoro first</string>
 
     <string name="settings_focus_noise">Focus ambience</string>
     <string name="settings_focus_noise_value">%1$s · volume %2$d%%</string>

@@ -394,7 +394,7 @@
     <string name="focus_done_focus">专注完成</string>
     <string name="focus_done_break">休息结束</string>
 
-    <string name="focus_stats_entry">专注统计</string>
+    <string name="focus_stats_empty">还没有专注记录，先去跑一个番茄吧</string>
     <string name="focus_stats_title">专注统计</string>
     <string name="focus_stats_today_goal">今日目标</string>
     <string name="focus_stats_today">今日</string>
@@ -420,7 +420,12 @@
     <string name="focus_stats_task_free">自由专注</string>
     <string name="focus_stats_task_sessions">%1$d 个番茄</string>
     <string name="focus_stats_task_archived">已归档</string>
-    <string name="focus_stats_empty">还没有专注记录，先去跑一个番茄吧</string>
+    <string name="focus_notif_running">%1$s · 还剩 %2$s</string>
+    <string name="focus_notif_paused">%1$s · 还剩 %2$s · 已暂停</string>
+    <string name="focus_notif_next">接下来是：%1$s（%2$s）</string>
+    <string name="settings_focus_notif_enhanced">详细常驻通知</string>
+    <string name="settings_focus_notif_enhanced_desc">通知里显示暂停/放弃/跳过按钮与分段进度条，并申请状态栏倒计时芯片</string>
+    <string name="focus_stats_entry">还没有专注记录，先去跑一个番茄吧</string>
 
     <string name="settings_focus_noise">专注白噪音</string>
     <string name="settings_focus_noise_value">%1$s · 音量 %2$d%%</string>

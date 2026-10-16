@@ -1,4 +1,4 @@
-package com.example.diary.ui.theme
+﻿package com.example.diary.ui.theme
 
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -9,6 +9,9 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.toArgb
+import com.example.diary.data.focus.FocusColors
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -121,4 +124,12 @@ fun DiaryTheme(
         shapes = AppShapes,
         content = content
     )
+
+    // 通知（前台服务里构建，非 Composable）要用品牌色画分段进度条，这里把色值递过去
+    LaunchedEffect(colorScheme.primary, colorScheme.tertiary) {
+        FocusColors.publish(
+            colorScheme.primary.toArgb(),
+            colorScheme.tertiary.toArgb()
+        )
+    }
 }

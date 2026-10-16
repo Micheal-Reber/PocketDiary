@@ -1,4 +1,4 @@
-﻿package com.example.diary.data.focus
+package com.example.diary.data.focus
 
 import android.app.Service
 import android.content.Context
@@ -36,6 +36,7 @@ class FocusService : Service() {
     private lateinit var store: FocusSessionStore
     private lateinit var repository: FocusRepository
     private lateinit var noisePlayer: NoisePlayer
+    private var enhancedNotification: Boolean = FocusPreferences.DEFAULT_NOTIFICATION_ENHANCED
 
     override fun onCreate() {
         super.onCreate()
@@ -44,6 +45,9 @@ class FocusService : Service() {
         noisePlayer = NoisePlayer(this)
         FocusNotifier.ensureChannel(this)
         FocusRuntime.setServiceAlive(true)
+        // 通知增强档是用户开关：异步读一次缓存进字段，别在主线程阻塞读 DataStore，
+        // 也别为了它每秒重读
+        scope.launch { enhancedNotification = FocusPreferences(this@FocusService).notificationEnhanced.first() }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -56,7 +60,9 @@ class FocusService : Service() {
 
         if (action != ACTION_STOP && action != ACTION_NOISE) {
             val seed = FocusRuntime.current() ?: FocusRecord(taskId = taskId, taskTitle = title)
-            runCatching { startForeground(NOTIFICATION_ID, FocusNotifier.buildOngoing(this, seed, 0L)) }
+            runCatching {
+                startForeground(NOTIFICATION_ID, FocusNotifier.buildOngoing(this, seed, 0L, notificationEnhanced()))
+            }
         }
 
         when (action) {
@@ -309,7 +315,12 @@ class FocusService : Service() {
 
     private fun refreshNotification(record: FocusRecord) {
         val remaining = FocusTimer.remainingMs(record.toSession(), SystemClock.elapsedRealtime(), record.segments())
-        runCatching { startForeground(NOTIFICATION_ID, FocusNotifier.buildOngoing(this, record, remaining)) }
+        runCatching {
+            startForeground(
+                NOTIFICATION_ID,
+                FocusNotifier.buildOngoing(this, record, remaining, notificationEnhanced())
+            )
+        }
     }
 
     private fun labelOf(context: Context, phase: Int, segments: FocusTimer.Segments): String {
@@ -323,6 +334,8 @@ class FocusService : Service() {
         }
         return "$name ${minutes}m"
     }
+
+    private fun notificationEnhanced(): Boolean = enhancedNotification
 
     private fun nowBootInstant() =
         FocusTimer.bootInstant(System.currentTimeMillis(), SystemClock.elapsedRealtime())

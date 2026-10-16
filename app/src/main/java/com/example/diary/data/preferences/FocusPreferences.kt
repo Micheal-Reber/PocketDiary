@@ -32,6 +32,10 @@ class FocusPreferences(context: Context) {
         val GUARD_BLOCK_COUNT_KEY = intPreferencesKey("focus_guard_block_count")
         val NOISE_KIND_KEY = stringPreferencesKey("focus_noise_kind")
         val NOISE_VOLUME_KEY = intPreferencesKey("focus_noise_volume")
+        val NOTIFICATION_ENHANCED_KEY = booleanPreferencesKey("focus_notification_enhanced")
+
+        /** 常驻通知里显示分段进度条 + 状态栏倒计时芯片（Live Activity） */
+        const val DEFAULT_NOTIFICATION_ENHANCED = true
 
         const val DEFAULT_FOCUS_MINUTES = 25
         const val DEFAULT_SHORT_BREAK_MINUTES = 5
@@ -124,6 +128,13 @@ class FocusPreferences(context: Context) {
 
     suspend fun setNoiseVolume(volume: Int) =
         putInt(NOISE_VOLUME_KEY, volume.coerceIn(0, 100), "noise volume")
+
+    val notificationEnhanced: Flow<Boolean> = appContext.dataStore.data.map {
+        it[NOTIFICATION_ENHANCED_KEY] ?: DEFAULT_NOTIFICATION_ENHANCED
+    }
+
+    suspend fun setNotificationEnhanced(enabled: Boolean) =
+        putBoolean(NOTIFICATION_ENHANCED_KEY, enabled, "notification enhanced")
 
     private suspend fun putBoolean(key: Preferences.Key<Boolean>, value: Boolean, label: String) {
         try {

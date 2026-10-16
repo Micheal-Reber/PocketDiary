@@ -1,7 +1,9 @@
 package com.example.diary.data.focus
 
 import java.util.Random
+import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.exp
 import kotlin.math.roundToInt
 
 /**
@@ -13,8 +15,11 @@ object WhiteNoise {
     const val SAMPLE_RATE = 22_050
     const val DEFAULT_SECONDS = 3
     /** 归一化目标响度（相对满刻度）：白/粉/棕统一到同一 RMS，听感才可比 */
-    const val TARGET_RMS = 0.085f
+    const val TARGET_RMS = 0.075f
+    /** 低通截止（Hz）：砍掉刺耳的高频，三种噪音整体变柔和 */
+    const val LOWPASS_HZ = 5_500f
     private const val PEAK_CEILING = 0.98f
+    private const val CROSSFADE_SECONDS = 0.25f
 
     enum class Kind(val id: String) {
         OFF("off"),
@@ -28,9 +33,14 @@ object WhiteNoise {
     }
 
     /**
-     * 合成一段循环缓冲。首尾各有淡入淡出，避免 AudioTrack loop 回绕时的爆音。
-     * 粉噪用 Paul Kellet 的 1/f 近似，棕噪用带泄漏的积分器（防直流漂移）。
-     * 三种音色各自能量差很多，出缓冲后统一做 RMS 归一 + 峰值保护。
+     * 合成一段**可无缝循环**的缓冲。
+     *
+     * 关键一：不淡出到静音，改用首尾交叉淡化（尾段渐变为头段内容），
+     * 否则每轮循环都有一次「音量塌到 0 再起」= 听着像音高往下掉的呼吸声。
+     * 关键二：两级单极点低通去掉高频毛刺，白噪音也不再刺耳。
+     *
+     * 音色：白=均匀随机、粉=Paul Kellet 1/f 近似、棕=带泄漏积分器。
+     * 三者出缓冲后统一 RMS 归一 + 峰值保护。
      */
     fun generate(
         kind: Kind,
@@ -39,16 +49,17 @@ object WhiteNoise {
         seed: Long = 20260101L
     ): ShortArray {
         if (kind == Kind.OFF) return ShortArray(0)
-        val count = (sampleRate * seconds).coerceAtLeast(1)
-        val raw = FloatArray(count)
+        val length = (sampleRate * seconds).coerceAtLeast(1)
+        val crossfade = minOf(length / 4, (sampleRate * CROSSFADE_SECONDS).toInt()).coerceAtLeast(1)
+        val raw = FloatArray(length + crossfade)
         val random = Random(seed)
         when (kind) {
-            Kind.WHITE -> for (i in 0 until count) {
+            Kind.WHITE -> for (i in raw.indices) {
                 raw[i] = random.nextFloat() * 2f - 1f
             }
             Kind.BROWN -> {
                 var last = 0f
-                for (i in 0 until count) {
+                for (i in raw.indices) {
                     val white = random.nextFloat() * 2f - 1f
                     last = (last + 0.02f * white) / 1.02f
                     raw[i] = last * 3.5f
@@ -57,7 +68,7 @@ object WhiteNoise {
             Kind.PINK -> {
                 var b0 = 0f; var b1 = 0f; var b2 = 0f
                 var b3 = 0f; var b4 = 0f; var b5 = 0f; var b6 = 0f
-                for (i in 0 until count) {
+                for (i in raw.indices) {
                     val white = random.nextFloat() * 2f - 1f
                     b0 = 0.99886f * b0 + white * 0.0555179f
                     b1 = 0.99332f * b1 + white * 0.0750759f
@@ -72,33 +83,47 @@ object WhiteNoise {
             Kind.OFF -> Unit
         }
 
-        normalizeRms(raw)
-        applyEnvelope(raw, (count / 20).coerceAtLeast(1))
-        val out = ShortArray(count)
-        for (i in 0 until count) out[i] = toPcm(raw[i])
+        soften(raw, sampleRate)
+        wrapCrossfade(raw, length, crossfade)
+        normalizeRms(raw, length)
+        val out = ShortArray(length)
+        for (i in 0 until length) out[i] = toPcm(raw[i])
         return out
     }
 
-    /** 统一 RMS 到 TARGET_RMS；峰值超限时压回来，宁可轻一点也不爆音 */
-    private fun normalizeRms(buffer: FloatArray) {
-        var sum = 0.0
-        buffer.forEach { sum += it.toDouble() * it.toDouble() }
-        val rms = Math.sqrt(sum / buffer.size).toFloat()
-        if (rms <= 1e-6f) return
-        var gain = TARGET_RMS / rms
-        val peak = buffer.maxOf { abs(it) }
-        if (peak * gain > PEAK_CEILING) gain = PEAK_CEILING / peak
-        for (i in buffer.indices) buffer[i] *= gain
+    /** 两级单极点低通（约 -12dB/oct）：白噪音的「嘶」和粉噪的毛边都被削掉 */
+    private fun soften(buffer: FloatArray, sampleRate: Int) {
+        val coefficient = (1f - exp(-2f * PI.toFloat() * LOWPASS_HZ / sampleRate)).coerceIn(0.05f, 1f)
+        var stage1 = 0f
+        var stage2 = 0f
+        for (i in buffer.indices) {
+            stage1 += coefficient * (buffer[i] - stage1)
+            stage2 += coefficient * (stage1 - stage2)
+            buffer[i] = stage2
+        }
     }
 
-    /** 首尾线性淡入淡出：循环点两侧都落在 0 上，回绕听不到接缝 */
-    private fun applyEnvelope(buffer: FloatArray, fade: Int) {
-        if (fade * 2 >= buffer.size) return
-        for (i in 0 until fade) {
-            val gain = i.toFloat() / fade
-            buffer[i] *= gain
-            buffer[buffer.size - 1 - i] *= gain
+    /** 尾段渐变成头段内容，循环回绕处波形连续 */
+    private fun wrapCrossfade(buffer: FloatArray, length: Int, crossfade: Int) {
+        if (crossfade * 2 >= length) return
+        for (i in 0 until crossfade) {
+            val progress = i.toFloat() / (crossfade - 1).coerceAtLeast(1)
+            val tailIndex = length - crossfade + i
+            buffer[tailIndex] = buffer[tailIndex] * (1f - progress) + buffer[i] * progress
         }
+    }
+
+    /** 统一 RMS 到 TARGET_RMS；峰值超限时压回来，宁可轻一点也不爆音 */
+    private fun normalizeRms(buffer: FloatArray, length: Int) {
+        var sum = 0.0
+        for (i in 0 until length) sum += buffer[i].toDouble() * buffer[i].toDouble()
+        val rms = Math.sqrt(sum / length).toFloat()
+        if (rms <= 1e-6f) return
+        var gain = TARGET_RMS / rms
+        var peak = 0f
+        for (i in 0 until length) peak = maxOf(peak, abs(buffer[i]))
+        if (peak * gain > PEAK_CEILING) gain = PEAK_CEILING / peak
+        for (i in 0 until length) buffer[i] *= gain
     }
 
     private fun toPcm(value: Float): Short =

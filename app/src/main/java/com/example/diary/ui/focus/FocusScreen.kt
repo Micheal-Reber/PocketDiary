@@ -1,4 +1,4 @@
-﻿package com.example.diary.ui.focus
+package com.example.diary.ui.focus
 
 import android.content.Intent
 import android.os.SystemClock

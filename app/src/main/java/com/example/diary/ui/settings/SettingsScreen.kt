@@ -1,4 +1,4 @@
-﻿package com.example.diary.ui.settings
+package com.example.diary.ui.settings
 
 import android.net.Uri
 import android.app.Activity
@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Password
@@ -44,6 +45,7 @@ import com.example.diary.data.backup.ImportResult
 import com.example.diary.data.calendar.SystemCalendarManager
 import com.example.diary.data.calendar.SystemCalendarSync
 import com.example.diary.data.focus.FocusGuardService
+import com.example.diary.data.focus.FocusService
 import com.example.diary.data.focus.FocusRuntime
 import com.example.diary.data.focus.WhiteNoise
 import com.example.diary.data.image.BackgroundImageStore
@@ -93,6 +95,9 @@ fun SettingsScreen(
     val guardAllowedPackages by focusPreferences.guardAllowedPackages.collectAsStateWithLifecycle(initialValue = emptySet())
     val guardAccessibilityEnabled = remember { mutableStateOf(FocusGuardService.isEnabled(context)) }
     val guardBlockCount by focusPreferences.guardBlockCount.collectAsStateWithLifecycle(initialValue = 0)
+    val notifEnhanced by focusPreferences.notificationEnhanced.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_NOTIFICATION_ENHANCED
+    )
     var showQuitStudyModeDialog by remember { mutableStateOf(false) }
     var showFocusSettingsDialog by remember { mutableStateOf(false) }
     var showNoiseDialog by remember { mutableStateOf(false) }
@@ -479,6 +484,28 @@ fun SettingsScreen(
                     ),
                     leading = { Icon(Icons.Default.MusicNote, contentDescription = null) },
                     modifier = Modifier.clickable { showNoiseDialog = true }
+                )
+
+                SettingsRow(
+                    headline = stringResource(R.string.settings_focus_notif_enhanced),
+                    supporting = stringResource(R.string.settings_focus_notif_enhanced_desc),
+                    leading = { Icon(Icons.Default.NotificationsActive, contentDescription = null) },
+                    trailing = {
+                        Switch(
+                            checked = notifEnhanced,
+                            onCheckedChange = { checked ->
+                                scope.launch {
+                                    focusPreferences.setNotificationEnhanced(checked)
+                                    // 立刻让常驻通知重画，不然要等下一次 tick
+                                    context.startService(
+                                        android.content.Intent(context, FocusService::class.java).apply {
+                                            action = FocusService.ACTION_NOISE
+                                        }
+                                    )
+                                }
+                            }
+                        )
+                    }
                 )
 
                 SettingsRow(

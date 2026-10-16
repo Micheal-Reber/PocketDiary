@@ -1,4 +1,4 @@
-package com.example.diary.data.focus
+﻿package com.example.diary.data.focus
 
 import android.app.Notification
 import android.app.NotificationChannel
@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.Intent
 import android.media.RingtoneManager
 import android.os.Build
+import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.example.diary.MainActivity
@@ -19,6 +20,13 @@ import com.example.diary.util.LocaleHelper
  * 番茄钟通知：独立的 focus_timer 渠道（与 todo_reminder / todo_alarm 分开，
  * 用户在系统设置里能分别关）。
  * 常驻通知用 LOW + 无声，仅「本段结束」才用高优先级提醒。
+ *
+ * 常驻通知支持两档：
+ *  - 增强档（默认）：通知里直接给「暂停/放弃/跳过」三个按钮、分段彩色进度条
+ *    （一个番茄 + 若干休息各占一段），并申请 Live Activity 让状态栏出现倒计时芯片；
+ *  - 精简档：只有文字，时间靠展开后的系统时间。
+ *
+ * 思路参考开源项目 nsh07/Tomato 的常驻通知，但这里是按本项目数据结构独立实现的。
  */
 object FocusNotifier {
 
@@ -27,6 +35,11 @@ object FocusNotifier {
 
     private const val ONGOING_ID = 7101
     private const val DONE_ID = 7102
+
+    // 三个动作按钮的 requestCode 各自独立，且与 TodoReminderScheduler 的哈希空间不重叠
+    private const val REQ_PAUSE = 0x5F1C0001
+    private const val REQ_STOP = 0x5F1C0002
+    private const val REQ_SKIP = 0x5F1C0003
 
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -72,38 +85,135 @@ object FocusNotifier {
         )
     }
 
-    /** 前台常驻通知：标题=事项，副标题=剩余时间 + 段名 */
-    fun buildOngoing(context: Context, record: FocusRecord, remainingMs: Long): Notification {
+    private fun actionIntent(context: Context, requestCode: Int, action: String): PendingIntent =
+        PendingIntent.getService(
+            context, requestCode,
+            Intent(context, FocusService::class.java).apply { this.action = action },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+    /** 前台常驻通知：标题=段名 + 剩余时间，正文=下一段预告 */
+    fun buildOngoing(
+        context: Context,
+        record: FocusRecord,
+        remainingMs: Long,
+        enhanced: Boolean
+    ): Notification {
         val ctx = LocaleHelper.wrap(context)
-        val phaseLabel = when (record.phase) {
-            FocusSession.PHASE_FOCUS -> ctx.getString(R.string.focus_phase_focus)
-            FocusSession.PHASE_LONG_BREAK -> ctx.getString(R.string.focus_phase_long_break)
-            else -> ctx.getString(R.string.focus_phase_short_break)
-        }
-        val status = if (record.running) {
-            ctx.getString(R.string.focus_status_running, FocusTimer.formatDuration(remainingMs))
+        val phaseLabel = phaseLabel(ctx, record.phase)
+        val remaining = FocusTimer.formatDuration(remainingMs)
+        val title = if (record.running) {
+            ctx.getString(R.string.focus_notif_running, phaseLabel, remaining)
         } else {
-            ctx.getString(R.string.focus_status_paused, FocusTimer.formatDuration(remainingMs))
+            ctx.getString(R.string.focus_notif_paused, phaseLabel, remaining)
         }
-        return NotificationCompat.Builder(ctx, CHANNEL_ID)
+        val plan = FocusNotificationPlanner.plan(record, SystemClock.elapsedRealtime())
+        val text = ctx.getString(
+            R.string.focus_notif_next,
+            phaseLabel(ctx, plan.nextPhase),
+            FocusTimer.formatDuration(plan.nextPhaseMs)
+        )
+
+        val builder = NotificationCompat.Builder(ctx, CHANNEL_ID)
             .setSmallIcon(R.mipmap.ic_launcher)
-            .setContentTitle(record.taskTitle.ifBlank { ctx.getString(R.string.focus_task_fallback) })
-            .setContentText("$phaseLabel · $status")
+            .setContentTitle(title)
+            .setContentText(text)
             .setOngoing(true)
             .setSilent(true)
-            .setShowWhen(false)
+            .setShowWhen(record.running)
+            .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setCategory(NotificationCompat.CATEGORY_STOPWATCH)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setColor(FocusColors.phaseFocus)
             .setContentIntent(openIntent(ctx, record.taskId))
-            .build()
+
+        // 计时中把「结束时刻」交给系统：状态栏 Live Activity 芯片靠它倒计时
+        if (record.running) {
+            builder.setWhen(System.currentTimeMillis() + remainingMs.coerceAtLeast(0L))
+        }
+
+        if (enhanced) {
+            addActions(builder, ctx, record)
+            applyProgress(builder, plan, record)
+        }
+
+        return builder.build()
     }
 
-    fun updateOngoing(context: Context, record: FocusRecord, remainingMs: Long) {
+    private fun addActions(
+        builder: NotificationCompat.Builder,
+        ctx: Context,
+        record: FocusRecord
+    ) {
+        builder.clearActions()
+        val toggleLabel = if (record.running) ctx.getString(R.string.focus_pause) else ctx.getString(R.string.focus_resume)
+        val toggleAction = if (record.running) FocusService.ACTION_PAUSE else FocusService.ACTION_RESUME
+        builder.addAction(
+            android.R.drawable.ic_media_pause, toggleLabel,
+            actionIntent(ctx, REQ_PAUSE, toggleAction)
+        )
+        builder.addAction(
+            android.R.drawable.ic_menu_close_clear_cancel, ctx.getString(R.string.focus_abandon),
+            actionIntent(ctx, REQ_STOP, FocusService.ACTION_STOP)
+        )
+        builder.addAction(
+            android.R.drawable.ic_media_next, ctx.getString(R.string.focus_skip),
+            actionIntent(ctx, REQ_SKIP, FocusService.ACTION_SKIP)
+        )
+    }
+
+    /**
+     * 进度条：Android 16+ 用 ProgressStyle 的**分段**样式（专注段与休息段各占一格，
+     * 颜色跟 App 主题走）；更低版本退化成普通线性进度条。
+     */
+    private fun applyProgress(
+        builder: NotificationCompat.Builder,
+        plan: FocusNotificationPlan,
+        record: FocusRecord
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.BAKLAVA) {
+            builder.setProgress(100, plan.progressPercent, false)
+            return
+        }
+        val style = NotificationCompat.ProgressStyle()
+        plan.segments.forEach { segment ->
+            style.addProgressSegment(
+                NotificationCompat.ProgressStyle.Segment(segment.durationMs).setColor(
+                    if (segment.role == FocusSegmentPlan.Role.FOCUS) {
+                        FocusColors.phaseFocus
+                    } else {
+                        FocusColors.phaseBreak
+                    }
+                )
+            )
+        }
+        builder.setStyle(style.setProgress(plan.progressMs))
+        builder.setRequestPromotedOngoing(true)
+        if (record.running) {
+            val segments = record.segments()
+            builder.setShortCriticalText(
+                FocusTimer.formatDuration(
+                    FocusTimer.remainingMs(record.toSession(), SystemClock.elapsedRealtime(), segments)
+                        .coerceAtLeast(0L)
+                )
+            )
+        }
+    }
+
+    fun updateOngoing(context: Context, record: FocusRecord, remainingMs: Long, enhanced: Boolean) {
         ensureChannel(context)
         try {
-            NotificationManagerCompat.from(context).notify(ONGOING_ID, buildOngoing(context, record, remainingMs))
+            NotificationManagerCompat.from(context)
+                .notify(ONGOING_ID, buildOngoing(context, record, remainingMs, enhanced))
         } catch (_: SecurityException) {
         }
+    }
+
+    private fun phaseLabel(ctx: Context, phase: Int): String = when (phase) {
+        FocusSession.PHASE_SHORT_BREAK -> ctx.getString(R.string.focus_phase_short_break)
+        FocusSession.PHASE_LONG_BREAK -> ctx.getString(R.string.focus_phase_long_break)
+        else -> ctx.getString(R.string.focus_phase_focus)
     }
 
     /** 本段结束：高优先级提示一次 */
