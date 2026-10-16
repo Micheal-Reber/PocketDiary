@@ -59,6 +59,7 @@ import com.example.diary.R
 import com.example.diary.data.focus.FocusRuntime
 import com.example.diary.data.focus.FocusService
 import com.example.diary.data.focus.FocusTimer
+import com.example.diary.data.focus.CustomNoiseStore
 import com.example.diary.data.focus.WhiteNoise
 import com.example.diary.data.preferences.FocusPreferences
 import com.example.diary.data.local.FocusSession
@@ -80,6 +81,8 @@ fun FocusScreen(
     var tick by remember { mutableIntStateOf(0) }
     val focusPreferences = remember { FocusPreferences(context) }
     val noiseKind by focusPreferences.noiseKind.collectAsStateWithLifecycle(initialValue = WhiteNoise.Kind.OFF.id)
+    val customNoiseName by focusPreferences.customNoiseName.collectAsStateWithLifecycle(initialValue = null)
+    val hasCustomNoise = remember(customNoiseName) { CustomNoiseStore(context).currentFile() != null }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(record?.running) {
@@ -125,9 +128,7 @@ fun FocusScreen(
                         )
                         IconButton(
                             onClick = {
-                                val next = WhiteNoise.Kind.entries[
-                                    (WhiteNoise.Kind.entries.indexOf(kind) + 1) % WhiteNoise.Kind.entries.size
-                                ]
+                                val next = WhiteNoise.cycle(kind, hasCustomNoise)
                                 scope.launch {
                                     focusPreferences.setNoiseKind(next.id)
                                     // 正在计时就把新音色推给服务，立刻换掉正在响的那个
@@ -316,8 +317,7 @@ fun FocusScreen(
 private fun noiseKindLabel(kind: WhiteNoise.Kind): String = stringResource(
     when (kind) {
         WhiteNoise.Kind.WHITE -> R.string.focus_noise_white
-        WhiteNoise.Kind.PINK -> R.string.focus_noise_pink
-        WhiteNoise.Kind.BROWN -> R.string.focus_noise_brown
+        WhiteNoise.Kind.CUSTOM -> R.string.focus_noise_custom
         WhiteNoise.Kind.OFF -> R.string.focus_noise_off
     }
 )

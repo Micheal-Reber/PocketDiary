@@ -559,8 +559,8 @@ private fun StudyTodoTab(
             items(tasks, key = { it.id }) { task ->
                 FocusTaskCard(
                     task = task,
-                    onOpen = { onEditTask(task) },
                     onStartFocus = { onStartFocus(task) },
+                    onEdit = { onEditTask(task) },
                     onArchive = { onArchiveTask(task) }
                 )
             }

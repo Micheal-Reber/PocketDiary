@@ -20,15 +20,15 @@ class WhiteNoiseTest {
 
     @Test
     fun `generation is deterministic for same seed`() {
-        val a = WhiteNoise.generate(WhiteNoise.Kind.PINK, sampleRate = 4_000, seconds = 1, seed = 42L)
-        val b = WhiteNoise.generate(WhiteNoise.Kind.PINK, sampleRate = 4_000, seconds = 1, seed = 42L)
+        val a = WhiteNoise.generate(WhiteNoise.Kind.WHITE, sampleRate = 4_000, seconds = 1, seed = 42L)
+        val b = WhiteNoise.generate(WhiteNoise.Kind.WHITE, sampleRate = 4_000, seconds = 1, seed = 42L)
         assertTrue(a.contentEquals(b))
     }
 
     @Test
     fun `every kind stays inside the amplitude envelope`() {
         val ceiling = (0.99f * Short.MAX_VALUE).toInt()
-        WhiteNoise.Kind.entries.filter { it != WhiteNoise.Kind.OFF }.forEach { kind ->
+        WhiteNoise.Kind.entries.filter { WhiteNoise.isSynthesized(it) }.forEach { kind ->
             val samples = WhiteNoise.generate(kind, sampleRate = 8_000, seconds = 1)
             assertTrue("peak too high for $kind", WhiteNoise.peak(samples) <= ceiling)
             assertTrue("silent buffer for $kind", WhiteNoise.rms(samples) > 100.0)
@@ -36,9 +36,24 @@ class WhiteNoiseTest {
     }
 
     @Test
+    fun `cycle skips custom unless an audio file was chosen`() {
+        assertEquals(WhiteNoise.Kind.WHITE, WhiteNoise.cycle(WhiteNoise.Kind.OFF, hasCustomAudio = false))
+        assertEquals(WhiteNoise.Kind.OFF, WhiteNoise.cycle(WhiteNoise.Kind.WHITE, hasCustomAudio = false))
+        assertEquals(WhiteNoise.Kind.CUSTOM, WhiteNoise.cycle(WhiteNoise.Kind.WHITE, hasCustomAudio = true))
+        assertEquals(WhiteNoise.Kind.OFF, WhiteNoise.cycle(WhiteNoise.Kind.CUSTOM, hasCustomAudio = true))
+    }
+
+    @Test
+    fun `custom audio is never synthesized`() {
+        assertTrue(WhiteNoise.generate(WhiteNoise.Kind.CUSTOM).isEmpty())
+        assertTrue(WhiteNoise.isSynthesized(WhiteNoise.Kind.WHITE))
+        assertTrue(!WhiteNoise.isSynthesized(WhiteNoise.Kind.CUSTOM))
+    }
+
+    @Test
     fun `all kinds are loudness normalized to the same target`() {
         val target = WhiteNoise.TARGET_RMS * Short.MAX_VALUE
-        WhiteNoise.Kind.entries.filter { it != WhiteNoise.Kind.OFF }.forEach { kind ->
+        WhiteNoise.Kind.entries.filter { WhiteNoise.isSynthesized(it) }.forEach { kind ->
             val rms = WhiteNoise.rms(WhiteNoise.generate(kind, sampleRate = 8_000, seconds = 2))
             assertTrue("$kind too quiet: $rms", rms > target * 0.6)
             assertTrue("$kind too loud: $rms", rms < target * 1.4)
@@ -49,7 +64,7 @@ class WhiteNoiseTest {
     fun `loop seam has no loudness dip`() {
         // 曾经的实现是首尾淡出到静音：每轮循环音量塌到 0 再起，
         // 听感就是"音高一路往下掉"。交叉淡化后首尾都必须保持整体响度。
-        WhiteNoise.Kind.entries.filter { it != WhiteNoise.Kind.OFF }.forEach { kind ->
+        WhiteNoise.Kind.entries.filter { WhiteNoise.isSynthesized(it) }.forEach { kind ->
             val samples = WhiteNoise.generate(kind, sampleRate = 8_000, seconds = 2)
             val window = 800
             val overall = meanAbs(samples, 0, samples.size)
@@ -71,7 +86,7 @@ class WhiteNoiseTest {
         // 高频代理指标：一阶差分的平均幅度 / 整体平均幅度。
         // 未滤波的均匀随机信号约 1.41；两级 5.5kHz 低通后白噪音实测 ≈1.07，
         // 阈值留余量但仍要明显低于未滤波基线，听感对应"不刺耳"。
-        WhiteNoise.Kind.entries.filter { it != WhiteNoise.Kind.OFF }.forEach { kind ->
+        WhiteNoise.Kind.entries.filter { WhiteNoise.isSynthesized(it) }.forEach { kind ->
             val samples = WhiteNoise.generate(kind, sampleRate = 22_050, seconds = 2)
             var diff = 0.0
             for (i in 1 until samples.size) diff += abs((samples[i] - samples[i - 1]).toDouble())
@@ -83,7 +98,7 @@ class WhiteNoiseTest {
 
     @Test
     fun `kind parsing falls back to off`() {
-        assertEquals(WhiteNoise.Kind.PINK, WhiteNoise.Kind.from("pink"))
+        assertEquals(WhiteNoise.Kind.OFF, WhiteNoise.Kind.from("pink"))
         assertEquals(WhiteNoise.Kind.OFF, WhiteNoise.Kind.from("nonsense"))
         assertEquals(WhiteNoise.Kind.OFF, WhiteNoise.Kind.from(null))
     }

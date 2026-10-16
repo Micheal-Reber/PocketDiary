@@ -2,7 +2,6 @@ package com.example.diary.ui.focus
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -52,14 +51,15 @@ import com.example.diary.ui.navigation.glassTint
 import com.example.diary.ui.theme.Spacing
 
 /**
- * 专注任务卡片：左侧标题 + 右侧「已专注时长」，点右侧按钮直接开一段专注。
+ * 专注任务卡片：**点一下直接开一段专注**，长按才进编辑（左滑仍可归档）。
+ * 右侧不再放 ▶ 按钮 —— 整张卡就是那个按钮，少一个可点区域少一处歧义。
  * 没有完成态 —— 事项不会消失，下次继续专注同一个。
  */
 @Composable
 fun FocusTaskCard(
     task: FocusTask,
-    onOpen: () -> Unit,
     onStartFocus: () -> Unit,
+    onEdit: () -> Unit,
     onArchive: () -> Unit
 ) {
     val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
@@ -73,7 +73,8 @@ fun FocusTaskCard(
         )
     }
     SwipeDeleteCard(
-        onClick = onOpen,
+        onClick = onStartFocus,
+        onLongClick = onEdit,
         onDelete = onArchive,
         confirmTitle = stringResource(R.string.focus_archive_title),
         confirmMessage = stringResource(R.string.focus_archive_message, task.title),
@@ -84,7 +85,7 @@ fun FocusTaskCard(
             .border(1.dp, glassStroke(dark), MaterialTheme.shapes.medium)
     ) {
         Row(
-            Modifier.padding(start = Spacing.l, end = Spacing.s, top = Spacing.m, bottom = Spacing.m),
+            Modifier.padding(horizontal = Spacing.l, vertical = Spacing.m),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(Modifier.weight(1f)) {
@@ -107,21 +108,12 @@ fun FocusTaskCard(
                     )
                 }
             }
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(MaterialTheme.shapes.medium)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f))
-                    .clickable { onStartFocus() },
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Filled.PlayArrow,
-                    contentDescription = stringResource(R.string.focus_start_action),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp)
-                )
-            }
+            Icon(
+                Icons.Filled.PlayArrow,
+                contentDescription = stringResource(R.string.focus_start_action),
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp)
+            )
         }
     }
 }

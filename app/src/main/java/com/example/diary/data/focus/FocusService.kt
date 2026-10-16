@@ -276,10 +276,8 @@ class FocusService : Service() {
             return
         }
         val prefs = FocusPreferences(this)
-        noisePlayer.play(
-            WhiteNoise.Kind.from(prefs.noiseKind.first()),
-            prefs.noiseVolume.first()
-        )
+        val kind = WhiteNoise.Kind.from(prefs.noiseKind.first())
+        noisePlayer.play(kind, prefs.noiseVolume.first(), CustomNoiseStore(this).currentFile())
     }
 
     private fun syncAlarm(record: FocusRecord) {

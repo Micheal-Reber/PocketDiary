@@ -32,6 +32,8 @@ class FocusPreferences(context: Context) {
         val GUARD_BLOCK_COUNT_KEY = intPreferencesKey("focus_guard_block_count")
         val NOISE_KIND_KEY = stringPreferencesKey("focus_noise_kind")
         val NOISE_VOLUME_KEY = intPreferencesKey("focus_noise_volume")
+        val NOISE_CUSTOM_PATH_KEY = stringPreferencesKey("focus_noise_custom_path")
+        val NOISE_CUSTOM_NAME_KEY = stringPreferencesKey("focus_noise_custom_name")
         val NOTIFICATION_ENHANCED_KEY = booleanPreferencesKey("focus_notification_enhanced")
 
         /** 常驻通知里显示分段进度条 + 状态栏倒计时芯片（Live Activity） */
@@ -128,6 +130,22 @@ class FocusPreferences(context: Context) {
 
     suspend fun setNoiseVolume(volume: Int) =
         putInt(NOISE_VOLUME_KEY, volume.coerceIn(0, 100), "noise volume")
+
+    /** 自定义音频：复制进 filesDir 后的绝对路径（null = 还没选过） */
+    val customNoisePath: Flow<String?> = appContext.dataStore.data.map { it[NOISE_CUSTOM_PATH_KEY] }
+
+    val customNoiseName: Flow<String?> = appContext.dataStore.data.map { it[NOISE_CUSTOM_NAME_KEY] }
+
+    suspend fun setCustomNoise(path: String?, name: String?) {
+        try {
+            appContext.dataStore.edit { prefs ->
+                if (path == null) prefs.remove(NOISE_CUSTOM_PATH_KEY) else prefs[NOISE_CUSTOM_PATH_KEY] = path
+                if (name == null) prefs.remove(NOISE_CUSTOM_NAME_KEY) else prefs[NOISE_CUSTOM_NAME_KEY] = name
+            }
+        } catch (e: java.io.IOException) {
+            Log.w("FocusPreferences", "Failed to persist custom noise", e)
+        }
+    }
 
     val notificationEnhanced: Flow<Boolean> = appContext.dataStore.data.map {
         it[NOTIFICATION_ENHANCED_KEY] ?: DEFAULT_NOTIFICATION_ENHANCED

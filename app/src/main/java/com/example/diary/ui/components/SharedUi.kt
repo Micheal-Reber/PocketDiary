@@ -79,6 +79,7 @@ fun SwipeDeleteCard(
     containerColor: Color = MaterialTheme.colorScheme.surfaceContainerLow,
     cardModifier: Modifier = Modifier,
     enableSwipe: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -138,7 +139,12 @@ fun SwipeDeleteCard(
                     }
                 )
                 .then(
-                    if (enableSwipe) {
+                    if (onLongClick != null) {
+                        Modifier.combinedClickable(
+                            onClick = onClick,
+                            onLongClick = onLongClick
+                        )
+                    } else if (enableSwipe) {
                         Modifier.clickable { onClick() }
                     } else {
                         Modifier.combinedClickable(

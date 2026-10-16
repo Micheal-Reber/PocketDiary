@@ -21,16 +21,21 @@ object WhiteNoise {
     private const val PEAK_CEILING = 0.98f
     private const val CROSSFADE_SECONDS = 0.25f
 
-    enum class Kind(val id: String) {
+    /**
+ * OFF=关，WHITE=内置白噪音（程序化合成），CUSTOM=用户自选音频（走 MediaPlayer，不合成）
+ */
+enum class Kind(val id: String) {
         OFF("off"),
         WHITE("white"),
-        PINK("pink"),
-        BROWN("brown");
+        CUSTOM("custom");
 
         companion object {
             fun from(id: String?): Kind = entries.firstOrNull { it.id == id } ?: OFF
         }
     }
+
+    /** 自定义音频是用户选的文件，不参与合成 */
+    fun isSynthesized(kind: Kind): Boolean = kind == Kind.WHITE
 
     /**
      * 合成一段**可无缝循环**的缓冲。
@@ -48,39 +53,13 @@ object WhiteNoise {
         seconds: Int = DEFAULT_SECONDS,
         seed: Long = 20260101L
     ): ShortArray {
-        if (kind == Kind.OFF) return ShortArray(0)
+        if (!isSynthesized(kind)) return ShortArray(0)
         val length = (sampleRate * seconds).coerceAtLeast(1)
         val crossfade = minOf(length / 4, (sampleRate * CROSSFADE_SECONDS).toInt()).coerceAtLeast(1)
         val raw = FloatArray(length + crossfade)
         val random = Random(seed)
-        when (kind) {
-            Kind.WHITE -> for (i in raw.indices) {
-                raw[i] = random.nextFloat() * 2f - 1f
-            }
-            Kind.BROWN -> {
-                var last = 0f
-                for (i in raw.indices) {
-                    val white = random.nextFloat() * 2f - 1f
-                    last = (last + 0.02f * white) / 1.02f
-                    raw[i] = last * 3.5f
-                }
-            }
-            Kind.PINK -> {
-                var b0 = 0f; var b1 = 0f; var b2 = 0f
-                var b3 = 0f; var b4 = 0f; var b5 = 0f; var b6 = 0f
-                for (i in raw.indices) {
-                    val white = random.nextFloat() * 2f - 1f
-                    b0 = 0.99886f * b0 + white * 0.0555179f
-                    b1 = 0.99332f * b1 + white * 0.0750759f
-                    b2 = 0.96900f * b2 + white * 0.1538520f
-                    b3 = 0.86650f * b3 + white * 0.3104856f
-                    b4 = 0.55000f * b4 + white * 0.5329522f
-                    b5 = -0.7616f * b5 - white * 0.0168980f
-                    raw[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362f
-                    b6 = white * 0.115926f
-                }
-            }
-            Kind.OFF -> Unit
+        for (i in raw.indices) {
+            raw[i] = random.nextFloat() * 2f - 1f
         }
 
         soften(raw, sampleRate)
@@ -91,7 +70,14 @@ object WhiteNoise {
         return out
     }
 
-    /** 两级单极点低通（约 -12dB/oct）：白噪音的「嘶」和粉噪的毛边都被削掉 */
+    /** 播放顺序：关 → 白噪音 →（用户选过音频才出现的）自定义音频 */
+    fun cycle(current: Kind, hasCustomAudio: Boolean): Kind {
+        val available = if (hasCustomAudio) listOf(Kind.OFF, Kind.WHITE, Kind.CUSTOM) else listOf(Kind.OFF, Kind.WHITE)
+        val index = available.indexOf(current)
+        return available[(if (index < 0) 0 else index + 1) % available.size]
+    }
+
+    /** 两级单极点低通（约 -12dB/oct）：白噪音的「嘶」被削掉，听感更柔和 */
     private fun soften(buffer: FloatArray, sampleRate: Int) {
         val coefficient = (1f - exp(-2f * PI.toFloat() * LOWPASS_HZ / sampleRate)).coerceIn(0.05f, 1f)
         var stage1 = 0f

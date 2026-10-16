@@ -441,8 +441,10 @@
     <string name="focus_whitelist_hint">勾选的应用在专注期间可自由切换；系统关键应用始终允许。</string>
     <string name="focus_noise_off">关</string>
     <string name="focus_noise_white">白噪音</string>
-    <string name="focus_noise_pink">粉红噪音</string>
-    <string name="focus_noise_brown">棕噪音</string>
+    <string name="focus_noise_custom">自定义音频</string>
+    <string name="focus_noise_pick">选择音频文件</string>
+    <string name="focus_noise_none_set">还没有选择音频文件</string>
+    <string name="focus_noise_pick_failed">无法读取该音频文件</string>
     <string name="focus_noise_volume">音量 %1$d%%</string>
     <string name="focus_noise_footnote">白噪音只在专注段播放，暂停或到点会淡出；播放期间其他应用的媒体声会暂停。</string>
     <string name="focus_noise_title">白噪音：%1$s</string>

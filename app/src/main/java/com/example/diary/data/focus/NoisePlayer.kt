@@ -1,4 +1,4 @@
-﻿package com.example.diary.data.focus
+package com.example.diary.data.focus
 
 import android.content.Context
 import android.media.AudioAttributes
@@ -6,6 +6,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
+import android.media.MediaPlayer
 import android.os.Handler
 import android.os.Looper
 
@@ -17,6 +18,7 @@ class NoisePlayer(private val context: Context) {
 
     private val handler = Handler(Looper.getMainLooper())
     private var track: AudioTrack? = null
+    private var player: MediaPlayer? = null
     private var focusRequest: AudioFocusRequest? = null
     private var fadeRunnable: Runnable? = null
     private var currentVolume = 0f
@@ -31,9 +33,13 @@ class NoisePlayer(private val context: Context) {
         }
     }
 
-    fun play(kind: WhiteNoise.Kind, volumePercent: Int) {
+    fun play(kind: WhiteNoise.Kind, volumePercent: Int, customFile: java.io.File? = null) {
         if (kind == WhiteNoise.Kind.OFF) {
             stop()
+            return
+        }
+        if (kind == WhiteNoise.Kind.CUSTOM) {
+            playCustom(customFile, volumePercent)
             return
         }
         // 同一种音色只调音量；换音色才重建缓冲（否则点一下听不出变化）
@@ -57,34 +63,72 @@ class NoisePlayer(private val context: Context) {
         fadeTo(volumeScale(volumePercent), FADE_IN_MS)
     }
 
+    /**
+     * 用户自选音频：MediaPlayer 循环播。短文件的循环点会有一丝接缝，
+     * 这是素材自带的限制，合成白噪音那条路径才真正无缝。
+     */
+    private fun playCustom(file: java.io.File?, volumePercent: Int) {
+        if (file == null || !file.isFile) {
+            stop()
+            return
+        }
+        if (player != null && currentKind == WhiteNoise.Kind.CUSTOM) {
+            setVolume(volumePercent)
+            return
+        }
+        stop()
+        currentKind = WhiteNoise.Kind.CUSTOM
+        requestAudioFocus()
+        val created = runCatching {
+            MediaPlayer().apply {
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_MEDIA)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build()
+                )
+                setDataSource(file.absolutePath)
+                isLooping = true
+                setVolume(0f, 0f)
+                setOnPreparedListener { it.start() }
+                setOnErrorListener { _, _, _ -> true }
+                prepareAsync()
+            }
+        }.getOrNull() ?: return
+        player = created
+        currentVolume = 0f
+        fadeTo(volumeScale(volumePercent), FADE_IN_MS)
+    }
+
     fun setVolume(volumePercent: Int) {
-        track?.setVolume(volumeScale(volumePercent))
+        val target = volumeScale(volumePercent)
+        currentVolume = target
+        track?.setVolume(target)
+        player?.setVolume(target, target)
     }
 
     fun fadeOutAndStop() {
-        val current = track ?: return
-        fadeTo(0f, FADE_OUT_MS) {
-            runCatching { current.stop() }
-            runCatching { current.release() }
-            if (track === current) track = null
-            currentVolume = 0f
-            abandonAudioFocus()
-        }
+        if (track == null && player == null) return
+        fadeTo(0f, FADE_OUT_MS) { releaseSources() }
     }
 
     fun stop() {
-        val current = track ?: return
         fadeRunnable?.let(handler::removeCallbacks)
         fadeRunnable = null
-        runCatching { current.stop() }
-        runCatching { current.release() }
+        releaseSources()
+    }
+
+    fun release() = stop()
+
+    private fun releaseSources() {
+        track?.let { runCatching { it.stop() }; runCatching { it.release() } }
+        player?.let { runCatching { it.stop() }; runCatching { it.release() } }
         track = null
+        player = null
         currentVolume = 0f
         currentKind = WhiteNoise.Kind.OFF
         abandonAudioFocus()
     }
-
-    fun release() = stop()
 
     private fun buildTrack(samples: ShortArray): AudioTrack {
         val minBytes = AudioTrack.getMinBufferSize(
@@ -115,7 +159,7 @@ class NoisePlayer(private val context: Context) {
     }
 
     private fun fadeTo(target: Float, durationMs: Long, onEnd: (() -> Unit)? = null) {
-        val current = track
+        val current = track ?: player
         if (current == null) {
             onEnd?.invoke()
             return
@@ -129,7 +173,10 @@ class NoisePlayer(private val context: Context) {
                 step++
                 val progress = (step.toFloat() / steps).coerceAtMost(1f)
                 currentVolume = from + (target - from) * progress
-                current.setVolume(currentVolume)
+                when (current) {
+                    is AudioTrack -> current.setVolume(currentVolume)
+                    is MediaPlayer -> current.setVolume(currentVolume, currentVolume)
+                }
                 if (step < steps) {
                     handler.postDelayed(this, durationMs / steps)
                 } else {

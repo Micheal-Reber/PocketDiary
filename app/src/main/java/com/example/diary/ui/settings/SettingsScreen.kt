@@ -44,6 +44,7 @@ import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.backup.ImportResult
 import com.example.diary.data.calendar.SystemCalendarManager
 import com.example.diary.data.calendar.SystemCalendarSync
+import com.example.diary.data.focus.CustomNoiseStore
 import com.example.diary.data.focus.FocusGuardService
 import com.example.diary.data.focus.FocusService
 import com.example.diary.data.focus.FocusRuntime
@@ -95,6 +96,23 @@ fun SettingsScreen(
     val guardAllowedPackages by focusPreferences.guardAllowedPackages.collectAsStateWithLifecycle(initialValue = emptySet())
     val guardAccessibilityEnabled = remember { mutableStateOf(FocusGuardService.isEnabled(context)) }
     val guardBlockCount by focusPreferences.guardBlockCount.collectAsStateWithLifecycle(initialValue = 0)
+val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecycle(initialValue = null)
+    val customNoiseName by focusPreferences.customNoiseName.collectAsStateWithLifecycle(initialValue = null)
+    // 系统文件选择器：自定义音频入口；取到 URI 后复制进 filesDir（权限被撤销也不怕）
+    val audioPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                val ok = CustomNoiseStore(context).import(uri, null)
+                if (ok) {
+                    focusPreferences.setNoiseKind(WhiteNoise.Kind.CUSTOM.id)
+                } else {
+                    showToast(context, context.getString(R.string.focus_noise_pick_failed))
+                }
+            }
+        }
+    }
     val notifEnhanced by focusPreferences.notificationEnhanced.collectAsStateWithLifecycle(
         initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_NOTIFICATION_ENHANCED
     )
@@ -771,8 +789,7 @@ fun SettingsScreen(
                             listOf(
                                 WhiteNoise.Kind.OFF,
                                 WhiteNoise.Kind.WHITE,
-                                WhiteNoise.Kind.PINK,
-                                WhiteNoise.Kind.BROWN
+                                WhiteNoise.Kind.CUSTOM
                             ).forEach { kind ->
                                 FilterChip(
                                     selected = WhiteNoise.Kind.from(noiseKind) == kind,
@@ -785,6 +802,29 @@ fun SettingsScreen(
                                         )
                                     }
                                 )
+                            }
+                        }
+                        if (WhiteNoise.Kind.from(noiseKind) == WhiteNoise.Kind.CUSTOM) {
+                            Text(
+                                customNoiseName ?: stringResource(R.string.focus_noise_none_set),
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 2,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                                TextButton(onClick = { audioPicker.launch(arrayOf("audio/*")) }) {
+                                    Text(stringResource(R.string.focus_noise_pick))
+                                }
+                                if (customNoisePath != null) {
+                                    TextButton(onClick = {
+                                        scope.launch {
+                                            CustomNoiseStore(context).clear()
+                                            focusPreferences.setNoiseKind(WhiteNoise.Kind.OFF.id)
+                                        }
+                                    }) {
+                                        Text(stringResource(R.string.common_clear))
+                                    }
+                                }
                             }
                         }
                         if (WhiteNoise.Kind.from(noiseKind) != WhiteNoise.Kind.OFF) {
@@ -916,8 +956,7 @@ private fun showToast(context: android.content.Context, message: String) {
 private fun noiseKindLabel(kind: WhiteNoise.Kind): Int = when (kind) {
     WhiteNoise.Kind.OFF -> R.string.focus_noise_off
     WhiteNoise.Kind.WHITE -> R.string.focus_noise_white
-    WhiteNoise.Kind.PINK -> R.string.focus_noise_pink
-    WhiteNoise.Kind.BROWN -> R.string.focus_noise_brown
+    WhiteNoise.Kind.CUSTOM -> R.string.focus_noise_custom
 }
 
 /** 段长微调行：− / 数值 / +，范围外按钮置灰 */

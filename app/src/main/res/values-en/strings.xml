@@ -441,8 +441,10 @@
     <string name="focus_whitelist_hint">Checked apps stay usable while focusing; essential system apps are always allowed.</string>
     <string name="focus_noise_off">Off</string>
     <string name="focus_noise_white">White noise</string>
-    <string name="focus_noise_pink">Pink noise</string>
-    <string name="focus_noise_brown">Brown noise</string>
+    <string name="focus_noise_custom">Custom audio</string>
+    <string name="focus_noise_pick">Choose audio file</string>
+    <string name="focus_noise_none_set">No audio file chosen yet</string>
+    <string name="focus_noise_pick_failed">Could not read that audio file</string>
     <string name="focus_noise_volume">Volume %1$d%%</string>
     <string name="focus_noise_footnote">Ambience plays during focus phases only and fades out when you pause or finish. Other apps\' media is paused while it plays.</string>
     <string name="focus_noise_title">Ambience: %1$s</string>
