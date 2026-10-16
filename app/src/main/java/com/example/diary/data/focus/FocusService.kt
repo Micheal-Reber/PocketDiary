@@ -1,4 +1,4 @@
-package com.example.diary.data.focus
+﻿package com.example.diary.data.focus
 
 import android.app.Service
 import android.content.Context
@@ -8,6 +8,7 @@ import android.os.SystemClock
 import com.example.diary.R
 import com.example.diary.data.local.AppDatabase
 import com.example.diary.data.local.FocusSession
+import com.example.diary.data.preferences.FocusPreferences
 import com.example.diary.data.repository.FocusRepository
 import com.example.diary.util.LocaleHelper
 import kotlinx.coroutines.CoroutineScope
@@ -15,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
@@ -33,11 +35,13 @@ class FocusService : Service() {
 
     private lateinit var store: FocusSessionStore
     private lateinit var repository: FocusRepository
+    private lateinit var noisePlayer: NoisePlayer
 
     override fun onCreate() {
         super.onCreate()
         store = FocusSessionStore(this)
         repository = FocusRepository(AppDatabase.getInstance(this).focusDao(), this)
+        noisePlayer = NoisePlayer(this)
         FocusNotifier.ensureChannel(this)
         FocusRuntime.setServiceAlive(true)
     }
@@ -50,7 +54,7 @@ class FocusService : Service() {
         val title = intent?.getStringExtra(EXTRA_TASK_TITLE).orEmpty()
         val autoStartNext = intent?.getBooleanExtra(EXTRA_AUTO_START_NEXT, true) ?: true
 
-        if (action != ACTION_STOP) {
+        if (action != ACTION_STOP && action != ACTION_NOISE) {
             val seed = FocusRuntime.current() ?: FocusRecord(taskId = taskId, taskTitle = title)
             runCatching { startForeground(NOTIFICATION_ID, FocusNotifier.buildOngoing(this, seed, 0L)) }
         }
@@ -62,6 +66,10 @@ class FocusService : Service() {
             ACTION_SKIP -> scope.launch { advance(completed = false, autoStartNext = autoStartNext) }
             ACTION_EXPIRE -> scope.launch { onAlarm(autoStartNext) }
             ACTION_STOP -> scope.launch { abandon(billPartial = true) }
+            ACTION_NOISE -> scope.launch {
+                // 正在计时时点顶栏图标切音色：要立刻换，别等下一段
+                FocusRuntime.current()?.let { syncNoise(it) }
+            }
             else -> scope.launch { adoptRestoredSession() }
         }
         return START_NOT_STICKY
@@ -69,6 +77,7 @@ class FocusService : Service() {
 
     override fun onDestroy() {
         ticker?.cancel()
+        noisePlayer.release()
         FocusRuntime.setServiceAlive(false)
         job.cancel()
         super.onDestroy()
@@ -105,6 +114,7 @@ class FocusService : Service() {
         )
         publish(record)
         syncAlarm(record)
+        syncNoise(record)
         resumeTicking()
     }
 
@@ -120,6 +130,7 @@ class FocusService : Service() {
         publish(updated)
         FocusAlarmScheduler.cancel(this, updated.taskId)
         ticker?.cancel()
+        noisePlayer.fadeOutAndStop()
         refreshNotification(updated)
     }
 
@@ -134,6 +145,7 @@ class FocusService : Service() {
         )
         publish(updated)
         syncAlarm(updated)
+        syncNoise(updated)
         resumeTicking()
     }
 
@@ -158,6 +170,7 @@ class FocusService : Service() {
         publish(next)
         FocusAlarmScheduler.cancel(this, current.taskId)
         ticker?.cancel()
+        noisePlayer.fadeOutAndStop()
         FocusNotifier.showSegmentDone(this, current, labelOf(this, nextPhase, segments))
         refreshNotification(next)
     }
@@ -187,6 +200,7 @@ class FocusService : Service() {
             bootInstant = nowBootInstant()
         )
         publish(next)
+        syncNoise(next)
         FocusNotifier.showSegmentDone(this, current, labelOf(this, nextPhase, segments))
         if (autoStartNext) {
             syncAlarm(next)
@@ -204,6 +218,7 @@ class FocusService : Service() {
         if (current != null && billPartial) settle(current, completed = false)
         current?.let { FocusAlarmScheduler.cancel(this, it.taskId) }
         FocusRuntime.publish(null)
+        noisePlayer.fadeOutAndStop()
         store.clear()
         ticker?.cancel()
         FocusNotifier.cancelOngoing(this)
@@ -224,6 +239,7 @@ class FocusService : Service() {
         }
         publish(restored)
         if (restored.running) {
+            syncNoise(restored)
             syncAlarm(restored)
             resumeTicking()
         } else {
@@ -245,6 +261,19 @@ class FocusService : Service() {
     private suspend fun publish(record: FocusRecord) {
         FocusRuntime.publish(record)
         store.save(record)
+    }
+
+    /** 白噪音只跟着专注段：暂停/休息/结束都淡出 */
+    private suspend fun syncNoise(record: FocusRecord) {
+        if (!record.running || record.phase != FocusSession.PHASE_FOCUS) {
+            noisePlayer.fadeOutAndStop()
+            return
+        }
+        val prefs = FocusPreferences(this)
+        noisePlayer.play(
+            WhiteNoise.Kind.from(prefs.noiseKind.first()),
+            prefs.noiseVolume.first()
+        )
     }
 
     private fun syncAlarm(record: FocusRecord) {
@@ -305,6 +334,7 @@ class FocusService : Service() {
         const val ACTION_SKIP = "com.example.diary.action.FOCUS_SKIP"
         const val ACTION_EXPIRE = "com.example.diary.action.FOCUS_EXPIRE"
         const val ACTION_STOP = "com.example.diary.action.FOCUS_STOP"
+        const val ACTION_NOISE = "com.example.diary.action.FOCUS_NOISE"
         const val EXTRA_TASK_ID = "focus_task_id"
         const val EXTRA_TASK_TITLE = "focus_task_title"
         const val EXTRA_AUTO_START_NEXT = "focus_auto_start_next"

@@ -82,6 +82,8 @@ class ExportService(
         val habitRecords = database.habitDao().getRecordsSince("1970-01-01")
         val countdownEvents = database.countdownDao().getAllOnce()
         val todos = database.todoDao().getAll()
+        val focusTasks = database.focusDao().getAllTasks()
+        val focusSessions = database.focusDao().getAllSessions()
         val preferences = collectPreferences()
         val imageFiles = collectImageFiles()
 
@@ -91,6 +93,8 @@ class ExportService(
             habitRecords = habitRecords,
             countdownEvents = countdownEvents,
             todos = todos,
+            focusTasks = focusTasks,
+            focusSessions = focusSessions,
             preferences = preferences,
             imageFiles = imageFiles,
         )

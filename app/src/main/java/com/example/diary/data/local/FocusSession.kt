@@ -63,3 +63,17 @@ data class FocusMonthlyStat(
     val month: Int,
     val total: Long
 )
+
+/** 一个日期区间内的合计（COUNT/SUM 空集也要有值，故全部 COALESCE） */
+data class FocusRangeStat(
+    val sessionCount: Int,
+    val completedCount: Int,
+    val totalMillis: Long
+)
+
+/** 事项分布一行：taskId 可空 = 自由专注 */
+data class FocusTaskTotal(
+    val taskId: Long?,
+    val total: Long,
+    val completedCount: Int
+)

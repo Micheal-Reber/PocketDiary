@@ -73,6 +73,7 @@ import com.example.diary.ui.countdown.CountdownWidgetPickScreen
 import com.example.diary.ui.diary.DiaryListScreen
 import com.example.diary.ui.editor.DiaryEditorScreen
 import com.example.diary.ui.focus.FocusScreen
+import com.example.diary.ui.focus.FocusStatsScreen
 import com.example.diary.ui.habits.HabitsScreen
 import com.example.diary.ui.habits.HabitsViewModel
 import com.example.diary.ui.habits.HabitsViewModelFactory
@@ -374,6 +375,23 @@ fun AppNavigation(
                                 focusRepository = focusRepository,
                                 focusPreferences = focusPreferences,
                                 onOpenFocus = { taskId ->
+                                    navController.navigate(
+                                        if (taskId != null && taskId > 0L) "focus?taskId=$taskId" else "focus?taskId=0"
+                                    )
+                                },
+                                onOpenFocusStats = { navController.navigate("focus_stats") }
+                            )
+                        }
+                        composable(
+                            route = "focus_stats",
+                            enterTransition = SlideUpEnter,
+                            popExitTransition = SlideUpPopExit
+                        ) {
+                            FocusStatsScreen(
+                                repository = focusRepository,
+                                focusPreferences = focusPreferences,
+                                onBack = { navController.popBackStack() },
+                                onOpenTaskFocus = { taskId ->
                                     navController.navigate(
                                         if (taskId != null && taskId > 0L) "focus?taskId=$taskId" else "focus?taskId=0"
                                     )

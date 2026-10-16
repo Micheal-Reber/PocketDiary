@@ -1,4 +1,4 @@
-package com.example.diary.ui.settings
+﻿package com.example.diary.ui.settings
 
 import android.net.Uri
 import android.app.Activity
@@ -17,7 +17,10 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Schedule
@@ -40,7 +43,9 @@ import com.example.diary.data.backup.BackupRepository
 import com.example.diary.data.backup.ImportResult
 import com.example.diary.data.calendar.SystemCalendarManager
 import com.example.diary.data.calendar.SystemCalendarSync
+import com.example.diary.data.focus.FocusGuardService
 import com.example.diary.data.focus.FocusRuntime
+import com.example.diary.data.focus.WhiteNoise
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.preferences.AppLockPreferences
 import com.example.diary.data.preferences.CalendarPreferences
@@ -80,8 +85,30 @@ fun SettingsScreen(
     val longBreakInterval by focusPreferences.longBreakInterval.collectAsStateWithLifecycle(
         initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_LONG_BREAK_INTERVAL
     )
+    val noiseKind by focusPreferences.noiseKind.collectAsStateWithLifecycle(initialValue = WhiteNoise.Kind.OFF.id)
+    val noiseVolume by focusPreferences.noiseVolume.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_NOISE_VOLUME
+    )
+    val guardEnabled by focusPreferences.guardEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val guardAllowedPackages by focusPreferences.guardAllowedPackages.collectAsStateWithLifecycle(initialValue = emptySet())
+    val guardAccessibilityEnabled = remember { mutableStateOf(FocusGuardService.isEnabled(context)) }
+    val guardBlockCount by focusPreferences.guardBlockCount.collectAsStateWithLifecycle(initialValue = 0)
     var showQuitStudyModeDialog by remember { mutableStateOf(false) }
     var showFocusSettingsDialog by remember { mutableStateOf(false) }
+    var showNoiseDialog by remember { mutableStateOf(false) }
+    var showWhitelistDialog by remember { mutableStateOf(false) }
+
+    // 无障碍开关状态要从系统设置里读，进本页时（尤其刚从系统设置跳回来）刷一次
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                guardAccessibilityEnabled.value = FocusGuardService.isEnabled(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val isDarkMode by themePreferences.isDarkMode.collectAsStateWithLifecycle(initialValue = false)
     val dynamicColor by themePreferences.dynamicColor.collectAsStateWithLifecycle(initialValue = true)
     val floatingBar by themePreferences.floatingBar.collectAsStateWithLifecycle(initialValue = true)
@@ -442,6 +469,55 @@ fun SettingsScreen(
                     leading = { Icon(Icons.Default.Schedule, contentDescription = null) },
                     modifier = Modifier.clickable { showFocusSettingsDialog = true }
                 )
+
+                SettingsRow(
+                    headline = stringResource(R.string.settings_focus_noise),
+                    supporting = stringResource(
+                        R.string.settings_focus_noise_value,
+                        stringResource(noiseKindLabel(WhiteNoise.Kind.from(noiseKind))),
+                        noiseVolume
+                    ),
+                    leading = { Icon(Icons.Default.MusicNote, contentDescription = null) },
+                    modifier = Modifier.clickable { showNoiseDialog = true }
+                )
+
+                SettingsRow(
+                    headline = stringResource(R.string.settings_focus_guard),
+                    supporting = when {
+                        !guardEnabled -> stringResource(R.string.settings_focus_guard_off)
+                        !guardAccessibilityEnabled.value -> stringResource(R.string.settings_focus_guard_need_a11y)
+                        else -> stringResource(R.string.settings_focus_guard_on, guardBlockCount)
+                    },
+                    leading = { Icon(Icons.Default.Shield, contentDescription = null) },
+                    trailing = {
+                        Switch(
+                            checked = guardEnabled,
+                            onCheckedChange = { checked ->
+                                scope.launch { focusPreferences.setGuardEnabled(checked) }
+                            }
+                        )
+                    },
+                    modifier = Modifier.clickable {
+                        // 开关已开但系统没授权，点整行直接带去无障碍设置
+                        if (guardEnabled && !guardAccessibilityEnabled.value) {
+                            runCatching {
+                                context.startActivity(FocusGuardService.accessibilitySettingsIntent(context))
+                            }
+                        }
+                    }
+                )
+
+                if (guardEnabled) {
+                    SettingsRow(
+                        headline = stringResource(R.string.settings_focus_guard_allowed),
+                        supporting = stringResource(
+                            R.string.settings_focus_guard_allowed_value,
+                            guardAllowedPackages.size
+                        ),
+                        leading = { Icon(Icons.Default.Apps, contentDescription = null) },
+                        modifier = Modifier.clickable { showWhitelistDialog = true }
+                    )
+                }
             }
 
             HorizontalDivider(
@@ -657,6 +733,71 @@ fun SettingsScreen(
             )
         }
 
+        // 专注白噪音：音源 + 音量
+        if (showNoiseDialog) {
+            AlertDialog(
+                onDismissRequest = { showNoiseDialog = false },
+                title = { Text(stringResource(R.string.settings_focus_noise)) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.m)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.s)) {
+                            listOf(
+                                WhiteNoise.Kind.OFF,
+                                WhiteNoise.Kind.WHITE,
+                                WhiteNoise.Kind.PINK,
+                                WhiteNoise.Kind.BROWN
+                            ).forEach { kind ->
+                                FilterChip(
+                                    selected = WhiteNoise.Kind.from(noiseKind) == kind,
+                                    onClick = { scope.launch { focusPreferences.setNoiseKind(kind.id) } },
+                                    border = null,
+                                    label = {
+                                        Text(
+                                            stringResource(noiseKindLabel(kind)),
+                                            style = MaterialTheme.typography.labelSmall
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                        if (WhiteNoise.Kind.from(noiseKind) != WhiteNoise.Kind.OFF) {
+                            Text(
+                                stringResource(R.string.focus_noise_volume, noiseVolume),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Slider(
+                                value = noiseVolume.toFloat(),
+                                onValueChange = { scope.launch { focusPreferences.setNoiseVolume(it.toInt()) } },
+                                valueRange = 0f..100f
+                            )
+                        }
+                        Text(
+                            stringResource(R.string.focus_noise_footnote),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showNoiseDialog = false }) {
+                        Text(stringResource(R.string.common_done))
+                    }
+                }
+            )
+        }
+
+        // 专注期间允许使用的应用
+        if (showWhitelistDialog) {
+            FocusWhitelistDialog(
+                selected = guardAllowedPackages,
+                onToggle = { pkg ->
+                    val next = if (pkg in guardAllowedPackages) guardAllowedPackages - pkg else guardAllowedPackages + pkg
+                    scope.launch { focusPreferences.setGuardAllowedPackages(next) }
+                },
+                onDismiss = { showWhitelistDialog = false }
+            )
+        }
+
         // 验证时机选择
         if (showLockModeDialog) {
             AlertDialog(
@@ -742,6 +883,14 @@ fun SettingsScreen(
 
 private fun showToast(context: android.content.Context, message: String) {
     android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_LONG).show()
+}
+
+@androidx.annotation.StringRes
+private fun noiseKindLabel(kind: WhiteNoise.Kind): Int = when (kind) {
+    WhiteNoise.Kind.OFF -> R.string.focus_noise_off
+    WhiteNoise.Kind.WHITE -> R.string.focus_noise_white
+    WhiteNoise.Kind.PINK -> R.string.focus_noise_pink
+    WhiteNoise.Kind.BROWN -> R.string.focus_noise_brown
 }
 
 /** 段长微调行：− / 数值 / +，范围外按钮置灰 */

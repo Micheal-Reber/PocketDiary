@@ -1,6 +1,6 @@
 # AGENTS.md — PocketDiary 开发指引
 
-**Updated:** 2026-10-12 · **Version:** 1.13.0 (code 21) · **Branch:** main
+**Updated:** 2026-10-15 · **Version:** 1.14.0 (code 23) · **Branch:** main
 
 本文件供 AI 编码代理（及新成员）快速了解本项目的构建方式、架构约定与历史坑点。
 
@@ -10,10 +10,10 @@
 
 - **语言/UI**: Kotlin 2.3.21 + Jetpack Compose (BOM 2026.01.01, Compose 1.10.2, M3 1.4) + Material 3
 - **液态玻璃**: `io.github.kyant0:backdrop:1.0.6`（Kyant0/AndroidLiquidGlass，Apache-2.0；README 已鸣谢，**改玻璃效果必须鸣谢该库**）
-- **数据库**: Room v15（v9→11 / v10→11 / v11→12→13→14→15 有手写迁移；v8 及更早仍破坏性回退会清数据）
+- **数据库**: Room v16（v9→11 / v10→11 / v11→12→13→14→15 / v15→16 有手写迁移；v8 及更早仍破坏性回退会清数据）
 - **偏好**: DataStore Preferences（`ThemePreferences`：暗色 / 壁纸取色 / 日记背景 / 编辑器预览 / **floatingBar 底栏模式**；`LanguagePreferences` 语言；`AppLockPreferences` 密码锁）
 - **SDK**: minSdk 26 / target 35 / compile 36 / JDK 17
-- **当前版本**: 1.13.0 (code 21)
+- **当前版本**: 1.14.0 (code 23)
 - **工具链**: AGP 8.13.2 / Gradle 8.14.3 / KSP 2.3.12 / Room 2.8.5（schema 走 Room Gradle 插件 `room { schemaDirectory }`）
 
 ## 构建与安装
@@ -47,7 +47,7 @@ $env:GRADLE_USER_HOME = "E:\dev\.gradle"
 4. `git commit`（中文一行、分号分隔）→ `git push origin main`
 5. **发布/替换安装包须用户确认**：`gh release upload v<版本> app\build\outputs\apk\release\app-release.apk --clobber --repo Micheal-Reber/PocketDiary`（`--clobber` 用于替换同一 Release 的旧包）；`gh release view <tag> --json assets` 核对 digest
 
-- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `BlurCacheTest` / `CountdownWidgetModelTest` / `CountdownReminderTest` / `MarkdownEditingTest` / `MarkdownPlainTextTest` / `MarkdownExtParseTest`
+- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `Migration15To16Test`(Robolectric) / `BlurCacheTest` / `CountdownWidgetModelTest` / `CountdownReminderTest` / `MarkdownEditingTest` / `MarkdownPlainTextTest` / `MarkdownExtParseTest` / `FocusTimerTest` / `FocusStatsTest` / `WhiteNoiseTest` / `FocusGuardTest`
 
 ## 架构
 
@@ -61,10 +61,11 @@ app/src/main/java/com/example/diary/
 │   ├── backup/             # 数据导出/导入（手机迁移）：BackupData/ExportService/ImportService/BackupRepository
 │   ├── countdown/          # DateMath 正倒判定纯函数 + ShareCardRenderer 分享图 + TextureLibrary 纹理
 │   ├── image/              # BackgroundImageStore（日记背景，相对路径）/ EventImageStore（倒数日每事件背景）
-│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem（version 15）
+│   ├── focus/              # 番茄钟核心：FocusTimer(纯逻辑/可单测) + FocusService(前台服务) + FocusRuntime/FocusAlarmScheduler/FocusNotifier + FocusRecord(DataStore 序列化) + WhiteNoise/NoisePlayer(白噪音) + FocusGuardService(无障碍拉回) + FocusStats(统计页纯计算)
+│   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem / FocusTask / FocusSession（version 16）
 │   ├── location/           # LocationManager 封装（无 GMS）
 │   ├── photo/              # DiaryPhotoStore：日记图文混排两阶段生命周期
-│   ├── preferences/        # DataStore 三个文件：ThemePreferences（暗色/壁纸取色/编辑器预览/floatingBar）+ LanguagePreferences（语言）+ AppLockPreferences（密码锁）
+│   ├── preferences/        # DataStore 四个文件：ThemePreferences（暗色/壁纸取色/编辑器预览/floatingBar）+ LanguagePreferences（语言）+ AppLockPreferences（密码锁）+ FocusPreferences（学习模式开关/番茄钟段长）
 │   ├── repository/         # 薄仓库层（SaveResult 密封类处理日期冲突）
 │   └── todo/               # TodoReminderScheduler(AlarmManager/setAlarmClock) + TodoNotificationHelper + TodoAlarmNotifier(全屏响铃)
 └── ui/
@@ -73,6 +74,7 @@ app/src/main/java/com/example/diary/
     ├── widget/             # 倒数日桌面小组件（RemoteViews）：Provider / Model 纯逻辑 / Refresh 调度 / State（选中项按 appWidgetId 存 SharedPreferences）
     ├── diary/              # 日记列表：月份分割、滑动删除、自定义背景、全文搜索（250ms 防抖）
     ├── editor/             # 编辑器：无边框书写、Markdown 预览、📷插图（日期/chips 无描边）
+    ├── focus/              # 学习模式：番茄钟专注页(FocusScreen) + 专注任务列表(FocusTaskComponents) + **专注统计二级页(FocusStatsScreen，路由 focus_stats)**；纯计算在 data/focus/FocusStats.kt
     ├── habits/             # 打卡日历 + 统计图表（LineChart 自研）
     ├── navigation/
     │   ├── AppNavigation.kt        # 五 Tab + 子路由；**双模分支**（floatingBar 悬浮玻璃 / 原生 NavigationBar）+ 提供 LocalBottomBarInset/LocalFloatingBar
@@ -95,10 +97,10 @@ app/src/main/java/com/example/diary/
 | 日记编辑/保存/改期 | `ui/editor/DiaryEditorScreen.kt` + `DiaryRepository.saveEntry` | 改日期=搬移语义 |
 | Markdown 渲染/预览 | `ui/editor/MarkdownText.kt` | commonmark 解析 + 自研子集渲染 |
 | 全文搜索 | `DiaryDao.searchEntries` + `ui/diary/DiaryListScreen.kt` | **250ms 防抖**后再查（勿改成每次按键直查） |
-| 数据迁移导出/导入 | `data/backup/BackupRepository` + `SettingsScreen` | 版本闸门 `1..CURRENT_VERSION`；zip-slip/CRC/条目上限；导入=全量覆盖+事务 |
+| 数据迁移导出/导入 | `data/backup/BackupRepository` + `SettingsScreen` | 版本闸门 `1..CURRENT_VERSION`（v3 含 focus 双表，导入先 tasks 后 sessions）；zip-slip/CRC/条目上限；导入=全量覆盖+事务 |
 | 日记背景相对路径 | `BackgroundImageStore.normalizeStoredPath/RELATIVE_PATH` | 备份与导入必须归一，绝对路径换机悬空 |
 | 统计图表 | `ui/habits/LineChart.kt` + `StatisticsSection.kt` | 数值标签预计算（remember） |
-| 打卡日历 | `ui/habits/CalendarComponents.kt` + `HabitsViewModel.kt` | 多习惯彩点、月份分割 |
+| 打卡日历 | `ui/habits/CalendarComponents.kt` + `HabitsViewModel.kt` | 多习惯彩点、月份分割（**打卡与专注互不相关，勿把专注数据塞进来**） |
 | 倒数日正倒判定 | `data/countdown/DateMath.kt` + 单测 | 三态 Today/Countdown/Countup；+1日；重复滚动；**改动必跑 JUnit** |
 | 倒数日界面 | `ui/countdown/*Screen.kt` + `CountdownUi.kt` | 色板下标 0=自动(倒蓝/正橙)；过程式纹理 TextureBackdrop |
 | 倒数日桌面小组件 | `ui/widget/CountdownWidgetProvider.kt` + `CountdownWidgetModel.kt` + `CountdownWidgetRefresh.kt` + `CountdownWidgetState.kt` + `ui/countdown/CountdownWidgetPickScreen.kt` + `res/layout/countdown_widget_v5.xml` + `res/xml/countdown_widget_info.xml` | **纯 RemoteViews，零新依赖**（不用 Glance/WorkManager）；单层扁平树，**只显示单个倒数日**（无 `‹ ›` 切换）；显示哪一条 = `CountdownWidgetState` 按 appWidgetId 存的选中 id，未选/失效走 `featuredEvent`；**点击进选择页 `CountdownWidgetPickScreen`（不是进详情）**，选完 `finish()` 回桌面；`save/delete` → `updateAll` 触发刷新。**改之前先读「桌面小组件」约定与坑点 19-23** |
@@ -108,6 +110,11 @@ app/src/main/java/com/example/diary/
 | 待办列表/编辑 | `ui/todo/TodoListScreen.kt`(黑底+已完成折叠) + `TodoEditSheet.kt`(图1底板) + `ReminderTimeSheet.kt`(图2日历) | 勾选下沉/回升、设置提醒胶囊→日历、橙色完成、黄FAB；重构后无独立编辑页（Sheet直管） |
 | 待办数据层 | `data/local/TodoItem.kt` + `TodoDao.kt` + `TodoRepository.kt` | 单表 todo_items，字段：id/text/done/sortOrder/createdAt/reminderAt/repeatRule/alarmMode(0=通知,1=闹钟响铃)；DAO: observeAll/getAll/getDueReminders；**save/delete 内同步闹钟**（UI 不再直接调 Scheduler），`updateReminder` 已删 |
 | 待办提醒调度 | `data/todo/TodoReminderScheduler.kt` + `TodoNotificationHelper.kt` + `TodoAlarmNotifier.kt` + `receiver/TodoAlarmReceiver.kt` + `BootCompletedReceiver.kt` | 通知模式 setExactAndAllowWhileIdle；**闹钟模式(alarmMode=1) 走 setAlarmClock（Doze 豁免）→ `TodoAlarmNotifier` 全屏 Intent 拉起 `TodoRingActivity` 循环铃声+震动**；requestCode=`id xor (id ushr 32)` 防截断；重复按日历日+1（DST 安全）；`snooze()` 5 分钟后重响（snoozed 标记不推进重复规则）；BOOT/MY_PACKAGE_REPLACED/TIME_SET/TIMEZONE_CHANGED 全量重排 + 补发错过的非重复通知；通知带 `open_todo_id` → 待办 Tab；精确闹钟/全屏 Intent 无权限时 UI SnackBar 深链 |
+| 学习模式 / 番茄钟 | `data/focus/*` + `ui/focus/*` + `data/repository/FocusRepository.kt` | 设置页开关只改待办 Tab 呈现形态；专注任务/会话是**新表**（Room v16，`todo_items` 一列未动，普通待办提醒不受影响）；计时真值 `SystemClock.elapsedRealtime`（墙钟只用于跨重启与 `date`）；前台 `FocusService` + `ELAPSED_REALTIME_WAKEUP`；会话入账走 `FocusDao.recordSessionWithCredit`（会话与任务累计时长同事务） |
+| 专注统计页 | `ui/focus/FocusStatsScreen.kt` + `FocusStatsComponents.kt` + `FocusStatsViewModel.kt` + `data/focus/FocusStats.kt` | 待办（学习模式）顶栏图标 → `focus_stats` 子路由；三段式：今日目标半圆表盘（`FocusPreferences.DAILY_GOAL_MINUTES_KEY` 可改）/ 近 7 天 + 26 周热力图 / 周·月·年趋势 + 环比 / 事项分布（点行直接开该任务的番茄钟）。**日期窗口、均分、环比、热力图分档全在 `FocusStats` 纯函数里（单测 `FocusStatsTest`），别在 Composable 里算日期** |
+| 专注时锁定其他 App | `data/focus/FocusGuardService.kt`（AccessibilityService）+ `FocusGuard.kt`（判定纯逻辑，单测 `FocusGuardTest`）+ `FocusWhitelistDialog` | **只用无障碍读前台包名**（`res/xml/focus_guard_config.xml` 里 `canRetrieveWindowContent=false`）；只在专注段生效，系统关键包 + 用户白名单放行，冷却 1.5s 防抖；`setPackagesSuspended/setLockTaskPackages` 是 device owner 专属，普通 App 拿不到，别试 |
+| 专注白噪音 | `data/focus/WhiteNoise.kt`（合成，纯函数，单测 `WhiteNoiseTest`）+ `NoisePlayer.kt`（AudioTrack 静态缓冲 + 无限 loop points） | 白/粉/棕三种**程序化合成**（零素材、零缝隙），出缓冲后统一 RMS 归一（`TARGET_RMS`）+ 首尾淡入淡出防爆音；挂在 `FocusService` 上，只在专注段播，暂停/到点 `fadeOutAndStop()`；不引 ExoPlayer/Media3 |
+| 迁移单测 | `Migration15To16Test` | 手建 v15 结构库（DDL 抄 `app/schemas/…/15.json`）→ 开 Room v16 由 Room 自校验；**不引 room-testing**（instrumentation 用），单例 `AppDatabase.INSTANCE` 用反射清 |
 
 ## CODE MAP
 
@@ -140,6 +147,9 @@ app/src/main/java/com/example/diary/
 | `BackupRepository.export/importData` | suspend | data/backup | 迁移唯一入口（Uri SAF）；内部走 Export/ImportService |
 | `BackgroundImageStore.normalizeStoredPath` | fun | data/image | 绝对路径 → filesDir 相对（备份/导入用） |
 | `DateUtils.format*` | fun | util | 日期/提醒共享格式化——**新屏必须复用，勿复制** |
+| `FocusDao.recordSessionWithCredit` | suspend | data/local | 会话插入与任务累计时长写回同事务（`@Transaction`）——勿拆成两步 |
+| `FocusRepository.formatMillis` | fun(companion) | data/repository | 专注时长展示格式（`3.5h` / `120m`）——专注统计页专用，勿复用到打卡侧 |
+| `FocusStats.*` | object(data/focus) | data/focus/FocusStats | 统计页全部纯计算：热力图窗口/分档、目标进度、周月年窗口与环比、均分——改日期口径只改这里 |
 
 ## 关键约定（务必遵守）
 
@@ -147,9 +157,9 @@ app/src/main/java/com/example/diary/
 - **日期一律存 `yyyy-MM-dd` 字符串**（`LocalDate.toString()`），解析用 `LocalDate.parse`
 - 日记一天一篇：`diary_entries.date` 有 UNIQUE 索引；保存走 `DiaryRepository.saveEntry`
   - id==0 → 按日期查重后插入；id!=0 → 按 id 整条 UPDATE（改日期=搬移，冲突返回 `SaveResult.DateConflict`）
-- **schema 变更 → version +1**（v1.2→4；v1.7→8；v1.8→9 新增 reminderAt/repeatRule；当前 14）；同步 bump `versionCode`；**提供 Migration**（见 `AppDatabase` 的 MIGRATION_* 链），仅无历史 schema 的旧版本才走 `fallbackToDestructiveMigration()`（会清数据，需告知用户）
+- **schema 变更 → version +1**（v1.2→4；v1.7→8；v1.8→9 新增 reminderAt/repeatRule；v1.14.0/code 23 → v16 新增 focus 双表；当前 16）；同步 bump `versionCode`；**提供 Migration**（见 `AppDatabase` 的 MIGRATION_* 链），仅无历史 schema 的旧版本才走 `fallbackToDestructiveMigration()`（会清数据，需告知用户）
 - DAO 查询只写必要字段；统计查询按需加载（切年只查月统计、切月只查日统计）
-- **新表只加不改旧表**：新增 `todo_items` 表不影响现有 Diary/Habit/Countdown 表
+- **新表只加不改旧表**：新增 `todo_items`、`focus_tasks`/`focus_sessions` 表不影响现有 Diary/Habit/Countdown 表——学习模式开关只改 UI 呈现
 
 ### 版本号
 - **唯一来源**：`app/build.gradle.kts` 的 `versionName`/`versionCode`
@@ -217,15 +227,16 @@ app/src/main/java/com/example/diary/
 12. **lerp 重载歧义**：`androidx.compose.ui.util.lerp` 的 Float/Color 重载易歧义，Color 版用全限定名
 13. **Todo 列表交互**：彻底重构后为黑底+灰卡+折叠已完成（图3），勾选即下沉/回升，无拖拽；旧 `dragAndDrop/ SwipeToDismiss` 已移除
 14. **Todo 提醒**：`POST_NOTIFICATIONS` (33+) 需运行时申请、`SCHEDULE_EXACT_ALARM` 在 S+ 需 `canScheduleExactAlarms()` 检测否则降级 `setAndAllowWhileIdle` 并 SnackBar 深链；14+ 闹钟模式需 `canUseFullScreenIntent()` 检测否则降级为响一次通知（`ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT` 深链）；`BOOT_COMPLETED`/`MY_PACKAGE_REPLACED`/`TIME_SET`/`TIMEZONE_CHANGED` 重排 + 补发错过的非重复通知（错过只补普通通知，不补响铃）；过期非重复不排；**闹钟调度只走 `TodoRepository.save/delete`**，UI 勿再直接调 Scheduler
-15. **Room 版本号同步**：每次 schema 变更必须同时更新 `AppDatabase.version` 和 `build.gradle.kts` 的 `versionCode`，两者保持同步（v9=1.8, v11=1.8.2/code 10, v14=1.9.0/code 13, v15=1.13.0/code 21）；升级路径写 `addMigrations`，勿只靠破坏性回退；schema JSON 在 `app/schemas/…/15.json` **必须入库**
+15. **Room 版本号同步**：每次 schema 变更必须同时更新 `AppDatabase.version` 和 `build.gradle.kts` 的 `versionCode`，两者保持同步（v9=1.8, v11=1.8.2/code 10, v14=1.9.0/code 13, v15=1.13.0/code 21, v16=1.14.0/code 23）；升级路径写 `addMigrations`，勿只靠破坏性回退；schema JSON 在 `app/schemas/…/16.json` **必须入库**
 16. **Robolectric**：4.11 最高官方 SDK 34，而 targetSdk=35——用 Robolectric 的测试类必须 `@Config(sdk = [34])`，否则 `Package targetSdkVersion=35 > maxSdkVersion=34` 初始化失败
-17. **备份安全**：导入必须先过版本闸门（`version < 1 || > CURRENT_VERSION` → Failure）；ZIP 解压防滑移（禁 `..`）；STORED 需 CRC 校验；日记背景路径入库前 `normalizeStoredPath`
+17. **备份安全**：导入必须先过版本闸门（`version < 1 || > CURRENT_VERSION` → Failure；`CURRENT_VERSION = 3` 含 focus 双表，`ignoreUnknownKeys` 让 v2/v1 包仍可导入）；ZIP 解压防滑移（禁 `..`）；STORED 需 CRC 校验；日记背景路径入库前 `normalizeStoredPath`
 18. **Kotlin DSL 签名配置**：`build.gradle.kts` 里用 `java.util.Properties` 必须文件头 `import java.util.Properties`（脚本内 `java.util` 会 Unresolved）
 19. **widget 崩溃看不到日志（踩过）**：桌面 inflate 我们布局的异常发生在 **`com.miui.home` 进程**，本包 logcat 一片干净，别据此判断"没问题"。看 `adb logcat -s LauncherWidgetLayoutFactory:V Launcher.Widget:V`；两个决定性信号：**① 有没有 `InflateException`/`Resources$NotFoundException`；② `LauncherWidgetLayoutFactory` 逐节点打印的 `app:id/xxx` 是否覆盖全部子 View**（只打出容器、没有子节点 = 嵌套层被截断）
 20. **`adb shell am broadcast` 可能被 MIUI 拦（踩过）**：`W/BroadcastQueue: Greezer Denial: ... need cached broadcast`——目标进程处于 cached 状态时 MIUI 直接丢弃来自 shell(uid 2000) 的广播，**本包进程压根没起来**，于是"广播后 logcat 无异常"是假象。验证 widget 前必须先 `am start -n com.example.diary/.MainActivity` 预热进程再发广播；代码内 `updateAll` 是 App 自己在前台 `sendBroadcast`，不受影响
 21. **桌面会缓存坏掉的 widget 视图**：inflate 失败后那个「载入窗口小部件时出现问题」的占位框会被复用，改代码重装**不会**让它自动重建（复装后 logcat 只有 `Launcher.Widget: updateAppWidget: N`，没有 `LauncherWidgetLayoutFactory` 记录 = 没重新 inflate）。改布局文件名可触发重建（见坑点 23），但**改名本身并不保证清掉已存在的 error 占位框**；确认 UI 里仍是 `com.miui.home:id/error` 时，唯一可靠手段是让用户**长按移除 → 从小组件列表重新添加**，别让用户反复重启手机
 22. **widget 更新必须广播 APPWIDGET_UPDATE**：`CountdownWidgetRefresh.updateAll` 用 `setClass` 显式指向 provider——MIUI 对 `getAppWidgetIds` 查不到的 receiver 不会自动补发；注意 shell 不能直接发 `android.appwidget.action.APPWIDGET_UPDATE`（Permission Denial），验证用自带 action `com.example.diary.action.CD_WIDGET_MIDNIGHT`，且发之前先 `am start` 预热进程（坑点 20）
-23. **改 widget 布局结构必须同时改布局文件名，且「有 inflate 日志」≠「显示正常」（踩过）**：`RemoteViews(context.packageName, R.layout.<name>)` 的 **layoutId 不变时 MIUI 只 apply action、不重新 inflate**，增删节点后桌面复用旧视图树。改名涉及 **3 处**：`res/xml/countdown_widget_info.xml` 与 `res/xml-v31/countdown_widget_info.xml` 的 `android:initialLayout` + Provider 里的 `R.layout.<name>`（漏一处编译失败或不生效）。**验收必须看 UI 而不是看日志**：`adb shell uiautomator dump /sdcard/ui.xml && adb pull` → 找 `class="android.appwidget.AppWidgetHostView"` 且 `content-desc="Pocket Diary"` 的节点——子节点是 `com.miui.home:id/error` = 还是坏的；再统计整个 dump 里 `app:id/cd_` 的出现次数，**0 = 内容根本没进去**。实测出现过：`LauncherWidgetLayoutFactory` 打印了完整节点、全程零异常、`updateAppWidget: 41` 也发了，UI 里却只剩 error。另外用 `aapt2 dump resources <apk>` 可核对 APK 内布局名与 `initialLayout` 指向（资源路径已被 shrink 打成 `res/Dd.xml` 这类短名，不能按文件名搜）。**布局名保持 `countdown_widget_v4`，不要改回 `countdown_widget.xml`**（旧 layoutId 可能仍持有坏缓存）
+23. **改 widget 布局结构必须同时改布局文件名，且「有 inflate 日志」≠「显示正常」（踩过）**：`RemoteViews(context.packageName, R.layout.<name>)` 的 **layoutId 不变时 MIUI 只 apply action、不重新 inflate**，增删节点后桌面复用旧视图树。改名涉及 **3 处**：`res/xml/countdown_widget_info.xml` 与 `res/xml-v31/countdown_widget_info.xml` 的 `android:initialLayout` + Provider 里的 `R.layout.<name>`（漏一处编译失败或不生效）。**验收必须看 UI 而不是看日志**：`adb shell uiautomator dump /sdcard/ui.xml && adb pull` → 找 `class="android.appwidget.AppWidgetHostView"` 且 `content-desc="Pocket Diary"` 的节点——子节点是 `com.miui.home:id/error` = 还是坏的；再统计整个 dump 里 `app:id/cd_` 的出现次数，**0 = 内容根本没进去**。实测出现过：`LauncherWidgetLayoutFactory` 打印了完整节点、全程零异常、`updateAppWidget: 41` 也发了，UI 里却只剩 error。另外用 `aapt2 dump resources <apk>` 可核对 APK 内布局名与 `initialLayout` 指向（资源路径已被 shrink 打成 `res/Dd.xml` 这类短名，不能按文件名搜）。**布局名保持 `countdown_widget_v5`，不要改回 `countdown_widget.xml`**（旧 layoutId 可能仍持有坏缓存）
+24. **迁移单测不引 room-testing（实测方案）**：`androidx.room:room-testing` 的 `MigrationTestHelper` 面向 instrumentation，JVM 单测用不上——`Migration15To16Test` 改为「`context.openOrCreateDatabase` 手建 v15 表结构 + `room_master_table`(id=42 写 v15 identityHash) + 插旧数据 + `version = 15` → `AppDatabase.getInstance()` 走真迁移」，schema 对错由 Room 开库时自校验（不匹配会抛）。注意：`AppDatabase` 是 `@Volatile` 单例，跨测试用反射清 `INSTANCE`；`getInstance` 没开 `allowMainThreadQueries`，DAO 调用一律 `runBlocking(Dispatchers.IO)`；DDL 逐字抄 `app/schemas/…/15.json` 的 `createSql`（别手写，抄错会误判迁移坏了）
 
 ## 工作流约定
 
@@ -235,4 +246,4 @@ app/src/main/java/com/example/diary/
 - **提交信息**：中文、一行概括（分号分隔多点）；推送目标 `origin main`；`.omo/`（plans/drafts）**不入库**
 - **发版须用户确认**：上传/替换 GitHub Release 附件前先问
 - **密钥安全**：`pocketdiary.jks`、`keystore.properties` 已 gitignore；`build.gradle.kts` **只读** `keystore.properties`（不写死密码）。**注意：git 历史曾 4 次误提交密钥 blob（2f41123 等），工作树已删但历史仍可达——如需彻底清除需 `git filter-repo` 重写历史（须用户确认）**；建议换新 keystore。提交前 `git check-ignore` 复核
-- **KSP**：Room 走 `ksp`（非 kapt）；schema 导出 `app/schemas/…/15.json`（需入库以便迁移测试）
+- **KSP**：Room 走 `ksp`（非 kapt）；schema 导出 `app/schemas/…/16.json`（需入库以便迁移测试）

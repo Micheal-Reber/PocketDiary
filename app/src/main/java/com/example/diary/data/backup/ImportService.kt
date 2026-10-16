@@ -287,6 +287,7 @@ class ImportService(
         val habitDao = database.habitDao()
         val countdownDao = database.countdownDao()
         val todoDao = database.todoDao()
+        val focusDao = database.focusDao()
 
         // Overwrite existing data
         diaryDao.deleteAll()
@@ -294,6 +295,8 @@ class ImportService(
         habitDao.deleteAll()
         countdownDao.deleteAll()
         todoDao.deleteAll()
+        focusDao.deleteAllSessions()
+        focusDao.deleteAllTasks()
 
         // Habit records reference habit ids — restore habits first (keep original ids)
         if (backupData.habits.isNotEmpty()) habitDao.insertAll(backupData.habits)
@@ -301,6 +304,9 @@ class ImportService(
         if (backupData.diaryEntries.isNotEmpty()) diaryDao.insertAll(backupData.diaryEntries)
         if (backupData.countdownEvents.isNotEmpty()) countdownDao.insertAll(backupData.countdownEvents)
         if (backupData.todos.isNotEmpty()) todoDao.insertAll(backupData.todos)
+        // focus_sessions.taskId 外键 ON DELETE SET NULL —— 先 tasks 后 sessions 保住绑定
+        if (backupData.focusTasks.isNotEmpty()) focusDao.insertTasks(backupData.focusTasks)
+        if (backupData.focusSessions.isNotEmpty()) focusDao.insertSessions(backupData.focusSessions)
 
         return RestoreCounts(
             diary = backupData.diaryEntries.size,

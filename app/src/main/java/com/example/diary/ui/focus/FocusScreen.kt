@@ -1,10 +1,12 @@
-package com.example.diary.ui.focus
+﻿package com.example.diary.ui.focus
 
 import android.content.Intent
 import android.os.SystemClock
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,9 +15,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SkipNext
@@ -24,6 +26,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -35,6 +38,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,16 +47,20 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import com.example.diary.R
 import com.example.diary.data.focus.FocusRuntime
 import com.example.diary.data.focus.FocusService
 import com.example.diary.data.focus.FocusTimer
+import com.example.diary.data.focus.WhiteNoise
+import com.example.diary.data.preferences.FocusPreferences
 import com.example.diary.data.local.FocusSession
 import com.example.diary.ui.theme.Spacing
 
@@ -70,6 +78,9 @@ fun FocusScreen(
     val context = LocalContext.current
     val record by FocusRuntime.record.collectAsStateWithLifecycle()
     var tick by remember { mutableIntStateOf(0) }
+    val focusPreferences = remember { FocusPreferences(context) }
+    val noiseKind by focusPreferences.noiseKind.collectAsStateWithLifecycle(initialValue = WhiteNoise.Kind.OFF.id)
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(record?.running) {
         while (record?.running == true) {
@@ -104,6 +115,48 @@ fun FocusScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.focus_title), fontWeight = FontWeight.Bold) },
+                actions = {
+                    val kind = WhiteNoise.Kind.from(noiseKind)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            noiseKindLabel(kind),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        IconButton(
+                            onClick = {
+                                val next = WhiteNoise.Kind.entries[
+                                    (WhiteNoise.Kind.entries.indexOf(kind) + 1) % WhiteNoise.Kind.entries.size
+                                ]
+                                scope.launch {
+                                    focusPreferences.setNoiseKind(next.id)
+                                    // 正在计时就把新音色推给服务，立刻换掉正在响的那个
+                                    if (FocusRuntime.isRunning) {
+                                        runCatching {
+                                            context.startService(
+                                                Intent(context, FocusService::class.java).apply {
+                                                    action = FocusService.ACTION_NOISE
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        ) {
+                            Icon(
+                                if (kind == WhiteNoise.Kind.OFF) Icons.Default.VolumeOff else Icons.Default.GraphicEq,
+                                contentDescription = stringResource(
+                                    R.string.focus_noise_title, noiseKindLabel(kind)
+                                ),
+                                tint = if (kind == WhiteNoise.Kind.OFF) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.primary
+                                }
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         }
@@ -112,48 +165,55 @@ fun FocusScreen(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = Spacing.l),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(Spacing.xl))
-
-            Box(contentAlignment = Alignment.Center) {
-                Canvas(Modifier.size(240.dp)) {
-                    val stroke = arcStroke.toPx()
-                    val inset = stroke / 2f
-                    val arcSize = Size(size.width - stroke, size.height - stroke)
-                    drawArc(
-                        color = trackColor,
-                        startAngle = -90f, sweepAngle = 360f, useCenter = false,
-                        topLeft = Offset(inset, inset), size = arcSize,
-                        style = Stroke(width = stroke, cap = StrokeCap.Round)
-                    )
-                    if (progressDegrees > 0f) {
-                        drawArc(
-                            color = arcColor,
-                            startAngle = -90f, sweepAngle = progressDegrees, useCenter = false,
-                            topLeft = Offset(inset, inset), size = arcSize,
-                            style = Stroke(width = stroke, cap = StrokeCap.Round)
-                        )
+            Box(
+                Modifier.weight(1f).fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                BoxWithConstraints(
+                    Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val diameter = minOf(maxWidth * 0.9f, maxHeight * 0.94f)
+                        .coerceIn(180.dp, 420.dp)
+                    Box(Modifier.size(diameter), contentAlignment = Alignment.Center) {
+                        Canvas(Modifier.fillMaxSize()) {
+                            val stroke = arcStroke.toPx()
+                            val inset = stroke / 2f
+                            val arcSize = Size(size.width - stroke, size.height - stroke)
+                            drawArc(
+                                color = trackColor,
+                                startAngle = -90f, sweepAngle = 360f, useCenter = false,
+                                topLeft = Offset(inset, inset), size = arcSize,
+                                style = Stroke(width = stroke, cap = StrokeCap.Round)
+                            )
+                            if (progressDegrees > 0f) {
+                                drawArc(
+                                    color = arcColor,
+                                    startAngle = -90f, sweepAngle = progressDegrees, useCenter = false,
+                                    topLeft = Offset(inset, inset), size = arcSize,
+                                    style = Stroke(width = stroke, cap = StrokeCap.Round)
+                                )
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                FocusTimer.formatDuration(remaining),
+                                fontSize = 46.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                phaseLabel(record?.phase),
+                                style = MaterialTheme.typography.labelLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        FocusTimer.formatDuration(remaining),
-                        fontSize = 46.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        phaseLabel(record?.phase),
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
             }
-
-            Spacer(Modifier.height(Spacing.l))
 
             Text(
                 record?.taskTitle?.takeIf { it.isNotBlank() } ?: stringResource(R.string.focus_task_fallback),
@@ -177,7 +237,7 @@ fun FocusScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            Spacer(Modifier.height(Spacing.xl))
+            Spacer(Modifier.height(Spacing.l))
 
             Row(
                 Modifier.fillMaxWidth(),
@@ -247,10 +307,20 @@ fun FocusScreen(
                 Text(stringResource(R.string.focus_pick_task))
             }
 
-            Spacer(Modifier.height(Spacing.xxl))
+            Spacer(Modifier.height(Spacing.l))
         }
     }
 }
+
+@Composable
+private fun noiseKindLabel(kind: WhiteNoise.Kind): String = stringResource(
+    when (kind) {
+        WhiteNoise.Kind.WHITE -> R.string.focus_noise_white
+        WhiteNoise.Kind.PINK -> R.string.focus_noise_pink
+        WhiteNoise.Kind.BROWN -> R.string.focus_noise_brown
+        WhiteNoise.Kind.OFF -> R.string.focus_noise_off
+    }
+)
 
 @Composable
 private fun phaseLabel(phase: Int?): String = stringResource(

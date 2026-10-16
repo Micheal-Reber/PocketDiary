@@ -66,6 +66,20 @@
                 android:value="Pomodoro timer must keep counting after leaving the app" />
         </service>
 
+        <!-- 专注守卫：只在专注段把离开的用户拉回，只读前台包名（不取窗口内容） -->
+        <service
+            android:name=".data.focus.FocusGuardService"
+            android:exported="false"
+            android:label="@string/focus_guard_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/focus_guard_config" />
+        </service>
+
         <!-- 待办闹钟响铃页：锁屏亮屏全屏拉起 -->
         <activity
             android:name=".ui.todo.TodoRingActivity"

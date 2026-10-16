@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -83,6 +84,7 @@ fun TodoListScreen(
     focusRepository: FocusRepository,
     focusPreferences: FocusPreferences,
     onOpenFocus: (Long?) -> Unit = {},
+    onOpenFocusStats: () -> Unit = {},
 ) {
     // remember: 避免每次重组新建 Flow → collectAsState 取消重订阅
     val allItems by remember { repository.observeAll() }
@@ -249,6 +251,16 @@ fun TodoListScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.todo_title), fontWeight = FontWeight.Bold) },
+                actions = {
+                    if (studyMode) {
+                        IconButton(onClick = onOpenFocusStats) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ShowChart,
+                                stringResource(R.string.focus_stats_entry)
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
             )
         },

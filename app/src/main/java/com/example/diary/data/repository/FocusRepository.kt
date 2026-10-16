@@ -4,8 +4,10 @@ import android.content.Context
 import com.example.diary.data.focus.FocusRecord
 import com.example.diary.data.focus.FocusTimer
 import com.example.diary.data.local.FocusDao
+import com.example.diary.data.local.FocusRangeStat
 import com.example.diary.data.local.FocusSession
 import com.example.diary.data.local.FocusTask
+import com.example.diary.data.local.FocusTaskTotal
 import com.example.diary.data.preferences.FocusPreferences
 import com.example.diary.data.preferences.dataStore
 import kotlinx.coroutines.flow.Flow
@@ -107,6 +109,17 @@ class FocusRepository(
     suspend fun focusTotalForDate(date: LocalDate): Long =
         dao.getFocusTotalForDate(date.toString(), FocusPreferences.STAT_PHASE)
 
+    /** 任意区间的按日合计（热力图 + 期间趋势一条查询搞定） */
+    suspend fun focusMillisBetween(start: LocalDate, end: LocalDate): Map<LocalDate, Long> =
+        dao.getFocusTotalsBetween(start.toString(), end.toString(), FocusPreferences.STAT_PHASE)
+            .associate { LocalDate.parse(it.date) to it.total }
+
+    suspend fun focusStatBetween(start: LocalDate, end: LocalDate): FocusRangeStat =
+        dao.getFocusRangeStat(start.toString(), end.toString(), FocusPreferences.STAT_PHASE)
+
+    suspend fun focusTaskTotalsSince(since: LocalDate): List<FocusTaskTotal> =
+        dao.getFocusTotalsByTask(since.toString(), FocusPreferences.STAT_PHASE)
+
     suspend fun recentSessions(limit: Int): List<FocusSession> = dao.getRecentSessions(limit)
 
     suspend fun sessionsForTask(taskId: Long, limit: Int): List<FocusSession> =
@@ -123,7 +136,10 @@ class FocusRepository(
         )
     }
 
-    fun formatMillis(millis: Long): String =
-        if (millis >= 3_600_000L) String.format(Locale.getDefault(), "%.1fh", millis / 3_600_000.0)
-        else "${millis / 60_000L}m"
+    companion object {
+        /** 专注时长展示格式（`3.5h` / `120m`）——统计页多处共用 */
+        fun formatMillis(millis: Long): String =
+            if (millis >= 3_600_000L) String.format(Locale.getDefault(), "%.1fh", millis / 3_600_000.0)
+            else "${millis / 60_000L}m"
+    }
 }

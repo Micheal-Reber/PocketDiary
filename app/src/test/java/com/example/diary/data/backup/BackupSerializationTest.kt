@@ -2,6 +2,8 @@ package com.example.diary.data.backup
 
 import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.local.DiaryEntry
+import com.example.diary.data.local.FocusSession
+import com.example.diary.data.local.FocusTask
 import com.example.diary.data.local.Habit
 import com.example.diary.data.local.HabitRecord
 import com.example.diary.data.local.TodoItem
@@ -28,6 +30,8 @@ class BackupSerializationTest {
         assertTrue(decoded.habitRecords.isEmpty())
         assertTrue(decoded.countdownEvents.isEmpty())
         assertTrue(decoded.todos.isEmpty())
+        assertTrue(decoded.focusTasks.isEmpty())
+        assertTrue(decoded.focusSessions.isEmpty())
         assertTrue(decoded.imageFiles.isEmpty())
     }
 
@@ -38,6 +42,19 @@ class BackupSerializationTest {
         val record = HabitRecord(id = 3, habitId = 2, date = "2026-08-27")
         val event = CountdownEvent(id = 4, name = "考试", date = "2026-12-31", pinned = true, colorIndex = 2, cardStyle = CountdownEvent.CARD_STYLE_PHOTO_CARD, blurRadius = 12, fontDark = true)
         val todo = TodoItem(id = 5, text = "买牛奶", done = false, sortOrder = 0, reminderAt = 1724700000000L, repeatRule = TodoItem.REPEAT_DAILY)
+        val focusTask = FocusTask(id = 6, title = "日语", sortOrder = 0, focusMillis = 3_600_000L, sessionCount = 4, createdAt = 1724700000000L)
+        val focusSession = FocusSession(
+            id = 7,
+            taskId = 6,
+            date = "2026-08-27",
+            startedAt = 1724700000000L,
+            endedAt = 1724701500000L,
+            plannedMs = 1_500_000L,
+            actualMs = 1_500_000L,
+            phase = FocusSession.PHASE_FOCUS,
+            completed = true,
+            cycleIndex = 1
+        )
         val prefs = PreferencesData(darkMode = true, diaryBackgroundPath = "backgrounds/diary_background.jpg", dynamicColor = false, editorPreview = true)
         val image = ImageFileInfo(relativePath = "diary_photos/1/photo1.jpg", sizeBytes = 12345, entityType = "diary_entry", entityId = 1, photoIndex = 0)
 
@@ -49,6 +66,8 @@ class BackupSerializationTest {
             habitRecords = listOf(record),
             countdownEvents = listOf(event),
             todos = listOf(todo),
+            focusTasks = listOf(focusTask),
+            focusSessions = listOf(focusSession),
             preferences = prefs,
             imageFiles = listOf(image)
         )
@@ -57,6 +76,8 @@ class BackupSerializationTest {
         assertTrue(encoded.contains("测试日记"))
         assertTrue(encoded.contains("买牛奶"))
         assertTrue(encoded.contains("diaryEntries"))
+        assertTrue(encoded.contains("focusTasks"))
+        assertTrue(encoded.contains("focusSessions"))
 
         val decoded = json.decodeFromString<BackupData>(encoded)
         assertEquals(1, decoded.diaryEntries.size)
@@ -71,6 +92,13 @@ class BackupSerializationTest {
         assertEquals(1, decoded.todos.size)
         assertEquals("买牛奶", decoded.todos[0].text)
         assertEquals(TodoItem.REPEAT_DAILY, decoded.todos[0].repeatRule)
+        assertEquals(1, decoded.focusTasks.size)
+        assertEquals("日语", decoded.focusTasks[0].title)
+        assertEquals(3_600_000L, decoded.focusTasks[0].focusMillis)
+        assertEquals(1, decoded.focusSessions.size)
+        assertEquals(6L, decoded.focusSessions[0].taskId)
+        assertEquals(1_500_000L, decoded.focusSessions[0].actualMs)
+        assertEquals(FocusSession.PHASE_FOCUS, decoded.focusSessions[0].phase)
         assertEquals(true, decoded.preferences.darkMode)
         assertEquals("backgrounds/diary_background.jpg", decoded.preferences.diaryBackgroundPath)
         assertEquals(1, decoded.imageFiles.size)
@@ -98,7 +126,19 @@ class BackupSerializationTest {
         val oldV1 = """{"version":1,"timestamp":1,"diaryEntries":[],"habits":[],"habitRecords":[],"countdownEvents":[],"preferences":{"darkMode":true,"dynamicColor":true,"editorPreview":false},"imageFiles":[]}"""
         val decoded = lenientJson.decodeFromString<BackupData>(oldV1)
         assertTrue(decoded.todos.isEmpty())
+        assertTrue(decoded.focusTasks.isEmpty())
+        assertTrue(decoded.focusSessions.isEmpty())
         assertEquals(true, decoded.preferences.darkMode)
+    }
+
+    @Test
+    fun oldBackup_v2_withoutFocus_defaultsEmpty() {
+        val oldV2 = """{"version":2,"timestamp":1,"diaryEntries":[],"habits":[],"habitRecords":[],"countdownEvents":[],"todos":[{"id":1,"text":"买牛奶","done":false,"sortOrder":0,"createdAt":1,"repeatRule":0,"alarmMode":0}],"preferences":{},"imageFiles":[]}"""
+        val decoded = lenientJson.decodeFromString<BackupData>(oldV2)
+        assertEquals(2, decoded.version)
+        assertEquals(1, decoded.todos.size)
+        assertTrue(decoded.focusTasks.isEmpty())
+        assertTrue(decoded.focusSessions.isEmpty())
     }
 
     @Test

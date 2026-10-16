@@ -2,6 +2,8 @@ package com.example.diary.data.backup
 
 import com.example.diary.data.local.CountdownEvent
 import com.example.diary.data.local.DiaryEntry
+import com.example.diary.data.local.FocusSession
+import com.example.diary.data.local.FocusTask
 import com.example.diary.data.local.Habit
 import com.example.diary.data.local.HabitRecord
 import com.example.diary.data.local.TodoItem
@@ -13,7 +15,7 @@ import kotlinx.serialization.Serializable
  */
 @Serializable
 data class BackupData(
-    /** Backup format version (2 = includes todos) */
+    /** Backup format version (3 = includes focus tasks/sessions) */
     val version: Int = CURRENT_VERSION,
     /** Timestamp when backup was created (millis since epoch) */
     val timestamp: Long = System.currentTimeMillis(),
@@ -27,13 +29,15 @@ data class BackupData(
     val countdownEvents: List<CountdownEvent> = emptyList(),
     /** All todos */
     val todos: List<TodoItem> = emptyList(),
+    val focusTasks: List<FocusTask> = emptyList(),
+    val focusSessions: List<FocusSession> = emptyList(),
     /** User preferences from DataStore */
     val preferences: PreferencesData = PreferencesData(),
     /** Relative paths of image files included in the backup zip */
     val imageFiles: List<ImageFileInfo> = emptyList(),
 ) {
     companion object {
-        const val CURRENT_VERSION = 2
+        const val CURRENT_VERSION = 3
     }
 }
 

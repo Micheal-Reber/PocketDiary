@@ -52,6 +52,9 @@ interface FocusDao {
     @Query("SELECT * FROM focus_sessions ORDER BY startedAt DESC LIMIT :limit")
     suspend fun getRecentSessions(limit: Int): List<FocusSession>
 
+    @Query("SELECT * FROM focus_sessions ORDER BY id ASC")
+    suspend fun getAllSessions(): List<FocusSession>
+
     @Query("SELECT * FROM focus_sessions WHERE startedAt >= :since ORDER BY startedAt ASC")
     suspend fun getSessionsSince(since: Long): List<FocusSession>
 
@@ -84,6 +87,33 @@ interface FocusDao {
 
     @Query("SELECT COALESCE(SUM(actualMs), 0) FROM focus_sessions WHERE phase = :phase AND date = :date")
     suspend fun getFocusTotalForDate(date: String, phase: Int): Long
+
+    /** 任意日期区间的按日合计（热力图 / 期间趋势共用一条查询） */
+    @Query("""
+        SELECT date, SUM(actualMs) AS total FROM focus_sessions
+        WHERE phase = :phase AND date BETWEEN :startDate AND :endDate
+        GROUP BY date
+    """)
+    suspend fun getFocusTotalsBetween(startDate: String, endDate: String, phase: Int): List<FocusTotalByDate>
+
+    /** 区间的段数 / 完整番茄数 / 合计时长（空集也要返回一行 0，故 COALESCE + 起别名） */
+    @Query("""
+        SELECT COUNT(*) AS sessionCount,
+               COALESCE(SUM(completed), 0) AS completedCount,
+               COALESCE(SUM(actualMs), 0) AS totalMillis
+        FROM focus_sessions
+        WHERE phase = :phase AND date BETWEEN :startDate AND :endDate
+    """)
+    suspend fun getFocusRangeStat(startDate: String, endDate: String, phase: Int): FocusRangeStat
+
+    /** 事项分布：taskId 可空（自由专注） */
+    @Query("""
+        SELECT taskId, SUM(actualMs) AS total, COALESCE(SUM(completed), 0) AS completedCount
+        FROM focus_sessions
+        WHERE phase = :phase AND date >= :startDate
+        GROUP BY taskId
+    """)
+    suspend fun getFocusTotalsByTask(startDate: String, phase: Int): List<FocusTaskTotal>
 
     /**
      * 会话落库与任务累计时长写回必须原子：否则进程被杀在两步之间，
