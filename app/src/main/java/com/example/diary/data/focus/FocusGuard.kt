@@ -9,12 +9,14 @@ import com.example.diary.data.local.FocusSession
 object FocusGuard {
 
     /**
-     * 系统关键包永远放行：打电话、闹钟、信息、设置、无障碍/权限弹窗等。
+     * 系统关键包永远放行：打电话、闹钟、信息、通知栏、无障碍/权限弹窗等。
      * 少了它们，用户在专注中接个电话都会被弹回专注页。
+     *
+     * 刻意**不含** `com.android.settings`：从系统设置里「强行停止」或卸载就能整套绕过，
+     * 用户真需要时在「系统」标签页手动勾选。
      */
     val DEFAULT_ALLOWED_PACKAGES = setOf(
         "com.android.systemui",
-        "com.android.settings",
         "com.android.permissioncontroller",
         "com.android.phone",
         "com.android.server.telecom",
@@ -89,22 +91,29 @@ object FocusGuard {
         sessionActive: Boolean,
         phase: Int?,
         allowLauncher: Boolean = true,
-        isLauncher: Boolean = false
+        isLauncher: Boolean = false,
+        isKeyboard: Boolean = false
     ): Boolean {
         if (!guardEnabled) return false
         if (!isGuarding(sessionActive, phase)) return false
         val pkg = foregroundPackage ?: return false
         if (pkg == ownPackage) return false
-        return !isAllowed(pkg, userAllowed, allowLauncher, isLauncher)
+        return !isAllowed(pkg, userAllowed, allowLauncher, isLauncher, isKeyboard)
     }
 
+    /**
+     * 放行顺序：输入法 > 桌面（受开关控制）> 系统关键包 > 用户白名单。
+     * 输入法必须恒放行，否则在白名单应用里打字会被当成切走而拉回。
+     */
     fun isAllowed(
         foregroundPackage: String,
         userAllowed: Set<String>,
         allowLauncher: Boolean,
-        isLauncher: Boolean
+        isLauncher: Boolean,
+        isKeyboard: Boolean = false
     ): Boolean =
-        (isLauncher && allowLauncher) ||
+        isKeyboard ||
+            (isLauncher && allowLauncher) ||
             foregroundPackage in DEFAULT_ALLOWED_PACKAGES ||
             foregroundPackage in userAllowed
 

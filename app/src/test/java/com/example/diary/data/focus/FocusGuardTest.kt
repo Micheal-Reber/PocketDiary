@@ -159,4 +159,33 @@ class FocusGuardTest {
         assertEquals(100L, FocusGuard.SETTLE_MS)
         assertEquals(1500L, FocusGuard.VERIFY_MS)
     }
+
+    @Test
+    fun `enabled keyboard is always allowed so typing keeps working`() {
+        assertFalse(
+            FocusGuard.shouldBlock(
+                own, "com.google.android.inputmethod.latin", emptySet(),
+                guardEnabled = true, sessionActive = true, phase = FocusSession.PHASE_FOCUS,
+                allowLauncher = false, isLauncher = false, isKeyboard = true
+            )
+        )
+    }
+
+    @Test
+    fun `system settings is not auto allowed since it can force stop the guard`() {
+        assertFalse(FocusGuard.DEFAULT_ALLOWED_PACKAGES.contains("com.android.settings"))
+        assertTrue(
+            FocusGuard.shouldBlock(
+                own, "com.android.settings", emptySet(),
+                guardEnabled = true, sessionActive = true, phase = FocusSession.PHASE_FOCUS
+            )
+        )
+        // 用户仍可在「系统」标签页手动把它加回白名单
+        assertFalse(
+            FocusGuard.shouldBlock(
+                own, "com.android.settings", setOf("com.android.settings"),
+                guardEnabled = true, sessionActive = true, phase = FocusSession.PHASE_FOCUS
+            )
+        )
+    }
 }

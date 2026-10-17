@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Todo reminder -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
@@ -37,6 +38,13 @@
             <category android:name="android.intent.category.HOME" />
         </intent>
     </queries>
+
+    <!-- 白名单要列出全部应用。仅靠上面 <queries> 的 MAIN/LAUNCHER 只能看到约 30 个：
+         大量第三方应用（微信/支付宝/B站/Gboard 等）的桌面入口是 activity-alias，
+         匹配不上裸的隐式查询，会被 Android 11+ 包可见性过滤掉。 -->
+    <uses-permission
+        android:name="android.permission.QUERY_ALL_PACKAGES"
+        tools:ignore="ProtectedPermissions" />
 
     <application
         android:name=".DiaryApplication"

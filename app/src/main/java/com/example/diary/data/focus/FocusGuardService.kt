@@ -6,6 +6,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.view.inputmethod.InputMethodManager
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -45,6 +46,7 @@ class FocusGuardService : AccessibilityService() {
     private var pendingBringBack = false
     private var pendingTaskId: Long? = null
     private var launcherCache: Pair<String, Boolean>? = null
+    private var enabledImePackages: Set<String>? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -102,7 +104,8 @@ class FocusGuardService : AccessibilityService() {
             sessionActive = sessionActive,
             phase = phase,
             allowLauncher = prefs.guardAllowLauncher.first(),
-            isLauncher = isLauncherPackage(foreground)
+            isLauncher = isLauncherPackage(foreground),
+            isKeyboard = isEnabledKeyboard(foreground)
         )
         if (!shouldBlock) {
             clearPending()
@@ -138,6 +141,22 @@ class FocusGuardService : AccessibilityService() {
         }
         launcherCache = pkg to resolved
         return resolved
+    }
+
+    /**
+     * 当前启用的输入法必须恒放行：否则在白名单应用里打字会被当成「切走了」而拉回。
+     * 角色向系统查（InputMethodManager），不猜厂商包名；启用列表几乎不变，查一次就缓存。
+     */
+    private fun isEnabledKeyboard(pkg: String): Boolean {
+        val packages = enabledImePackages ?: run {
+            val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+            val resolved = runCatching {
+                imm?.enabledInputMethodList.orEmpty().mapNotNull { it.packageName }.toSet()
+            }.getOrDefault(emptySet())
+            enabledImePackages = resolved
+            resolved
+        }
+        return pkg in packages
     }
 
     private fun requestBringBack(taskId: Long?) {

@@ -128,6 +128,7 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
     var showFocusSettingsDialog by remember { mutableStateOf(false) }
     var showNoiseDialog by remember { mutableStateOf(false) }
     var showWhitelistDialog by remember { mutableStateOf(false) }
+    var showGuardPermissions by remember { mutableStateOf(false) }
 
     // 无障碍开关状态要从系统设置里读，进本页时（尤其刚从系统设置跳回来）刷一次
     val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
@@ -547,7 +548,12 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
                         Switch(
                             checked = guardEnabled,
                             onCheckedChange = { checked ->
-                                scope.launch { focusPreferences.setGuardEnabled(checked) }
+                                if (checked) {
+                                    // 先过权限清单：无障碍没开就不让真正生效（ZenLock 的 PermissionGate 做法）
+                                    showGuardPermissions = true
+                                } else {
+                                    scope.launch { focusPreferences.setGuardEnabled(false) }
+                                }
                             }
                         )
                     },
@@ -889,13 +895,24 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
 
         // 专注期间允许使用的应用
         if (showWhitelistDialog) {
-            FocusWhitelistDialog(
+            FocusAllowedAppsDialog(
                 selected = guardAllowedPackages,
                 onToggle = { pkg ->
                     val next = if (pkg in guardAllowedPackages) guardAllowedPackages - pkg else guardAllowedPackages + pkg
                     scope.launch { focusPreferences.setGuardAllowedPackages(next) }
                 },
                 onDismiss = { showWhitelistDialog = false }
+            )
+        }
+
+        // 开启专注锁定前的权限清单
+        if (showGuardPermissions) {
+            FocusGuardPermissionSheet(
+                onDismiss = { showGuardPermissions = false },
+                onContinue = {
+                    showGuardPermissions = false
+                    scope.launch { focusPreferences.setGuardEnabled(true) }
+                }
             )
         }
 
