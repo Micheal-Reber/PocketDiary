@@ -560,8 +560,12 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
                     modifier = Modifier.clickable {
                         // 开关已开但系统没授权，点整行直接带去无障碍设置
                         if (guardEnabled && !guardAccessibilityEnabled.value) {
-                            runCatching {
-                                context.startActivity(FocusGuardService.accessibilitySettingsIntent(context))
+                            val opened = openSystemPage(
+                                context,
+                                listOf(FocusGuardService.accessibilitySettingsIntent(context))
+                            )
+                            if (!opened) {
+                                showToast(context, context.getString(R.string.settings_focus_guard_perm_open_failed))
                             }
                         }
                     }

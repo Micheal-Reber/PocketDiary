@@ -48,21 +48,25 @@ object BackgroundStart {
     fun isDeniedByMode(mode: Int?): Boolean =
         mode != null && mode != AppOpsManager.MODE_ALLOWED
 
-    /** 跳到小米权限编辑器；不同固件类名不同，逐个降级到应用详情页 */
-    fun permissionEditorIntent(context: Context): Intent {
-        val candidates = listOf(
-            "com.miui.permcenter.permissions.PermissionsEditorActivity" to "extra_pkgname",
-            "com.miui.permcenter.permissions.AppPermissionsEditorActivity" to "extra_pkgname"
-        )
-        for ((className, extraKey) in candidates) {
-            val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+    /** 跳到小米权限编辑器；不同固件类名不同，按可用性降级到应用详情页 */
+    fun permissionEditorIntent(context: Context): Intent = permissionEditorIntents(context).first()
+
+    /**
+     * 候选页按顺序尝试：小米权限编辑器两个类名 → 应用详情页。
+     * 不用 resolveActivity 预判——包可见性可能让它误判为不存在而错过真正的入口。
+     */
+    fun permissionEditorIntents(context: Context): List<Intent> {
+        val editors = listOf(
+            "com.miui.permcenter.permissions.PermissionsEditorActivity",
+            "com.miui.permcenter.permissions.AppPermissionsEditorActivity"
+        ).map { className ->
+            Intent("miui.intent.action.APP_PERM_EDITOR").apply {
                 component = ComponentName("com.miui.securitycenter", className)
-                putExtra(extraKey, context.packageName)
+                putExtra("extra_pkgname", context.packageName)
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            if (context.packageManager.resolveActivity(intent, 0) != null) return intent
         }
-        return Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+        return editors + Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
             data = android.net.Uri.fromParts("package", context.packageName, null)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }

@@ -228,10 +228,15 @@ class FocusGuardService : AccessibilityService() {
             }
         }
 
+        /**
+         * 注意别给这个 intent 加 `setData(package:…)`：ACTION_ACCESSIBILITY_SETTINGS 的
+         * 过滤器没有 data scheme，带了 data 就匹配不到任何 Activity（HyperOS 上解析到的是
+         * com.android.settings.accessibility.MiuiAccessibilitySettingsActivity，同样不收 data），
+         * 抛 ActivityNotFoundException 后表现为「点了没反应」。
+         */
         fun accessibilitySettingsIntent(context: Context): Intent =
             Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                setData(android.net.Uri.parse("package:${context.packageName}"))
             }
     }
 }

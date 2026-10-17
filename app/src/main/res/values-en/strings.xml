@@ -465,6 +465,7 @@
     <string name="settings_focus_guard_perm_granted">granted</string>
     <string name="settings_focus_guard_perm_enable">Enable</string>
     <string name="settings_focus_guard_perms_continue">Continue</string>
+    <string name="settings_focus_guard_perm_open_failed">Could not open the system page, please go to Settings manually</string>
     <string name="focus_guard_service_label">Focus guard</string>
     <string name="focus_guard_service_desc">Brings you back to the focus timer when you switch to an app that is not allowed. Reads only the foreground package name, never screen content.</string>
     <string name="focus_whitelist_title">Apps allowed during focus</string>

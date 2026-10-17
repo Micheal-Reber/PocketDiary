@@ -465,6 +465,7 @@
     <string name="settings_focus_guard_perm_granted">已开启</string>
     <string name="settings_focus_guard_perm_enable">去开启</string>
     <string name="settings_focus_guard_perms_continue">继续</string>
+    <string name="settings_focus_guard_perm_open_failed">无法打开系统设置页，请手动进入设置</string>
     <string name="focus_guard_service_label">专注守卫</string>
     <string name="focus_guard_service_desc">专注时若切换到未授权的应用，会把你带回专注页。仅读取前台应用包名，不读取屏幕内容。</string>
     <string name="focus_whitelist_title">允许使用的应用</string>

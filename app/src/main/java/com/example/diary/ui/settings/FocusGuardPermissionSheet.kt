@@ -2,6 +2,7 @@ package com.example.diary.ui.settings
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
@@ -114,21 +115,40 @@ internal fun FocusGuardPermissionSheet(
                     PermissionRow(
                         row = row,
                         onGrant = {
-                            when (row.permission) {
-                                GuardPermission.ACCESSIBILITY -> runCatching {
-                                    context.startActivity(FocusGuardService.accessibilitySettingsIntent(context))
-                                }
+                            val intents = when (row.permission) {
+                                GuardPermission.ACCESSIBILITY -> listOf(
+                                    FocusGuardService.accessibilitySettingsIntent(context),
+                                    Intent(android.provider.Settings.ACTION_SETTINGS)
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
 
-                                GuardPermission.BACKGROUND_POPUP -> runCatching {
-                                    context.startActivity(BackgroundStart.permissionEditorIntent(context))
-                                }
+                                GuardPermission.BACKGROUND_POPUP ->
+                                    BackgroundStart.permissionEditorIntents(context)
 
-                                GuardPermission.NOTIFICATIONS -> runCatching {
-                                    context.startActivity(
-                                        android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                                            .putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                    )
-                                }
+                                GuardPermission.NOTIFICATIONS -> listOf(
+                                    Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                        .putExtra(
+                                            android.provider.Settings.EXTRA_APP_PACKAGE,
+                                            context.packageName
+                                        )
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+                                    Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                        .setData(
+                                            android.net.Uri.fromParts(
+                                                "package",
+                                                context.packageName,
+                                                null
+                                            )
+                                        )
+                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                )
+                            }
+                            if (!openSystemPage(context, intents)) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    context.getString(R.string.settings_focus_guard_perm_open_failed),
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
                             }
                         }
                     )
@@ -204,4 +224,18 @@ private fun hasNotificationPermission(context: Context): Boolean {
     return ContextCompat.checkSelfPermission(
         context, Manifest.permission.POST_NOTIFICATIONS
     ) == PackageManager.PERMISSION_GRANTED
+}
+
+/**
+ * 依次尝试候选页，第一个能启动的就算成功。
+ * 全部失败时返回 false 交给调用方提示——静默吞掉异常会表现为「点了没反应」。
+ */
+internal fun openSystemPage(context: Context, intents: List<Intent>): Boolean {
+    for (intent in intents) {
+        val launched = runCatching {
+            context.startActivity(intent)
+        }.isSuccess
+        if (launched) return true
+    }
+    return false
 }
