@@ -1,6 +1,6 @@
 # AGENTS.md — PocketDiary 开发指引
 
-**Updated:** 2026-10-15 · **Version:** 1.14.0 (code 23) · **Branch:** main
+**Updated:** 2026-10-17 · **Version:** 1.15.0 (code 24) · **Branch:** main
 
 本文件供 AI 编码代理（及新成员）快速了解本项目的构建方式、架构约定与历史坑点。
 
@@ -13,7 +13,7 @@
 - **数据库**: Room v16（v9→11 / v10→11 / v11→12→13→14→15 / v15→16 有手写迁移；v8 及更早仍破坏性回退会清数据）
 - **偏好**: DataStore Preferences（`ThemePreferences`：暗色 / 壁纸取色 / 日记背景 / 编辑器预览 / **floatingBar 底栏模式**；`LanguagePreferences` 语言；`AppLockPreferences` 密码锁）
 - **SDK**: minSdk 26 / target 35 / compile 36 / JDK 17
-- **当前版本**: 1.14.0 (code 23)
+- **当前版本**: 1.15.0 (code 24)
 - **工具链**: AGP 8.13.2 / Gradle 8.14.3 / KSP 2.3.12 / Room 2.8.5（schema 走 Room Gradle 插件 `room { schemaDirectory }`）
 
 ## 构建与安装

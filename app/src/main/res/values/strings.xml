@@ -396,6 +396,10 @@
     <string name="focus_done_break">休息结束</string>
 
     <string name="focus_stats_empty">还没有专注记录，先去跑一个番茄吧</string>
+    <string name="focus_stats_goal_custom">自定义</string>
+    <string name="focus_stats_goal_custom_title">自定义每日目标</string>
+    <string name="focus_stats_goal_custom_label">分钟</string>
+    <string name="focus_stats_goal_custom_range">可填 %1$d–%2$d 分钟</string>
     <string name="focus_stats_title">专注统计</string>
     <string name="focus_stats_today_goal">今日目标</string>
     <string name="focus_stats_today">今日</string>

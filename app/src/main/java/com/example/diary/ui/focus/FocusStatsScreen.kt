@@ -63,6 +63,7 @@ fun FocusStatsScreen(
     LaunchedEffect(Unit) { viewModel.reload() }
 
     var showGoalPicker by remember { mutableStateOf(false) }
+    var showGoalInput by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -100,6 +101,10 @@ fun FocusStatsScreen(
                         onPick = { minutes ->
                             showGoalPicker = false
                             viewModel.setGoalMinutes(minutes)
+                        },
+                        onCustom = {
+                            showGoalPicker = false
+                            showGoalInput = true
                         }
                     )
                 }
@@ -188,6 +193,17 @@ Row(
 
             Spacer(Modifier.height(Spacing.l))
         }
+    }
+
+    if (showGoalInput) {
+        FocusGoalInputDialog(
+            current = state.goalMinutes,
+            onConfirm = { minutes ->
+                showGoalInput = false
+                viewModel.setGoalMinutes(minutes)
+            },
+            onDismiss = { showGoalInput = false }
+        )
     }
 }
 

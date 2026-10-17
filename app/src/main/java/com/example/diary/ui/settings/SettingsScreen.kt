@@ -225,6 +225,8 @@ val notifEnhanced by focusPreferences.notificationEnhanced.collectAsStateWithLif
     var showLockVerify by remember { mutableStateOf(false) }
     var showLockModeDialog by remember { mutableStateOf(false) }
     var backupExpanded by remember { mutableStateOf(false) }
+    var todoExpanded by remember { mutableStateOf(false) }
+    var privacyExpanded by remember { mutableStateOf(false) }
     var langDialog by remember { mutableStateOf(false) }
     val currentLang by languagePreferences.language.collectAsStateWithLifecycle(initialValue = LocaleHelper.SYSTEM)
 
@@ -493,15 +495,14 @@ val notifEnhanced by focusPreferences.notificationEnhanced.collectAsStateWithLif
                 color = MaterialTheme.colorScheme.outlineVariant
             )
 
-            // Todo / 学习模式（番茄钟）
-            Text(
-                stringResource(R.string.settings_section_todo),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            // Todo / 学习模式（番茄钟）—— 与数据迁移一致，默认折叠
+            CollapsibleSectionHeader(
+                title = stringResource(R.string.settings_section_todo),
+                expanded = todoExpanded,
+                onToggle = { todoExpanded = !todoExpanded }
             )
 
+            if (todoExpanded) {
             SettingsRow(
                 headline = stringResource(R.string.settings_todo_study_mode),
                 supporting = if (studyMode) stringResource(R.string.settings_todo_study_mode_on)
@@ -686,21 +687,21 @@ val notifEnhanced by focusPreferences.notificationEnhanced.collectAsStateWithLif
                     )
                 }
             }
+            }
 
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 16.dp),
                 color = MaterialTheme.colorScheme.outlineVariant
             )
 
-            // Privacy section
-            Text(
-                stringResource(R.string.settings_section_privacy),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            // Privacy section（默认折叠）
+            CollapsibleSectionHeader(
+                title = stringResource(R.string.settings_section_privacy),
+                expanded = privacyExpanded,
+                onToggle = { privacyExpanded = !privacyExpanded }
             )
 
+            if (privacyExpanded) {
             SettingsRow(
                 headline = stringResource(R.string.settings_lock),
                 supporting = stringResource(R.string.settings_lock_desc),
@@ -740,6 +741,7 @@ val notifEnhanced by focusPreferences.notificationEnhanced.collectAsStateWithLif
                     modifier = Modifier.clickable { showLockModeDialog = true }
                 )
             }
+            }
 
             HorizontalDivider(
                 modifier = Modifier.padding(horizontal = 16.dp),
@@ -747,26 +749,11 @@ val notifEnhanced by focusPreferences.notificationEnhanced.collectAsStateWithLif
             )
 
             // Data Migration section（默认折叠，点头部展开）
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { backupExpanded = !backupExpanded }
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Text(
-                    stringResource(R.string.settings_migration),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    if (backupExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (backupExpanded) stringResource(R.string.settings_collapse) else stringResource(R.string.settings_expand),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
+            CollapsibleSectionHeader(
+                title = stringResource(R.string.settings_migration),
+                expanded = backupExpanded,
+                onToggle = { backupExpanded = !backupExpanded }
+            )
 
             if (backupExpanded) {
                 SettingsRow(
@@ -1194,6 +1181,35 @@ val notifEnhanced by focusPreferences.notificationEnhanced.collectAsStateWithLif
                 onCancel = { showLockVerify = false }
             )
         }
+    }
+}
+
+/** 折叠分组头部：点整行切换，右侧箭头指示状态（待办 / 数据迁移共用） */
+@Composable
+private fun CollapsibleSectionHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+            contentDescription = if (expanded) {
+                stringResource(R.string.settings_collapse)
+            } else {
+                stringResource(R.string.settings_expand)
+            },
+            tint = MaterialTheme.colorScheme.primary
+        )
     }
 }
 

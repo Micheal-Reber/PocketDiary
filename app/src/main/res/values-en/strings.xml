@@ -396,6 +396,10 @@
     <string name="focus_done_break">Break over</string>
 
     <string name="focus_stats_empty">No focus sessions yet — run a pomodoro first</string>
+    <string name="focus_stats_goal_custom">Custom</string>
+    <string name="focus_stats_goal_custom_title">Custom daily goal</string>
+    <string name="focus_stats_goal_custom_label">Minutes</string>
+    <string name="focus_stats_goal_custom_range">Between %1$d and %2$d minutes</string>
     <string name="focus_stats_title">Focus Statistics</string>
     <string name="focus_stats_today_goal">Daily Goal</string>
     <string name="focus_stats_today">Today</string>

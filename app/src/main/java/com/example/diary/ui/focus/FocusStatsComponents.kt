@@ -24,15 +24,22 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.ArrowCircleDown
 import androidx.compose.material.icons.filled.ArrowCircleUp
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +51,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -462,16 +470,18 @@ internal fun FocusTaskRow(row: FocusTaskRowUi, onClick: () -> Unit) {
     }
 }
 
-/** 每日目标预设（参考实现的 GoalPicker 简化为一排可横滑 chip） */
+/** 每日目标：预设 chip + 自定义输入（预设太少不够用，但仍保留快捷选项） */
 @Composable
 internal fun FocusGoalPicker(
     current: Int,
-    onPick: (Int) -> Unit
+    onPick: (Int) -> Unit,
+    onCustom: () -> Unit
 ) {
     val presets = listOf(25, 50, 100, 150, 200, 300)
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        horizontalArrangement = Arrangement.spacedBy(Spacing.s)
+        horizontalArrangement = Arrangement.spacedBy(Spacing.s),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         presets.forEach { minutes ->
             FilterChip(
@@ -481,8 +491,66 @@ internal fun FocusGoalPicker(
                 label = { Text("$minutes", style = MaterialTheme.typography.labelSmall) }
             )
         }
+        FilterChip(
+            selected = current !in presets,
+            onClick = onCustom,
+            border = null,
+            label = {
+                Text(
+                    stringResource(R.string.focus_stats_goal_custom),
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        )
     }
 }
+
+/** 自定义每日目标：分钟输入，范围与 FocusPreferences 的 10..720 一致 */
+@Composable
+internal fun FocusGoalInputDialog(
+    current: Int,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var text by remember { mutableStateOf(current.toString()) }
+    val parsed = text.trim().toIntOrNull()
+    val valid = parsed != null && parsed in GOAL_MIN_MINUTES..GOAL_MAX_MINUTES
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.focus_stats_goal_custom_title)) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { input -> text = input.filter { it.isDigit() }.take(4) },
+                    singleLine = true,
+                    isError = text.isNotBlank() && !valid,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    label = { Text(stringResource(R.string.focus_stats_goal_custom_label)) },
+                    supportingText = {
+                        Text(stringResource(R.string.focus_stats_goal_custom_range, GOAL_MIN_MINUTES, GOAL_MAX_MINUTES))
+                    }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = valid,
+                onClick = { parsed?.let(onConfirm) }
+            ) {
+                Text(stringResource(R.string.common_ok))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.common_cancel))
+            }
+        }
+    )
+}
+
+internal const val GOAL_MIN_MINUTES = 10
+internal const val GOAL_MAX_MINUTES = 720
 
 @Composable
 internal fun FocusSegmentedRow(
