@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  专注守卫：无障碍只订阅「窗口切换」事件，用来读前台包名。
+  专注守卫：无障碍只订阅「窗口切换」事件，用来读前台包名；
   canRetrieveWindowContent=false —— 不取窗口内容、不读文本、不截屏。
 -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"

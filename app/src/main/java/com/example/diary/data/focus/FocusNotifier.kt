@@ -32,9 +32,11 @@ object FocusNotifier {
 
     const val CHANNEL_ID = "focus_timer"
     const val CHANNEL_ALERT_ID = "focus_alert"
+    const val CHANNEL_GUARD_ID = "focus_guard_launch"
 
     private const val ONGOING_ID = 7101
     private const val DONE_ID = 7102
+    private const val GUARD_ID = 7103
 
     // 三个动作按钮的 requestCode 各自独立，且与 TodoReminderScheduler 的哈希空间不重叠
     private const val REQ_PAUSE = 0x5F1C0001
@@ -71,6 +73,17 @@ object FocusNotifier {
             )
         }
         nm.createNotificationChannel(alert)
+        nm.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_GUARD_ID, ctx.getString(R.string.notif_channel_focus_guard),
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = ctx.getString(R.string.notif_channel_focus_guard_desc)
+                setShowBadge(false)
+                enableVibration(false)
+                setSound(null, null)
+            }
+        )
     }
 
     private fun openIntent(context: Context, taskId: Long?): PendingIntent {
@@ -243,5 +256,44 @@ object FocusNotifier {
 
     fun cancelOngoing(context: Context) {
         NotificationManagerCompat.from(context).cancel(ONGOING_ID)
+    }
+
+    /**
+     * 守卫拉回的兜底：小米「后台弹出界面」被关时 startActivity 会被静默丢弃，
+     * 改用全屏 Intent 通知把人带回专注页（MIUI 不拦全屏 Intent）。
+     */
+    fun showGuardBlocked(context: Context, taskId: Long?) {
+        val ctx = LocaleHelper.wrap(context)
+        ensureChannel(ctx)
+        val intent = Intent(ctx, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP
+            putExtra(MainActivity.EXTRA_OPEN_FOCUS, true)
+            putExtra(MainActivity.EXTRA_FOCUS_TASK_ID, taskId ?: -1L)
+        }
+        val full = PendingIntent.getActivity(
+            ctx, GUARD_ID, intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val noti = NotificationCompat.Builder(ctx, CHANNEL_GUARD_ID)
+            .setSmallIcon(R.drawable.ic_focus_live)
+            .setContentTitle(ctx.getString(R.string.focus_guard_blocked_title))
+            .setContentText(ctx.getString(R.string.focus_guard_blocked_text))
+            .setAutoCancel(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setContentIntent(full)
+            .setFullScreenIntent(full, true)
+            .build()
+        try {
+            NotificationManagerCompat.from(ctx).notify(GUARD_ID, noti)
+        } catch (_: SecurityException) {
+        }
+    }
+
+    fun cancelGuardBlocked(context: Context) {
+        runCatching { NotificationManagerCompat.from(context).cancel(GUARD_ID) }
     }
 }

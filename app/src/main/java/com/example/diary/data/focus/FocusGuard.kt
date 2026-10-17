@@ -34,12 +34,47 @@ object FocusGuard {
         "com.google.android.packageinstaller",
         "android",
         "com.miui.securitycenter",
-        "com.miui.home",
         "com.miui.player",
         "com.miui.notes"
     )
 
+    /**
+     * 常见厂商桌面：桌面是否放行由「允许回桌面」开关决定（默认允许），
+     * 不再混进 [DEFAULT_ALLOWED_PACKAGES] 里恒放行。
+     * 实际判定以 HOME intent 查询为准，这份名单只在查询失败时兜底。
+     */
+    val LAUNCHER_PACKAGES = setOf(
+        "com.miui.home",
+        "com.android.launcher3",
+        "com.android.launcher",
+        "com.android.launcher2",
+        "com.google.android.apps.nexuslauncher",
+        "com.sec.android.app.launcher",
+        "com.samsung.android.launcher",
+        "com.oneplus.launcher",
+        "net.oneplus.launcher",
+        "com.huawei.android.launcher",
+        "com.hihonor.android.launcher",
+        "com.oppo.launcher",
+        "com.realme.launcher",
+        "com.bbk.launcher2",
+        "com.vivo.launcher",
+        "com.motorola.launcher3",
+        "com.motorola.launcher",
+        "com.asus.launcher",
+        "com.lenovo.launcher",
+        "com.teslacoilsw.launcher",
+        "org.fdroid.fdroid"
+    )
+
+    /** 冷却期：同一次「离开」只拉回一次 */
     const val COOLDOWN_MS = 1500L
+
+    /** 拉回前的沉降延迟：让目标窗口先稳定下来，避免拉到一半被打断 */
+    const val SETTLE_MS = 100L
+
+    /** 沉降后多久校验一次：没收到自己的前台事件说明拉回被系统丢弃了，补一次 */
+    const val VERIFY_MS = 1500L
 
     /** 专注段是否正在跑（只有专注段需要守卫，休息段不打扰） */
     fun isGuarding(sessionActive: Boolean, phase: Int?): Boolean =
@@ -52,17 +87,30 @@ object FocusGuard {
         userAllowed: Set<String>,
         guardEnabled: Boolean,
         sessionActive: Boolean,
-        phase: Int?
+        phase: Int?,
+        allowLauncher: Boolean = true,
+        isLauncher: Boolean = false
     ): Boolean {
         if (!guardEnabled) return false
         if (!isGuarding(sessionActive, phase)) return false
         val pkg = foregroundPackage ?: return false
         if (pkg == ownPackage) return false
-        return !isAllowed(pkg, userAllowed)
+        return !isAllowed(pkg, userAllowed, allowLauncher, isLauncher)
     }
 
-    fun isAllowed(foregroundPackage: String, userAllowed: Set<String>): Boolean =
-        foregroundPackage in DEFAULT_ALLOWED_PACKAGES || foregroundPackage in userAllowed
+    fun isAllowed(
+        foregroundPackage: String,
+        userAllowed: Set<String>,
+        allowLauncher: Boolean,
+        isLauncher: Boolean
+    ): Boolean =
+        (isLauncher && allowLauncher) ||
+            foregroundPackage in DEFAULT_ALLOWED_PACKAGES ||
+            foregroundPackage in userAllowed
+
+    /** HOME 查询拿不到结果时的兜底 */
+    fun isKnownLauncher(foregroundPackage: String): Boolean =
+        foregroundPackage in LAUNCHER_PACKAGES
 
     /**
      * 同一次「离开」只拉回一次：冷却期内、或还是上一个包，都不再重复弹回。

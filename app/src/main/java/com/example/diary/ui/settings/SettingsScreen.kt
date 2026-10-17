@@ -18,6 +18,8 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.NotificationsActive
@@ -45,6 +47,7 @@ import com.example.diary.data.backup.ImportResult
 import com.example.diary.data.calendar.SystemCalendarManager
 import com.example.diary.data.calendar.SystemCalendarSync
 import com.example.diary.data.focus.CustomNoiseStore
+import com.example.diary.data.focus.BackgroundStart
 import com.example.diary.data.focus.FocusGuardService
 import com.example.diary.data.focus.FocusService
 import com.example.diary.data.focus.FocusRuntime
@@ -94,7 +97,12 @@ fun SettingsScreen(
     )
     val guardEnabled by focusPreferences.guardEnabled.collectAsStateWithLifecycle(initialValue = false)
     val guardAllowedPackages by focusPreferences.guardAllowedPackages.collectAsStateWithLifecycle(initialValue = emptySet())
+    val guardAllowLauncher by focusPreferences.guardAllowLauncher.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_GUARD_ALLOW_LAUNCHER
+    )
     val guardAccessibilityEnabled = remember { mutableStateOf(FocusGuardService.isEnabled(context)) }
+    // 小米/红米：后台弹窗权限被关时守卫会被静默吞掉，进本页时刷一次（跳去系统设置授权后要能看到变化）
+    val guardBackgroundBlocked = remember { mutableStateOf(false) }
     val guardBlockCount by focusPreferences.guardBlockCount.collectAsStateWithLifecycle(initialValue = 0)
 val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecycle(initialValue = null)
     val customNoiseName by focusPreferences.customNoiseName.collectAsStateWithLifecycle(initialValue = null)
@@ -127,6 +135,7 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 guardAccessibilityEnabled.value = FocusGuardService.isEnabled(context)
+                guardBackgroundBlocked.value = !BackgroundStart.canStartActivityFromBackground(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -552,7 +561,32 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
                     }
                 )
 
+                if (guardEnabled && guardBackgroundBlocked.value) {
+                    SettingsRow(
+                        headline = stringResource(R.string.settings_focus_guard_need_background),
+                        supporting = stringResource(R.string.settings_focus_guard_need_background_hint),
+                        leading = { Icon(Icons.Default.Warning, contentDescription = null) },
+                        modifier = Modifier.clickable {
+                            runCatching { context.startActivity(BackgroundStart.permissionEditorIntent(context)) }
+                        }
+                    )
+                }
+
                 if (guardEnabled) {
+                    SettingsRow(
+                        headline = stringResource(R.string.settings_focus_guard_allow_launcher),
+                        supporting = stringResource(R.string.settings_focus_guard_allow_launcher_value),
+                        leading = { Icon(Icons.Default.Home, contentDescription = null) },
+                        trailing = {
+                            Switch(
+                                checked = guardAllowLauncher,
+                                onCheckedChange = { checked ->
+                                    scope.launch { focusPreferences.setGuardAllowLauncher(checked) }
+                                }
+                            )
+                        }
+                    )
+
                     SettingsRow(
                         headline = stringResource(R.string.settings_focus_guard_allowed),
                         supporting = stringResource(

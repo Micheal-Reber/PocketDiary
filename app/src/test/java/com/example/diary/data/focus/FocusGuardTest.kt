@@ -1,6 +1,7 @@
 package com.example.diary.data.focus
 
 import com.example.diary.data.local.FocusSession
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -98,5 +99,64 @@ class FocusGuardTest {
         assertFalse(FocusGuard.isGuarding(true, FocusSession.PHASE_LONG_BREAK))
         assertFalse(FocusGuard.isGuarding(false, FocusSession.PHASE_FOCUS))
         assertFalse(FocusGuard.isGuarding(true, null))
+    }
+
+    @Test
+    fun `home screen is allowed only while the launcher switch is on`() {
+        assertFalse(
+            FocusGuard.shouldBlock(
+                own, "com.miui.home", emptySet(),
+                guardEnabled = true, sessionActive = true, phase = FocusSession.PHASE_FOCUS,
+                allowLauncher = true, isLauncher = true
+            )
+        )
+        assertTrue(
+            FocusGuard.shouldBlock(
+                own, "com.miui.home", emptySet(),
+                guardEnabled = true, sessionActive = true, phase = FocusSession.PHASE_FOCUS,
+                allowLauncher = false, isLauncher = true
+            )
+        )
+        assertTrue(FocusGuard.isKnownLauncher("com.miui.home"))
+        assertFalse(FocusGuard.isKnownLauncher("com.tencent.mm"))
+    }
+
+    @Test
+    fun `a non launcher app stays blocked even when the launcher switch is on`() {
+        assertTrue(
+            FocusGuard.shouldBlock(
+                own, "com.tencent.mm", emptySet(),
+                guardEnabled = true, sessionActive = true, phase = FocusSession.PHASE_FOCUS,
+                allowLauncher = true, isLauncher = false
+            )
+        )
+    }
+
+    @Test
+    fun `launcher is not silently allowed when flagged as a normal app`() {
+        assertTrue(
+            FocusGuard.shouldBlock(
+                own, "com.miui.home", emptySet(),
+                guardEnabled = true, sessionActive = true, phase = FocusSession.PHASE_FOCUS,
+                allowLauncher = true, isLauncher = false
+            )
+        )
+    }
+
+    @Test
+    fun `user whitelist still wins over the launcher switch`() {
+        assertFalse(
+            FocusGuard.shouldBlock(
+                own, "com.tencent.mm", setOf("com.tencent.mm"),
+                guardEnabled = true, sessionActive = true, phase = FocusSession.PHASE_FOCUS,
+                allowLauncher = false, isLauncher = false
+            )
+        )
+    }
+
+    @Test
+    fun `settle and verify delays leave room for a second attempt`() {
+        assertEquals(100L, FocusGuard.SETTLE_MS)
+        assertEquals(1500L, FocusGuard.VERIFY_MS)
     }
 }

@@ -435,6 +435,14 @@
     <string name="settings_focus_guard_need_a11y">Needs accessibility permission — tap to open settings</string>
     <string name="settings_focus_guard_allowed">Apps allowed during focus</string>
     <string name="settings_focus_guard_allowed_value">%1$d selected (calls, alarms, settings are always allowed)</string>
+    <string name="settings_focus_guard_allow_launcher">Allow home screen</string>
+    <string name="settings_focus_guard_allow_launcher_value">Turn off to also block the home screen, leaving only this app</string>
+    <string name="settings_focus_guard_need_background">Missing "show pop-ups in background" permission</string>
+    <string name="settings_focus_guard_need_background_hint">On Xiaomi/Redmi the pull-back silently fails without it — tap to open the system permission page</string>
+    <string name="notif_channel_focus_guard">Focus guard pull-back</string>
+    <string name="notif_channel_focus_guard_desc">Full-screen notification that brings you back when the app cannot switch directly</string>
+    <string name="focus_guard_blocked_title">Focus in progress</string>
+    <string name="focus_guard_blocked_text">You switched to another app — tap to return to focus</string>
     <string name="focus_guard_service_label">Focus guard</string>
     <string name="focus_guard_service_desc">Brings you back to the focus timer when you switch to an app that is not allowed. Reads only the foreground package name, never screen content.</string>
     <string name="focus_whitelist_title">Apps allowed during focus</string>

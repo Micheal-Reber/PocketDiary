@@ -435,6 +435,14 @@
     <string name="settings_focus_guard_need_a11y">需开启无障碍权限，点此前往设置</string>
     <string name="settings_focus_guard_allowed">允许使用的应用</string>
     <string name="settings_focus_guard_allowed_value">已选 %1$d 个（电话、闹钟、设置等始终允许）</string>
+    <string name="settings_focus_guard_allow_launcher">允许回桌面</string>
+    <string name="settings_focus_guard_allow_launcher_value">关闭后专注期间连桌面也会被拉回，只能用本应用</string>
+    <string name="settings_focus_guard_need_background">缺少「后台弹出界面」权限</string>
+    <string name="settings_focus_guard_need_background_hint">小米/红米手机上不授权会导致拉回失效，点此前往系统权限页开启</string>
+    <string name="notif_channel_focus_guard">专注守卫拉回</string>
+    <string name="notif_channel_focus_guard_desc">无法直接切回时用全屏通知把你带回专注页</string>
+    <string name="focus_guard_blocked_title">专注进行中</string>
+    <string name="focus_guard_blocked_text">检测到你切到了其他应用，点此回到专注</string>
     <string name="focus_guard_service_label">专注守卫</string>
     <string name="focus_guard_service_desc">专注时若切换到未授权的应用，会把你带回专注页。仅读取前台应用包名，不读取屏幕内容。</string>
     <string name="focus_whitelist_title">允许使用的应用</string>
