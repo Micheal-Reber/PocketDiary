@@ -17,7 +17,9 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Lock
@@ -49,6 +51,7 @@ import com.example.diary.data.calendar.SystemCalendarSync
 import com.example.diary.data.focus.CustomNoiseStore
 import com.example.diary.data.focus.BackgroundStart
 import com.example.diary.data.focus.FocusGuardService
+import com.example.diary.data.focus.KeepAlive
 import com.example.diary.data.focus.FocusService
 import com.example.diary.data.focus.FocusRuntime
 import com.example.diary.data.focus.WhiteNoise
@@ -121,9 +124,34 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
             }
         }
     }
-    val notifEnhanced by focusPreferences.notificationEnhanced.collectAsStateWithLifecycle(
+val notifEnhanced by focusPreferences.notificationEnhanced.collectAsStateWithLifecycle(
         initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_NOTIFICATION_ENHANCED
     )
+    val alarmEnabled by focusPreferences.alarmEnabled.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_ALARM_ENABLED
+    )
+    val alarmVolume by focusPreferences.alarmVolume.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_ALARM_VOLUME
+    )
+    val alarmVibrate by focusPreferences.alarmVibrate.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_ALARM_VIBRATE
+    )
+    val alarmVibrateMs by focusPreferences.alarmVibrateMs.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_ALARM_VIBRATE_MS
+    )
+    val alarmVibrateGapMs by focusPreferences.alarmVibrateGapMs.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_ALARM_VIBRATE_GAP_MS
+    )
+    val alarmAmplitude by focusPreferences.alarmAmplitude.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_ALARM_AMPLITUDE
+    )
+    val alarmScreenOn by focusPreferences.alarmScreenOn.collectAsStateWithLifecycle(
+        initialValue = com.example.diary.data.preferences.FocusPreferences.DEFAULT_ALARM_SCREEN_ON
+    )
+    // 保活与精确闹钟状态要从系统里读，进本页（尤其刚从系统设置跳回来）刷一次
+    val keepAliveOk = remember { mutableStateOf(true) }
+    val exactAlarmOk = remember { mutableStateOf(true) }
+    var showAlarmDialog by remember { mutableStateOf(false) }
     var showQuitStudyModeDialog by remember { mutableStateOf(false) }
     var showFocusSettingsDialog by remember { mutableStateOf(false) }
     var showNoiseDialog by remember { mutableStateOf(false) }
@@ -137,6 +165,8 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 guardAccessibilityEnabled.value = FocusGuardService.isEnabled(context)
                 guardBackgroundBlocked.value = !BackgroundStart.canStartActivityFromBackground(context)
+                keepAliveOk.value = KeepAlive.isIgnoringBatteryOptimizations(context)
+                exactAlarmOk.value = canScheduleExactAlarms(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -537,6 +567,54 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
                 )
 
                 SettingsRow(
+                    headline = stringResource(R.string.settings_focus_alarm),
+                    supporting = stringResource(
+                        R.string.settings_focus_alarm_value,
+                        if (alarmEnabled) alarmVolume else 0
+                    ),
+                    leading = { Icon(Icons.Default.Alarm, contentDescription = null) },
+                    modifier = Modifier.clickable { showAlarmDialog = true }
+                )
+
+                if (!exactAlarmOk.value) {
+                    SettingsRow(
+                        headline = stringResource(R.string.settings_focus_exact_alarm),
+                        supporting = stringResource(R.string.settings_focus_exact_alarm_desc),
+                        leading = { Icon(Icons.Default.Warning, contentDescription = null) },
+                        modifier = Modifier.clickable {
+                            val intent = android.content.Intent(
+                                android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                android.net.Uri.parse("package:${context.packageName}")
+                            ).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            runCatching { context.startActivity(intent) }
+                        }
+                    )
+                }
+
+                SettingsRow(
+                    headline = stringResource(R.string.settings_focus_keep_alive),
+                    supporting = if (keepAliveOk.value) {
+                        stringResource(R.string.settings_focus_keep_alive_ok)
+                    } else {
+                        stringResource(R.string.settings_focus_keep_alive_desc)
+                    },
+                    leading = { Icon(Icons.Default.BatteryAlert, contentDescription = null) },
+                    modifier = Modifier.clickable {
+                        val opened = if (keepAliveOk.value) {
+                            KeepAlive.needsAutostartHint() && KeepAlive.openAutostartSettings(context)
+                        } else {
+                            KeepAlive.openIgnoreBatteryOptimizations(context)
+                        }
+                        if (!opened) {
+                            showToast(
+                                context,
+                                context.getString(R.string.settings_focus_guard_perm_open_failed)
+                            )
+                        }
+                    }
+                )
+
+                SettingsRow(
                     headline = stringResource(R.string.settings_focus_guard),
                     supporting = when {
                         !guardEnabled -> stringResource(R.string.settings_focus_guard_off)
@@ -823,6 +901,122 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
         }
 
         // 专注白噪音：音源 + 音量
+        if (showAlarmDialog) {
+            AlertDialog(
+                onDismissRequest = { showAlarmDialog = false },
+                title = { Text(stringResource(R.string.settings_focus_alarm)) },
+                text = {
+                    Column {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                stringResource(R.string.focus_alarm_enabled),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = alarmEnabled,
+                                onCheckedChange = { checked ->
+                                    scope.launch { focusPreferences.setAlarmEnabled(checked) }
+                                }
+                            )
+                        }
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                stringResource(R.string.focus_alarm_vibrate),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = alarmVibrate,
+                                onCheckedChange = { checked ->
+                                    scope.launch { focusPreferences.setAlarmVibrate(checked) }
+                                }
+                            )
+                        }
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                stringResource(R.string.focus_alarm_screen_on),
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = alarmScreenOn,
+                                onCheckedChange = { checked ->
+                                    scope.launch { focusPreferences.setAlarmScreenOn(checked) }
+                                }
+                            )
+                        }
+
+                        Text(
+                            stringResource(R.string.focus_alarm_volume, alarmVolume),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Slider(
+                            value = alarmVolume.toFloat(),
+                            onValueChange = { scope.launch { focusPreferences.setAlarmVolume(it.toInt()) } },
+                            valueRange = 0f..100f
+                        )
+
+                        if (alarmVibrate) {
+                            Text(
+                                stringResource(R.string.focus_alarm_vibrate_on, alarmVibrateMs),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Slider(
+                                value = alarmVibrateMs.toFloat(),
+                                onValueChange = {
+                                    scope.launch { focusPreferences.setAlarmVibrateMs(it.toInt()) }
+                                },
+                                valueRange = 50f..2000f
+                            )
+                            Text(
+                                stringResource(R.string.focus_alarm_vibrate_gap, alarmVibrateGapMs),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Slider(
+                                value = alarmVibrateGapMs.toFloat(),
+                                onValueChange = {
+                                    scope.launch { focusPreferences.setAlarmVibrateGapMs(it.toInt()) }
+                                },
+                                valueRange = 0f..2000f
+                            )
+                            Text(
+                                stringResource(R.string.focus_alarm_amplitude, alarmAmplitude),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Slider(
+                                value = alarmAmplitude.toFloat(),
+                                onValueChange = {
+                                    scope.launch { focusPreferences.setAlarmAmplitude(it.toInt()) }
+                                },
+                                valueRange = 0f..255f
+                            )
+                        }
+
+                        Text(
+                            stringResource(R.string.focus_alarm_footnote),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showAlarmDialog = false }) {
+                        Text(stringResource(R.string.common_done))
+                    }
+                }
+            )
+        }
+
         if (showNoiseDialog) {
             AlertDialog(
                 onDismissRequest = { showNoiseDialog = false },
@@ -1001,6 +1195,13 @@ val customNoisePath by focusPreferences.customNoisePath.collectAsStateWithLifecy
             )
         }
     }
+}
+
+/** 能不能排精确闹钟；拿不到精确闹钟时到点提醒会在 Doze 里被攒到最多 ~9 分钟才触发 */
+private fun canScheduleExactAlarms(context: android.content.Context): Boolean {
+    if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.S) return true
+    val am = context.getSystemService(android.app.AlarmManager::class.java) ?: return true
+    return runCatching { am.canScheduleExactAlarms() }.getOrDefault(true)
 }
 
 private fun showToast(context: android.content.Context, message: String) {

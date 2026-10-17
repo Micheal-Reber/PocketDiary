@@ -36,6 +36,7 @@ class FocusService : Service() {
     private lateinit var store: FocusSessionStore
     private lateinit var repository: FocusRepository
     private lateinit var noisePlayer: NoisePlayer
+    private lateinit var ringer: FocusAlarmRinger
     private var enhancedNotification: Boolean = FocusPreferences.DEFAULT_NOTIFICATION_ENHANCED
 
     override fun onCreate() {
@@ -43,6 +44,7 @@ class FocusService : Service() {
         store = FocusSessionStore(this)
         repository = FocusRepository(AppDatabase.getInstance(this).focusDao(), this)
         noisePlayer = NoisePlayer(this)
+        ringer = FocusAlarmRinger(this)
         FocusNotifier.ensureChannel(this)
         FocusRuntime.setServiceAlive(true)
         // 通知增强档是用户开关：异步读一次缓存进字段，别在主线程阻塞读 DataStore，
@@ -76,6 +78,7 @@ class FocusService : Service() {
                 // 正在计时时点顶栏图标切音色：要立刻换，别等下一段
                 FocusRuntime.current()?.let { syncNoise(it) }
             }
+            ACTION_STOP_ALARM -> ringer.stop()
             else -> scope.launch { adoptRestoredSession() }
         }
         return START_NOT_STICKY
@@ -84,6 +87,7 @@ class FocusService : Service() {
     override fun onDestroy() {
         ticker?.cancel()
         noisePlayer.release()
+        if (::ringer.isInitialized) ringer.stop()
         FocusRuntime.setServiceAlive(false)
         job.cancel()
         super.onDestroy()
@@ -137,6 +141,8 @@ class FocusService : Service() {
         FocusAlarmScheduler.cancel(this, updated.taskId)
         ticker?.cancel()
         noisePlayer.fadeOutAndStop()
+        // 已经把手机拿在手上操作了，到点铃声不再需要
+        ringer.stop()
         refreshNotification(updated)
     }
 
@@ -177,7 +183,7 @@ class FocusService : Service() {
         FocusAlarmScheduler.cancel(this, current.taskId)
         ticker?.cancel()
         noisePlayer.fadeOutAndStop()
-        FocusNotifier.showSegmentDone(this, current, labelOf(this, nextPhase, segments))
+        announceSegmentEnd(current, nextPhase, segments)
         refreshNotification(next)
     }
 
@@ -207,7 +213,7 @@ class FocusService : Service() {
         )
         publish(next)
         syncNoise(next)
-        FocusNotifier.showSegmentDone(this, current, labelOf(this, nextPhase, segments))
+        announceSegmentEnd(current, nextPhase, segments)
         if (autoStartNext) {
             syncAlarm(next)
             resumeTicking()
@@ -225,6 +231,7 @@ class FocusService : Service() {
         current?.let { FocusAlarmScheduler.cancel(this, it.taskId) }
         FocusRuntime.publish(null)
         noisePlayer.fadeOutAndStop()
+        ringer.stop()
         store.clear()
         ticker?.cancel()
         FocusNotifier.cancelOngoing(this)
@@ -254,6 +261,37 @@ class FocusService : Service() {
     }
 
     // ---- 内部 ----
+
+    /**
+     * 一段结束时的提醒：只有专注段结束才强提醒（响铃 + 震动 + 亮屏，60 秒自动停），
+     * 休息段结束只发一条通知——休息往往只有 5 分钟，弹屏响铃会变成骚扰。
+     */
+    private suspend fun announceSegmentEnd(
+        ended: FocusRecord,
+        nextPhase: Int,
+        segments: FocusTimer.Segments
+    ) {
+        val prefs = FocusPreferences(this)
+        val enabled = prefs.alarmEnabled.first()
+        val strong = FocusAlarmRinger.shouldStrongRemind(ended.phase, enabled)
+        val screenOn = strong && prefs.alarmScreenOn.first()
+        if (strong) {
+            ringer.start(
+                volumePercent = prefs.alarmVolume.first(),
+                vibrate = prefs.alarmVibrate.first(),
+                vibrateMs = prefs.alarmVibrateMs.first().toLong(),
+                vibrateGapMs = prefs.alarmVibrateGapMs.first().toLong(),
+                amplitude = prefs.alarmAmplitude.first()
+            )
+        }
+        FocusNotifier.showSegmentDone(
+            context = this,
+            record = ended,
+            nextLabel = labelOf(this, nextPhase, segments),
+            stopAction = strong,
+            screenOn = screenOn
+        )
+    }
 
     /** 本段入账：不足一整段也按实际流逝时长算 */
     private suspend fun settle(record: FocusRecord, completed: Boolean) {
@@ -346,6 +384,7 @@ class FocusService : Service() {
         const val ACTION_EXPIRE = "com.example.diary.action.FOCUS_EXPIRE"
         const val ACTION_STOP = "com.example.diary.action.FOCUS_STOP"
         const val ACTION_NOISE = "com.example.diary.action.FOCUS_NOISE"
+        const val ACTION_STOP_ALARM = "com.example.diary.action.FOCUS_STOP_ALARM"
         const val EXTRA_TASK_ID = "focus_task_id"
         const val EXTRA_TASK_TITLE = "focus_task_title"
         const val EXTRA_AUTO_START_NEXT = "focus_auto_start_next"

@@ -73,6 +73,11 @@ class MainActivity : ComponentActivity() {
         // Notification deep-link: FocusNotifier puts these here.
         val openFocus = intent.getBooleanExtra(EXTRA_OPEN_FOCUS, false)
         val focusTaskId = intent.getLongExtra(EXTRA_FOCUS_TASK_ID, -1L).takeIf { it > 0L }
+        // 专注到点的全屏 Intent 会带上这个：锁屏也要把屏幕点亮（照 TodoRingActivity 的做法）
+        if (intent.getBooleanExtra(EXTRA_TURN_SCREEN_ON, false)) {
+            setShowWhenLocked(true)
+            setTurnScreenOn(true)
+        }
 
         setContent {
             // collectAsStateWithLifecycle suspends collection when the activity
@@ -128,7 +133,8 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         /** 番茄钟通知点击回到专注页 */
-        const val EXTRA_OPEN_FOCUS = "open_focus"
-        const val EXTRA_FOCUS_TASK_ID = "focus_task_id"
+const val EXTRA_OPEN_FOCUS = "open_focus"
+    const val EXTRA_FOCUS_TASK_ID = "focus_task_id"
+    const val EXTRA_TURN_SCREEN_ON = "focus_turn_screen_on"
     }
 }

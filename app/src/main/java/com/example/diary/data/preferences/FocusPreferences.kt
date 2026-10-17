@@ -36,6 +36,13 @@ class FocusPreferences(context: Context) {
         val NOISE_CUSTOM_PATH_KEY = stringPreferencesKey("focus_noise_custom_path")
         val NOISE_CUSTOM_NAME_KEY = stringPreferencesKey("focus_noise_custom_name")
         val NOTIFICATION_ENHANCED_KEY = booleanPreferencesKey("focus_notification_enhanced")
+        val ALARM_ENABLED_KEY = booleanPreferencesKey("focus_alarm_enabled")
+        val ALARM_VOLUME_KEY = intPreferencesKey("focus_alarm_volume")
+        val ALARM_VIBRATE_KEY = booleanPreferencesKey("focus_alarm_vibrate")
+        val ALARM_VIBRATE_MS_KEY = intPreferencesKey("focus_alarm_vibrate_ms")
+        val ALARM_VIBRATE_GAP_MS_KEY = intPreferencesKey("focus_alarm_vibrate_gap_ms")
+        val ALARM_AMPLITUDE_KEY = intPreferencesKey("focus_alarm_amplitude")
+        val ALARM_SCREEN_ON_KEY = booleanPreferencesKey("focus_alarm_screen_on")
 
         /** 常驻通知里显示分段进度条 + 状态栏倒计时芯片（Live Activity） */
         const val DEFAULT_NOTIFICATION_ENHANCED = true
@@ -49,6 +56,15 @@ class FocusPreferences(context: Context) {
         const val DEFAULT_LONG_BREAK_INTERVAL = 4
         const val DEFAULT_DAILY_GOAL_MINUTES = 100
         const val DEFAULT_NOISE_VOLUME = 40
+
+        /** 到点提醒：响铃开关、音量、震动与亮屏的默认值 */
+        const val DEFAULT_ALARM_ENABLED = true
+        const val DEFAULT_ALARM_VOLUME = 100
+        const val DEFAULT_ALARM_VIBRATE = true
+        const val DEFAULT_ALARM_VIBRATE_MS = 400
+        const val DEFAULT_ALARM_VIBRATE_GAP_MS = 300
+        const val DEFAULT_ALARM_AMPLITUDE = 255
+        const val DEFAULT_ALARM_SCREEN_ON = true
 
         /** 统计只认专注段，休息段不计入「专注时长」 */
         const val STAT_PHASE = FocusSession.PHASE_FOCUS
@@ -165,6 +181,55 @@ class FocusPreferences(context: Context) {
 
     suspend fun setNotificationEnhanced(enabled: Boolean) =
         putBoolean(NOTIFICATION_ENHANCED_KEY, enabled, "notification enhanced")
+
+    val alarmEnabled: Flow<Boolean> = appContext.dataStore.data.map {
+        it[ALARM_ENABLED_KEY] ?: DEFAULT_ALARM_ENABLED
+    }
+
+    suspend fun setAlarmEnabled(enabled: Boolean) =
+        putBoolean(ALARM_ENABLED_KEY, enabled, "alarm enabled")
+
+    val alarmVolume: Flow<Int> = appContext.dataStore.data.map {
+        (it[ALARM_VOLUME_KEY] ?: DEFAULT_ALARM_VOLUME).coerceIn(0, 100)
+    }
+
+    suspend fun setAlarmVolume(volume: Int) =
+        putInt(ALARM_VOLUME_KEY, volume.coerceIn(0, 100), "alarm volume")
+
+    val alarmVibrate: Flow<Boolean> = appContext.dataStore.data.map {
+        it[ALARM_VIBRATE_KEY] ?: DEFAULT_ALARM_VIBRATE
+    }
+
+    suspend fun setAlarmVibrate(enabled: Boolean) =
+        putBoolean(ALARM_VIBRATE_KEY, enabled, "alarm vibrate")
+
+    val alarmVibrateMs: Flow<Int> = appContext.dataStore.data.map {
+        (it[ALARM_VIBRATE_MS_KEY] ?: DEFAULT_ALARM_VIBRATE_MS).coerceIn(50, 2000)
+    }
+
+    suspend fun setAlarmVibrateMs(ms: Int) =
+        putInt(ALARM_VIBRATE_MS_KEY, ms.coerceIn(50, 2000), "alarm vibrate ms")
+
+    val alarmVibrateGapMs: Flow<Int> = appContext.dataStore.data.map {
+        (it[ALARM_VIBRATE_GAP_MS_KEY] ?: DEFAULT_ALARM_VIBRATE_GAP_MS).coerceIn(0, 2000)
+    }
+
+    suspend fun setAlarmVibrateGapMs(ms: Int) =
+        putInt(ALARM_VIBRATE_GAP_MS_KEY, ms.coerceIn(0, 2000), "alarm vibrate gap")
+
+    val alarmAmplitude: Flow<Int> = appContext.dataStore.data.map {
+        (it[ALARM_AMPLITUDE_KEY] ?: DEFAULT_ALARM_AMPLITUDE).coerceIn(0, 255)
+    }
+
+    suspend fun setAlarmAmplitude(amplitude: Int) =
+        putInt(ALARM_AMPLITUDE_KEY, amplitude.coerceIn(0, 255), "alarm amplitude")
+
+    val alarmScreenOn: Flow<Boolean> = appContext.dataStore.data.map {
+        it[ALARM_SCREEN_ON_KEY] ?: DEFAULT_ALARM_SCREEN_ON
+    }
+
+    suspend fun setAlarmScreenOn(enabled: Boolean) =
+        putBoolean(ALARM_SCREEN_ON_KEY, enabled, "alarm screen on")
 
     private suspend fun putBoolean(key: Preferences.Key<Boolean>, value: Boolean, label: String) {
         try {

@@ -82,6 +82,8 @@ fun FocusScreen(
     val focusPreferences = remember { FocusPreferences(context) }
     val noiseKind by focusPreferences.noiseKind.collectAsStateWithLifecycle(initialValue = WhiteNoise.Kind.OFF.id)
     val customNoiseName by focusPreferences.customNoiseName.collectAsStateWithLifecycle(initialValue = null)
+    val guardEnabled by focusPreferences.guardEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val guardBlockCount by focusPreferences.guardBlockCount.collectAsStateWithLifecycle(initialValue = 0)
     val hasCustomNoise = remember(customNoiseName) { CustomNoiseStore(context).currentFile() != null }
     val scope = rememberCoroutineScope()
 
@@ -306,6 +308,16 @@ fun FocusScreen(
                 shape = MaterialTheme.shapes.large
             ) {
                 Text(stringResource(R.string.focus_pick_task))
+            }
+
+            if (guardEnabled && guardBlockCount > 0) {
+                Spacer(Modifier.height(Spacing.m))
+                Text(
+                    stringResource(R.string.focus_guard_blocked_count, guardBlockCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             Spacer(Modifier.height(Spacing.l))

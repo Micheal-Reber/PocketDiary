@@ -9,6 +9,8 @@
     <!-- 闹钟响铃：全屏拉起响铃页 + 震动 -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 前台服务保活：HyperOS 等 ROM 不加白名单会在专注途中杀掉进程，计时随之中断 -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <!-- 番茄钟：离开 UI 后仍需计时，故跑一个前台服务 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />

@@ -6,7 +6,6 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.media.RingtoneManager
 import android.os.Build
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
@@ -31,7 +30,11 @@ import com.example.diary.util.LocaleHelper
 object FocusNotifier {
 
     const val CHANNEL_ID = "focus_timer"
-    const val CHANNEL_ALERT_ID = "focus_alert"
+    /**
+     * 渠道 id 带 v2：原来的 focus_alert 建渠道时带了声音与震动，而渠道的声音属性
+     * 创建后改不动（setSound(null,null) 对已存在的渠道无效），不换 id 就会与铃声叠着响。
+     */
+    const val CHANNEL_ALERT_ID = "focus_alert_v2"
     const val CHANNEL_GUARD_ID = "focus_guard_launch"
 
     private const val ONGOING_ID = 7101
@@ -42,6 +45,8 @@ object FocusNotifier {
     private const val REQ_PAUSE = 0x5F1C0001
     private const val REQ_STOP = 0x5F1C0002
     private const val REQ_SKIP = 0x5F1C0003
+    private const val REQ_STOP_ALARM = 0x5F1C0004
+    private const val REQ_SCREEN_ON = 0x5F1C0005
 
     fun ensureChannel(context: Context) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -62,15 +67,9 @@ object FocusNotifier {
             CHANNEL_ALERT_ID, ctx.getString(R.string.notif_channel_focus_alert), NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = ctx.getString(R.string.notif_channel_focus_alert_desc)
-            enableVibration(true)
-            setVibrationPattern(longArrayOf(0, 400, 300, 400))
-            setSound(
-                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
-                android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_EVENT)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            )
+            enableVibration(false)
+            // 声音与震动交给 FocusAlarmRinger，这里必须静音，否则会与铃声叠着响
+            setSound(null, null)
         }
         nm.createNotificationChannel(alert)
         nm.createNotificationChannel(
@@ -229,27 +228,60 @@ object FocusNotifier {
         else -> ctx.getString(R.string.focus_phase_focus)
     }
 
-    /** 本段结束：高优先级提示一次 */
-    fun showSegmentDone(context: Context, record: FocusRecord, nextLabel: String) {
+    /** 本段结束：强提醒时带「停止提醒」按钮，并按设置决定是否全屏亮屏 */
+    fun showSegmentDone(
+        context: Context,
+        record: FocusRecord,
+        nextLabel: String,
+        stopAction: Boolean,
+        screenOn: Boolean
+    ) {
         val ctx = LocaleHelper.wrap(context)
         ensureChannel(ctx)
-        val noti = NotificationCompat.Builder(ctx, CHANNEL_ALERT_ID)
+        val title = if (record.phase == FocusSession.PHASE_FOCUS) {
+            ctx.getString(R.string.focus_done_focus)
+        } else {
+            ctx.getString(R.string.focus_done_break)
+        }
+        val builder = NotificationCompat.Builder(ctx, CHANNEL_ALERT_ID)
             .setSmallIcon(R.drawable.ic_focus_live)
-            .setContentTitle(
-                if (record.phase == FocusSession.PHASE_FOCUS) {
-                    ctx.getString(R.string.focus_done_focus)
-                } else {
-                    ctx.getString(R.string.focus_done_break)
-                }
-            )
+            .setContentTitle(title)
             .setContentText(nextLabel)
             .setAutoCancel(true)
+            .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setContentIntent(openIntent(ctx, record.taskId))
-            .build()
+        if (stopAction) {
+            builder.addAction(
+                android.R.drawable.ic_lock_idle_alarm,
+                ctx.getString(R.string.focus_alarm_stop),
+                PendingIntent.getService(
+                    ctx, REQ_STOP_ALARM,
+                    Intent(ctx, FocusService::class.java).apply {
+                        action = FocusService.ACTION_STOP_ALARM
+                    },
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+            )
+        }
+        if (screenOn) {
+            val turnOn = Intent(ctx, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+                putExtra(MainActivity.EXTRA_OPEN_FOCUS, true)
+                putExtra(MainActivity.EXTRA_FOCUS_TASK_ID, record.taskId)
+                putExtra(MainActivity.EXTRA_TURN_SCREEN_ON, true)
+            }
+            val pending = PendingIntent.getActivity(
+                ctx, REQ_SCREEN_ON, turnOn,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            builder.setFullScreenIntent(pending, true)
+            builder.setContentIntent(pending)
+        }
         try {
-            NotificationManagerCompat.from(ctx).notify(DONE_ID, noti)
+            NotificationManagerCompat.from(ctx).notify(DONE_ID, builder.build())
         } catch (_: SecurityException) {
         }
     }
