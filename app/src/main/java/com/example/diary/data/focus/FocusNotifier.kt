@@ -115,7 +115,7 @@ object FocusNotifier {
         )
 
         val builder = NotificationCompat.Builder(ctx, CHANNEL_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_focus_live)
             .setContentTitle(title)
             .setContentText(text)
             .setOngoing(true)
@@ -221,7 +221,7 @@ object FocusNotifier {
         val ctx = LocaleHelper.wrap(context)
         ensureChannel(ctx)
         val noti = NotificationCompat.Builder(ctx, CHANNEL_ALERT_ID)
-            .setSmallIcon(R.mipmap.ic_launcher)
+            .setSmallIcon(R.drawable.ic_focus_live)
             .setContentTitle(
                 if (record.phase == FocusSession.PHASE_FOCUS) {
                     ctx.getString(R.string.focus_done_focus)

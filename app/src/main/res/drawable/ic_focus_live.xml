@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 通知小图标 / Live Update 进度 tracker。
+     系统小图标槽位只取 alpha 通道再统一染色，无法显示黑底彩色图，
+     故按 App 图标（黑底方块 + 白色摊开书本 + 中缝铅笔）描一份白色剪影：
+     书本保留波浪上沿与中缝缺口；铅笔尖端做成明确三角形、探出书上沿，
+     笔身穿过书本并伸出书底——没有这个三角尖就认不出是铅笔。 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- 摊开的书：上沿两页各自隆起、中缝下凹；下沿同样起弧 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M2.6,6.2 C5.4,4.6 8.9,4.4 12,6 C15.1,4.4 18.6,4.6 21.4,6.2 L21.4,17 C18.6,15.6 15.1,15.8 12,17.2 C8.9,15.8 5.4,15.6 2.6,17 Z" />
+    <!-- 铅笔笔尖：明确三角形，尖端探出书上沿中缝缺口 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,2.4 L14.2,7 L9.8,7 Z" />
+    <!-- 铅笔笔身：穿过书本，伸出书底 -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M10,6.6 L14,6.6 L14,22.4 L10,22.4 Z" />
+</vector>

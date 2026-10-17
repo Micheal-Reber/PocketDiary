@@ -12,6 +12,8 @@
     <!-- 番茄钟：离开 UI 后仍需计时，故跑一个前台服务 -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- Android 16 实时活动（状态栏「灵动岛」药丸）：官方硬性要求之一，缺了系统不会提升常驻通知 -->
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
     <!-- 倒数日提醒 + 同步到系统日历 -->
     <uses-permission android:name="android.permission.READ_CALENDAR" />
