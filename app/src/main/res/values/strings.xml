@@ -56,6 +56,17 @@
     <string name="settings_import_confirm">确认导入</string>
     <string name="settings_section_about">关于</string>
     <string name="settings_about_version">版本 %1$s · 简洁好用的日记本</string>
+    <string name="settings_about_version_short">版本 %1$s</string>
+    <string name="about_github_title">GitHub</string>
+    <string name="about_github_body">PocketDiary 完全开源，遇到问题或有建议，欢迎到 GitHub 提 Issue 或点个 Star。</string>
+    <string name="about_open_github">前往 GitHub</string>
+    <string name="about_open_failed">没有找到可以打开链接的应用</string>
+    <string name="about_offline_title">纯本地</string>
+    <string name="about_offline_body">日记、习惯、倒数日、待办与番茄钟数据全部只存在这台手机上，不上传、不联网、无账号。</string>
+    <string name="settings_enabled">已开启</string>
+    <string name="settings_disabled">未开启</string>
+    <string name="settings_dark_mode_on">深色模式已开启</string>
+    <string name="settings_dark_mode_off">深色模式已关闭</string>
     <string name="settings_pin_changed">密码已修改</string>
     <string name="settings_lock_enabled">日记密码锁已开启</string>
     <string name="settings_lock_disabled">日记密码锁已关闭</string>

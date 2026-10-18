@@ -56,6 +56,17 @@
     <string name="settings_import_confirm">Import</string>
     <string name="settings_section_about">About</string>
     <string name="settings_about_version">Version %1$s · A simple, delightful diary</string>
+    <string name="settings_about_version_short">Version %1$s</string>
+    <string name="about_github_title">GitHub</string>
+    <string name="about_github_body">PocketDiary is fully open source. Found a bug or have an idea? Open an issue or leave a star on GitHub.</string>
+    <string name="about_open_github">Open GitHub</string>
+    <string name="about_open_failed">No app found to open this link</string>
+    <string name="about_offline_title">Local only</string>
+    <string name="about_offline_body">Diaries, habits, countdowns, todos and focus sessions stay on this phone. No upload, no network, no account.</string>
+    <string name="settings_enabled">On</string>
+    <string name="settings_disabled">Off</string>
+    <string name="settings_dark_mode_on">Dark mode on</string>
+    <string name="settings_dark_mode_off">Dark mode off</string>
     <string name="settings_pin_changed">Password changed</string>
     <string name="settings_lock_enabled">Diary PIN lock enabled</string>
     <string name="settings_lock_disabled">Diary PIN lock turned off</string>

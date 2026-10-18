@@ -80,6 +80,11 @@ import com.example.diary.ui.habits.HabitsViewModelFactory
 import com.example.diary.ui.habits.StatisticsScreen
 import com.example.diary.ui.lock.AppLockScreen
 import com.example.diary.ui.lock.LockMode
+import com.example.diary.ui.settings.AboutSettingsScreen
+import com.example.diary.ui.settings.AppearanceSettingsScreen
+import com.example.diary.ui.settings.BackupSettingsScreen
+import com.example.diary.ui.settings.FocusSettingsScreen
+import com.example.diary.ui.settings.PrivacySettingsScreen
 import com.example.diary.ui.settings.SettingsScreen
 import com.example.diary.ui.todo.TodoListScreen
 import com.example.diary.ui.theme.Spacing
@@ -423,13 +428,44 @@ fun AppNavigation(
                         composable(Screen.Settings.route) {
                             SettingsScreen(
                                 themePreferences = themePreferences,
+                                focusPreferences = focusPreferences,
+                                appLockPreferences = appLockPreferences,
+                                onOpenAppearance = { navController.navigate("settings/appearance") },
+                                onOpenFocus = { navController.navigate("settings/focus") },
+                                onOpenPrivacy = { navController.navigate("settings/privacy") },
+                                onOpenBackup = { navController.navigate("settings/backup") },
+                                onOpenAbout = { navController.navigate("settings/about") },
+                            )
+                        }
+                        composable(route = "settings/appearance") {
+                            AppearanceSettingsScreen(
+                                themePreferences = themePreferences,
+                                languagePreferences = languagePreferences,
+                                calendarPreferences = calendarPreferences,
+                                countdownRepository = countdownRepository,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(route = "settings/focus") {
+                            FocusSettingsScreen(
+                                focusPreferences = focusPreferences,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(route = "settings/privacy") {
+                            PrivacySettingsScreen(
+                                appLockPreferences = appLockPreferences,
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(route = "settings/backup") {
+                            BackupSettingsScreen(
                                 backupRepository = backupRepository,
-appLockPreferences = appLockPreferences,
-                languagePreferences = languagePreferences,
-                calendarPreferences = calendarPreferences,
-                countdownRepository = countdownRepository,
-                focusPreferences = focusPreferences,
-            )
+                                onBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable(route = "settings/about") {
+                            AboutSettingsScreen(onBack = { navController.popBackStack() })
                         }
                         composable(
                             route = "editor?date={date}",
