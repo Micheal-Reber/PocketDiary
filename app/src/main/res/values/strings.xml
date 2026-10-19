@@ -49,7 +49,7 @@
     <string name="settings_backup_filename">PocketDiary备份.zip</string>
     <string name="settings_export_success">导出成功</string>
     <string name="settings_export_failed">导出失败: %1$s</string>
-    <string name="settings_import_success">导入成功: %1$d篇日记, %2$d个习惯, %3$d条打卡, %4$d个倒数日, %5$d条待办, %6$d张图片</string>
+    <string name="settings_import_success">导入成功: %1$d篇日记, %2$d个习惯, %3$d条打卡, %4$d个倒数日, %5$d条待办, %6$d个专注任务, %7$d条专注记录, %8$d张图片, %9$d个音频</string>
     <string name="settings_import_failed">导入失败: %1$s</string>
     <string name="settings_import_confirm_title">导入将清空现有数据？</string>
     <string name="settings_import_confirm_body">日记、习惯、倒数日、待办与图片都会被备份内容覆盖，此操作不可撤销。</string>

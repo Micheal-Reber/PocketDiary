@@ -151,7 +151,10 @@ fun BackupSettingsScreen(
                                                 result.habitRecordsImported,
                                                 result.countdownEventsImported,
                                                 result.todosImported,
-                                                result.imagesImported
+                                                result.focusTasksImported,
+                                                result.focusSessionsImported,
+                                                result.imagesImported,
+                                                result.audioFilesImported
                                             )
                                         )
                                     }

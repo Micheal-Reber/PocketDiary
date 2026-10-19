@@ -13,8 +13,8 @@ import java.io.File
 class BackupVersionGateTest {
 
     @Test
-    fun currentVersion_isThree() {
-        assertEquals(3, BackupData.CURRENT_VERSION)
+    fun currentVersion_isFour() {
+        assertEquals(4, BackupData.CURRENT_VERSION)
     }
 
     @Test
@@ -23,8 +23,9 @@ class BackupVersionGateTest {
         assertTrue(accept(1))
         assertTrue(accept(2))
         assertTrue(accept(3))
+        assertTrue(accept(4))
         assertFalse(accept(0))
-        assertFalse(accept(4))
+        assertFalse(accept(5))
         assertFalse(accept(-1))
     }
 

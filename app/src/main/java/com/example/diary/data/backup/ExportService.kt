@@ -3,8 +3,12 @@ package com.example.diary.data.backup
 import android.content.Context
 import android.net.Uri
 import androidx.room.withTransaction
+import com.example.diary.data.focus.CustomNoiseStore
 import com.example.diary.data.image.BackgroundImageStore
 import com.example.diary.data.local.AppDatabase
+import com.example.diary.data.preferences.AppLockPreferences
+import com.example.diary.data.preferences.CalendarPreferences
+import com.example.diary.data.preferences.FocusPreferences
 import com.example.diary.data.preferences.ThemePreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -30,6 +34,9 @@ import java.util.zip.ZipOutputStream
 class ExportService(
     private val context: Context,
     private val themePreferences: ThemePreferences,
+    private val focusPreferences: FocusPreferences,
+    private val appLockPreferences: AppLockPreferences,
+    private val calendarPreferences: CalendarPreferences,
     private val database: AppDatabase,
 ) {
 
@@ -104,12 +111,48 @@ class ExportService(
         // 导出时把绝对路径归一成 filesDir 相对路径，换机导入不悬空
         val rawPath = themePreferences.diaryBackgroundPath.first()
         return PreferencesData(
-            darkMode = themePreferences.isDarkMode.first(),
-            diaryBackgroundPath = BackgroundImageStore.normalizeStoredPath(context, rawPath),
-            dynamicColor = themePreferences.dynamicColor.first(),
-            editorPreview = themePreferences.editorPreview.first(),
+            theme = ThemePrefs(
+                darkMode = themePreferences.isDarkMode.first(),
+                diaryBackgroundPath = BackgroundImageStore.normalizeStoredPath(context, rawPath),
+                dynamicColor = themePreferences.dynamicColor.first(),
+                editorPreview = themePreferences.editorPreview.first(),
+                floatingBar = themePreferences.floatingBar.first(),
+            ),
+            focus = FocusPrefs(
+                studyMode = focusPreferences.studyMode.first(),
+                focusMinutes = focusPreferences.focusMinutes.first(),
+                shortBreakMinutes = focusPreferences.shortBreakMinutes.first(),
+                longBreakMinutes = focusPreferences.longBreakMinutes.first(),
+                longBreakInterval = focusPreferences.longBreakInterval.first(),
+                dailyGoalMinutes = focusPreferences.dailyGoalMinutes.first(),
+                guardEnabled = focusPreferences.guardEnabled.first(),
+                guardAllowedPackages = focusPreferences.guardAllowedPackages.first(),
+                guardAllowLauncher = focusPreferences.guardAllowLauncher.first(),
+                noiseKind = focusPreferences.noiseKind.first(),
+                noiseVolume = focusPreferences.noiseVolume.first(),
+                customNoiseFile = currentCustomNoiseRelativePath(),
+                customNoiseName = focusPreferences.customNoiseName.first(),
+                notificationEnhanced = focusPreferences.notificationEnhanced.first(),
+                alarmEnabled = focusPreferences.alarmEnabled.first(),
+                alarmVolume = focusPreferences.alarmVolume.first(),
+                alarmVibrate = focusPreferences.alarmVibrate.first(),
+                alarmVibrateMs = focusPreferences.alarmVibrateMs.first(),
+                alarmVibrateGapMs = focusPreferences.alarmVibrateGapMs.first(),
+                alarmAmplitude = focusPreferences.alarmAmplitude.first(),
+                alarmScreenOn = focusPreferences.alarmScreenOn.first(),
+            ),
+            lock = LockPrefs(
+                lockMode = appLockPreferences.lockMode.first(),
+            ),
+            calendar = CalendarPrefs(
+                syncToSystemCalendar = calendarPreferences.syncToSystemCalendar.first(),
+            ),
         )
     }
+
+    /** 自定义白噪音实际文件存在时带上；偏好里只有路径、文件已被删就当没有 */
+    private fun currentCustomNoiseRelativePath(): String? =
+        CustomNoiseStore(context).currentFile()?.let { getRelativePath(context.filesDir, it) }
 
     /** Walks filesDir and collects all image files for backup. */
     private fun collectImageFiles(): List<ImageFileInfo> {
@@ -159,6 +202,18 @@ class ExportService(
                     relativePath = getRelativePath(filesDir, diaryBgFile),
                     sizeBytes = diaryBgFile.length(),
                     entityType = "diary_background",
+                    entityId = 0,
+                )
+            )
+        }
+
+        // 专注自定义白噪音音频：filesDir/focus_audio/custom_audio.bin（不是图片但走同一条 STORED 通道）
+        CustomNoiseStore(context).currentFile()?.let { audio ->
+            imageFiles.add(
+                ImageFileInfo(
+                    relativePath = getRelativePath(filesDir, audio),
+                    sizeBytes = audio.length(),
+                    entityType = "focus_audio",
                     entityId = 0,
                 )
             )

@@ -137,6 +137,9 @@ fun AppNavigation(
         BackupRepository(
             context = context,
             themePreferences = themePreferences,
+            focusPreferences = focusPreferences,
+            appLockPreferences = appLockPreferences,
+            calendarPreferences = calendarPreferences,
             database = database,
         )
     }

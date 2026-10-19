@@ -3,6 +3,9 @@ package com.example.diary.data.backup
 import android.content.Context
 import android.net.Uri
 import com.example.diary.data.local.AppDatabase
+import com.example.diary.data.preferences.AppLockPreferences
+import com.example.diary.data.preferences.CalendarPreferences
+import com.example.diary.data.preferences.FocusPreferences
 import com.example.diary.data.preferences.ThemePreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,12 +17,18 @@ import kotlinx.coroutines.withContext
 class BackupRepository(
     private val context: Context,
     private val themePreferences: ThemePreferences,
+    private val focusPreferences: FocusPreferences,
+    private val appLockPreferences: AppLockPreferences,
+    private val calendarPreferences: CalendarPreferences,
     private val database: AppDatabase,
 ) {
 
     private val exportService = ExportService(
         context = context,
         themePreferences = themePreferences,
+        focusPreferences = focusPreferences,
+        appLockPreferences = appLockPreferences,
+        calendarPreferences = calendarPreferences,
         database = database,
     )
 
@@ -27,6 +36,9 @@ class BackupRepository(
         context = context,
         database = database,
         themePreferences = themePreferences,
+        focusPreferences = focusPreferences,
+        appLockPreferences = appLockPreferences,
+        calendarPreferences = calendarPreferences,
     )
 
     /**

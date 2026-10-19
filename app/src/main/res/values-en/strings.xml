@@ -49,7 +49,7 @@
     <string name="settings_backup_filename">PocketDiary-backup.zip</string>
     <string name="settings_export_success">Export successful</string>
     <string name="settings_export_failed">Export failed: %1$s</string>
-    <string name="settings_import_success">Imported: %1$d diaries, %2$d habits, %3$d check-ins, %4$d countdowns, %5$d todos, %6$d images</string>
+    <string name="settings_import_success">Imported: %1$d diaries, %2$d habits, %3$d check-ins, %4$d countdowns, %5$d todos, %6$d focus tasks, %7$d focus sessions, %8$d images, %9$d audio</string>
     <string name="settings_import_failed">Import failed: %1$s</string>
     <string name="settings_import_confirm_title">Import will erase existing data?</string>
     <string name="settings_import_confirm_body">All diaries, habits, countdowns, todos and images will be replaced by the backup. This cannot be undone.</string>

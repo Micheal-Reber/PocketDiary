@@ -7,9 +7,11 @@ import com.example.diary.data.local.FocusTask
 import com.example.diary.data.local.Habit
 import com.example.diary.data.local.HabitRecord
 import com.example.diary.data.local.TodoItem
+import com.example.diary.data.preferences.AppLockPreferences
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.File
@@ -143,11 +145,88 @@ class BackupSerializationTest {
 
     @Test
     fun importResult_serialization_notRequired_butSealedWorks() {
-        val success = ImportResult.Success(1, 2, 3, 4, 5, 6)
+        val success = ImportResult.Success(
+            diaryEntriesImported = 1,
+            habitsImported = 2,
+            habitRecordsImported = 3,
+            countdownEventsImported = 4,
+            todosImported = 5,
+            focusTasksImported = 6,
+            focusSessionsImported = 7,
+            imagesImported = 8,
+            audioFilesImported = 9,
+        )
         assertEquals(5, success.todosImported)
-        assertEquals(6, success.imagesImported)
+        assertEquals(6, success.focusTasksImported)
+        assertEquals(7, success.focusSessionsImported)
+        assertEquals(8, success.imagesImported)
+        assertEquals(9, success.audioFilesImported)
         val failure = ImportResult.Failure("corrupt zip", "details")
         assertEquals("corrupt zip", failure.message)
+    }
+
+    @Test
+    fun v4_preferences_groups_roundTrip() {
+        val prefs = PreferencesData(
+            theme = ThemePrefs(darkMode = true, diaryBackgroundPath = "backgrounds/diary_background.jpg", dynamicColor = false, editorPreview = true, floatingBar = false),
+            focus = FocusPrefs(
+                studyMode = true,
+                focusMinutes = 50,
+                dailyGoalMinutes = 240,
+                guardEnabled = true,
+                guardAllowedPackages = setOf("com.example.app", "com.foo.bar"),
+                guardAllowLauncher = false,
+                noiseKind = "custom",
+                noiseVolume = 70,
+                customNoiseFile = "focus_audio/custom_audio.bin",
+                customNoiseName = "雨声.mp3",
+                alarmVibrateMs = 600,
+                alarmScreenOn = false,
+            ),
+            lock = LockPrefs(lockMode = AppLockPreferences.MODE_EVERY_DIARY),
+            calendar = CalendarPrefs(syncToSystemCalendar = true),
+        )
+        val decoded = json.decodeFromString<PreferencesData>(json.encodeToString(prefs))
+        assertEquals(prefs, decoded)
+        assertEquals(true, decoded.focus!!.studyMode)
+        assertEquals("focus_audio/custom_audio.bin", decoded.focus!!.customNoiseFile)
+        assertEquals(AppLockPreferences.MODE_EVERY_DIARY, decoded.lock!!.lockMode)
+        assertEquals(true, decoded.calendar!!.syncToSystemCalendar)
+    }
+
+    @Test
+    fun v4_export_writesGroups_notFlatFields() {
+        val encoded = json.encodeToString(BackupData())
+        assertTrue(encoded.contains("\"theme\""))
+        assertTrue(encoded.contains("\"focus\""))
+        assertTrue(encoded.contains("\"lock\""))
+        assertTrue(encoded.contains("\"calendar\""))
+        assertTrue(encoded.contains("\"version\": 4"))
+    }
+
+    @Test
+    fun v3_backup_keepsLegacyFlatFields_nullGroups() {
+        // v3 包：只有扁平主题字段，focus/lock/calendar 分组为 null → 导入时不覆盖本机对应偏好
+        val v3 = """{"version":3,"timestamp":1,"diaryEntries":[],"habits":[],"habitRecords":[],"countdownEvents":[],"todos":[],"focusTasks":[],"focusSessions":[],"preferences":{"darkMode":true,"diaryBackgroundPath":"backgrounds/diary_background.jpg","dynamicColor":false,"editorPreview":true},"imageFiles":[]}"""
+        val decoded = lenientJson.decodeFromString<BackupData>(v3)
+        assertEquals(3, decoded.version)
+        assertEquals(true, decoded.preferences.darkMode)
+        assertEquals("backgrounds/diary_background.jpg", decoded.preferences.diaryBackgroundPath)
+        assertNull(decoded.preferences.theme)
+        assertNull(decoded.preferences.focus)
+        assertNull(decoded.preferences.lock)
+        assertNull(decoded.preferences.calendar)
+    }
+
+    @Test
+    fun v4_backup_hasGroupsAndNoFlatFields() {
+        val encoded = json.encodeToString(PreferencesData(theme = ThemePrefs(darkMode = true)))
+        val decoded = json.decodeFromString<PreferencesData>(encoded)
+        assertNull(decoded.darkMode)
+        assertNull(decoded.focus)
+        assertNull(decoded.lock)
+        assertNull(decoded.calendar)
+        assertEquals(true, decoded.theme!!.darkMode)
     }
 
     @Test
