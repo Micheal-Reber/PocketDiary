@@ -1,6 +1,6 @@
 # AGENTS.md — PocketDiary 开发指引
 
-**Updated:** 2026-10-17 · **Version:** 1.15.0 (code 24) · **Branch:** main
+**Updated:** 2026-10-20 · **Version:** 1.16.0 (code 25) · **Branch:** main
 
 本文件供 AI 编码代理（及新成员）快速了解本项目的构建方式、架构约定与历史坑点。
 
@@ -13,7 +13,7 @@
 - **数据库**: Room v16（v9→11 / v10→11 / v11→12→13→14→15 / v15→16 有手写迁移；v8 及更早仍破坏性回退会清数据）
 - **偏好**: DataStore Preferences（`ThemePreferences`：暗色 / 壁纸取色 / 日记背景 / 编辑器预览 / **floatingBar 底栏模式**；`LanguagePreferences` 语言；`AppLockPreferences` 密码锁）
 - **SDK**: minSdk 26 / target 35 / compile 36 / JDK 17
-- **当前版本**: 1.15.0 (code 24)
+- **当前版本**: 1.16.0 (code 25)
 - **工具链**: AGP 8.13.2 / Gradle 8.14.3 / KSP 2.3.12 / Room 2.8.5（schema 走 Room Gradle 插件 `room { schemaDirectory }`）
 
 ## 构建与安装
@@ -97,7 +97,7 @@ app/src/main/java/com/example/diary/
 | 日记编辑/保存/改期 | `ui/editor/DiaryEditorScreen.kt` + `DiaryRepository.saveEntry` | 改日期=搬移语义 |
 | Markdown 渲染/预览 | `ui/editor/MarkdownText.kt` | commonmark 解析 + 自研子集渲染 |
 | 全文搜索 | `DiaryDao.searchEntries` + `ui/diary/DiaryListScreen.kt` | **250ms 防抖**后再查（勿改成每次按键直查） |
-| 数据迁移导出/导入 | `data/backup/BackupRepository` + `SettingsScreen` | 版本闸门 `1..CURRENT_VERSION`（v3 含 focus 双表，导入先 tasks 后 sessions）；zip-slip/CRC/条目上限；导入=全量覆盖+事务 |
+| 数据迁移导出/导入 | `data/backup/BackupRepository` + `ui/settings/BackupSettingsScreen` | 版本闸门 `1..CURRENT_VERSION`（v4：偏好拆 theme/focus/lock/calendar 四个**可空分组**，某组为 null 即旧包、导入不动该组；v3 含 focus 双表，导入先 tasks 后 sessions）；zip-slip/CRC/条目上限；导入=全量覆盖+事务 |
 | 日记背景相对路径 | `BackgroundImageStore.normalizeStoredPath/RELATIVE_PATH` | 备份与导入必须归一，绝对路径换机悬空 |
 | 统计图表 | `ui/habits/LineChart.kt` + `StatisticsSection.kt` | 数值标签预计算（remember） |
 | 打卡日历 | `ui/habits/CalendarComponents.kt` + `HabitsViewModel.kt` | 多习惯彩点、月份分割（**打卡与专注互不相关，勿把专注数据塞进来**） |
@@ -198,6 +198,7 @@ app/src/main/java/com/example/diary/
 - **显示哪一条由 `CountdownWidgetState` 决定（按 appWidgetId 存 SharedPreferences `countdown_widget_state`，key `eid_<id>`，0=未选）**：`CountdownWidgetModel.resolveEvent(events, today, selectedId)` 优先返回选中项、否则回退 `featuredEvent`（置顶优先、组内取离今天最近）。选中的事件被删时**自动回退自动模式**，不要报错。`onDeleted` 清 key、`onRestored` 迁移 oldId→newId，否则 prefs 泄漏
 - **点击进「选择要显示的倒数日」页，不是进详情**：`openPickerIntent` 带 `open_countdown_pick` + `appwidget_id`，requestCode=widgetId（多实例各自独立）→ `MainActivity` → 路由 `countdown_widget_pick?widgetId={id}` → `CountdownWidgetPickScreen`（首项「自动」+ 全部倒数日，点=选中不进详情）；**选中后写盘 + `updateAll` + `finish()` 直接回桌面**（用户明确要求）。看详情仍走倒数日列表点卡片。注意这只改 `setOnClickPendingIntent`（一个 action），**不碰布局结构 → 不需要换布局名**，MIUI 照常 apply
 - **布局里只许用带 `@RemoteView` 注解的类（踩过，就是「载入窗口小部件时出现问题」的根因）**：`AppWidgetHostView` 用 `INFLATER_FILTER = clazz.isAnnotationPresent(RemoteViews.RemoteView.class)` 强制白名单——允许 `FrameLayout`/`LinearLayout`/`RelativeLayout`/`GridLayout`/`ListView`/`GridView`/`StackView`/`ViewFlipper`/`AdapterViewFlipper` + `TextView`/`Button`/`ImageView`/`ImageButton`/`ProgressBar`/`Chronometer`/`AnalogClock`/`TextClock`（API31+ 再加 `CheckBox`/`RadioButton`/`RadioGroup`/`Switch`），且**明确声明不支持其子类**。**`Space`、裸 `View`、任何自定义 View 都不在白名单里**——加一个 `<Space>` 就让整个小组件塌成 error 占位框。留白一律用**无子节点的 `LinearLayout` + `layout_weight`**（或空 `TextView`）。此坑极难查：异常发生在 `com.miui.home` 且被吞，本包 logcat **全程零异常**、`updateAppWidget` 也照发，只能靠 uiautomator dump 看 UI 验收
+- **`android:previewImage` 必须是位图（`drawable-nodpi/*.png`），不要用 shape/layer-list**：launcher 按小部件 minSize（约 110dp）渲染预览，layer-list 里按 220dp 摆放的 inset 会直接超出高度、内层全被裁掉只剩底层色块（踩过：选择页显示成一块纯蓝方块）；预览图按实际布局样式生成（黑卡 28dp 圆角 + 大数字/单位/日期，字号与 `#99/#B3/#80` 白的色值、top-start 对齐都对齐 `countdown_widget_v5.xml`），**改布局样式后记得同步重生成**。`previewLayout`（API31+）不可用：widget 布局禁止 `@string`、文字全靠代码写，live 预览只会是空的
 - **布局文件名带版本后缀（现为 `countdown_widget_v5.xml`）、不要改回无后缀的 `countdown_widget.xml`**：MIUI 对 `RemoteViews(context, layoutId)` 在 layoutId 不变时**只 apply action、不重新 inflate**，改完结构必须换一个**从未用过的新名**（3 处：两个 info xml 的 `initialLayout` + Provider 的 `R.layout`）才能强制重建；改回旧名可能命中它仍持有的旧 layoutId 缓存（见坑点 23）
 - **widget 布局里禁止出现任何 `@string`**：`android:text="@string/…"` / `contentDescription="@string/…"` 会让桌面 inflate 时抛 `Resources$NotFoundException`（报错文案是「载入窗口小部件时出现问题」，异常在 `com.miui.home` 进程里，本包 logcat 看不到）。文字一律 `tools:text` 占位 + 代码 `setTextViewText`/`setContentDescription`；`@drawable`/`@color`/`@layout` 可正常使用
 - **语言/暗色必须自取**：widget 进程 context 由桌面提供，`Locale.getDefault()`/`uiMode` 不可靠——用 `LocaleHelper.wrap(context)` 与 `ThemePreferences.isDarkMode`，再 `setTextViewText` 传字符串
@@ -229,7 +230,7 @@ app/src/main/java/com/example/diary/
 14. **Todo 提醒**：`POST_NOTIFICATIONS` (33+) 需运行时申请、`SCHEDULE_EXACT_ALARM` 在 S+ 需 `canScheduleExactAlarms()` 检测否则降级 `setAndAllowWhileIdle` 并 SnackBar 深链；14+ 闹钟模式需 `canUseFullScreenIntent()` 检测否则降级为响一次通知（`ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT` 深链）；`BOOT_COMPLETED`/`MY_PACKAGE_REPLACED`/`TIME_SET`/`TIMEZONE_CHANGED` 重排 + 补发错过的非重复通知（错过只补普通通知，不补响铃）；过期非重复不排；**闹钟调度只走 `TodoRepository.save/delete`**，UI 勿再直接调 Scheduler
 15. **Room 版本号同步**：每次 schema 变更必须同时更新 `AppDatabase.version` 和 `build.gradle.kts` 的 `versionCode`，两者保持同步（v9=1.8, v11=1.8.2/code 10, v14=1.9.0/code 13, v15=1.13.0/code 21, v16=1.14.0/code 23）；升级路径写 `addMigrations`，勿只靠破坏性回退；schema JSON 在 `app/schemas/…/16.json` **必须入库**
 16. **Robolectric**：4.11 最高官方 SDK 34，而 targetSdk=35——用 Robolectric 的测试类必须 `@Config(sdk = [34])`，否则 `Package targetSdkVersion=35 > maxSdkVersion=34` 初始化失败
-17. **备份安全**：导入必须先过版本闸门（`version < 1 || > CURRENT_VERSION` → Failure；`CURRENT_VERSION = 3` 含 focus 双表，`ignoreUnknownKeys` 让 v2/v1 包仍可导入）；ZIP 解压防滑移（禁 `..`）；STORED 需 CRC 校验；日记背景路径入库前 `normalizeStoredPath`
+17. **备份安全**：导入必须先过版本闸门（`version < 1 || > CURRENT_VERSION` → Failure；`CURRENT_VERSION = 4`，`ignoreUnknownKeys` 让旧包仍可导入）；ZIP 解压防滑移（禁 `..`）；STORED 需 CRC 校验；日记背景/自定义白噪音音频路径入库前必须归一（`normalizeStoredPath` / 重写成新机 `filesDir` 绝对路径），换机不悬空；**偏好只覆盖备份里有的分组**（v1..v3 扁平字段只还原主题四项，focus/lock/calendar 为 null 不动本机），v3 包导入还要跳过 `focus_audio` 目录交换以免误删本机音频；PIN 哈希/盐与语言按约定不备份
 18. **Kotlin DSL 签名配置**：`build.gradle.kts` 里用 `java.util.Properties` 必须文件头 `import java.util.Properties`（脚本内 `java.util` 会 Unresolved）
 19. **widget 崩溃看不到日志（踩过）**：桌面 inflate 我们布局的异常发生在 **`com.miui.home` 进程**，本包 logcat 一片干净，别据此判断"没问题"。看 `adb logcat -s LauncherWidgetLayoutFactory:V Launcher.Widget:V`；两个决定性信号：**① 有没有 `InflateException`/`Resources$NotFoundException`；② `LauncherWidgetLayoutFactory` 逐节点打印的 `app:id/xxx` 是否覆盖全部子 View**（只打出容器、没有子节点 = 嵌套层被截断）
 20. **`adb shell am broadcast` 可能被 MIUI 拦（踩过）**：`W/BroadcastQueue: Greezer Denial: ... need cached broadcast`——目标进程处于 cached 状态时 MIUI 直接丢弃来自 shell(uid 2000) 的广播，**本包进程压根没起来**，于是"广播后 logcat 无异常"是假象。验证 widget 前必须先 `am start -n com.example.diary/.MainActivity` 预热进程再发广播；代码内 `updateAll` 是 App 自己在前台 `sendBroadcast`，不受影响
