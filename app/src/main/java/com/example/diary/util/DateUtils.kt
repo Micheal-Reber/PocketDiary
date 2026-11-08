@@ -19,6 +19,8 @@ object DateUtils {
 
     fun formatDate(date: java.time.LocalDate): String = date.format(dateFmt)
 
+    fun formatShortDateTime(at: Long): String = reminderFmt.format(java.util.Date(at))
+
     fun formatTime(time: java.time.LocalTime): String = time.format(timeFmt)
 
     fun formatReminderAt(context: Context, reminderAt: Long?, repeatRule: Int): String? {

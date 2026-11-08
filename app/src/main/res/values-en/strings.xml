@@ -124,6 +124,11 @@
     <string name="editor_discard_message">You have unsaved changes. Discard and exit?</string>
     <string name="editor_discard_confirm">Discard</string>
     <string name="editor_discard_dismiss">Keep editing</string>
+    <string name="editor_draft_title">Unsaved draft found</string>
+    <string name="editor_draft_message_time">Last edited at %1$s. Restore and continue?</string>
+    <string name="editor_draft_message">An unsaved draft was found. Restore and continue?</string>
+    <string name="editor_draft_restore">Restore</string>
+    <string name="editor_draft_discard">Discard</string>
     <string name="mood_happy">Happy</string>
     <string name="mood_okay">Okay</string>
     <string name="mood_sad">Sad</string>

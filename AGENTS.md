@@ -1,6 +1,6 @@
 # AGENTS.md — PocketDiary 开发指引
 
-**Updated:** 2026-10-20 · **Version:** 1.16.0 (code 25) · **Branch:** main
+**Updated:** 2026-11-08 · **Version:** 1.16.1 (code 26) · **Branch:** main
 
 本文件供 AI 编码代理（及新成员）快速了解本项目的构建方式、架构约定与历史坑点。
 
@@ -13,7 +13,7 @@
 - **数据库**: Room v16（v9→11 / v10→11 / v11→12→13→14→15 / v15→16 有手写迁移；v8 及更早仍破坏性回退会清数据）
 - **偏好**: DataStore Preferences（`ThemePreferences`：暗色 / 壁纸取色 / 日记背景 / 编辑器预览 / **floatingBar 底栏模式**；`LanguagePreferences` 语言；`AppLockPreferences` 密码锁）
 - **SDK**: minSdk 26 / target 35 / compile 36 / JDK 17
-- **当前版本**: 1.16.0 (code 25)
+- **当前版本**: 1.16.1 (code 26)
 - **工具链**: AGP 8.13.2 / Gradle 8.14.3 / KSP 2.3.12 / Room 2.8.5（schema 走 Room Gradle 插件 `room { schemaDirectory }`）
 
 ## 构建与安装
@@ -47,7 +47,7 @@ $env:GRADLE_USER_HOME = "E:\dev\.gradle"
 4. `git commit`（中文一行、分号分隔）→ `git push origin main`
 5. **发布/替换安装包须用户确认**：`gh release upload v<版本> app\build\outputs\apk\release\app-release.apk --clobber --repo Micheal-Reber/PocketDiary`（`--clobber` 用于替换同一 Release 的旧包）；`gh release view <tag> --json assets` 核对 digest
 
-- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `Migration15To16Test`(Robolectric) / `BlurCacheTest` / `CountdownWidgetModelTest` / `CountdownReminderTest` / `MarkdownEditingTest` / `MarkdownPlainTextTest` / `MarkdownExtParseTest` / `FocusTimerTest` / `FocusStatsTest` / `WhiteNoiseTest` / `FocusGuardTest`
+- 单测清单：`DateMathTest` / `TodoReminderSchedulerTest` / `BackupSerializationTest` / `BackupVersionGateTest` / `TodoRepositoryTest`(Robolectric) / `Migration15To16Test`(Robolectric) / `BlurCacheTest` / `CountdownWidgetModelTest` / `CountdownReminderTest` / `MarkdownEditingTest` / `MarkdownPlainTextTest` / `MarkdownExtParseTest` / `FocusTimerTest` / `FocusStatsTest` / `WhiteNoiseTest` / `FocusGuardTest` / `DiaryDraftTest` / `DiaryDraftStoreTest`(Robolectric) / `DiaryPhotoStoreTest`(Robolectric)
 
 ## 架构
 
@@ -65,6 +65,7 @@ app/src/main/java/com/example/diary/
 │   ├── local/              # Room: DiaryEntry / Habit / HabitRecord / CountdownEvent / TodoItem / FocusTask / FocusSession（version 16）
 │   ├── location/           # LocationManager 封装（无 GMS）
 │   ├── photo/              # DiaryPhotoStore：日记图文混排两阶段生命周期
+│   ├── draft/              # DiaryDraftStore：编辑器自动保存草稿（filesDir/diary_drafts）
 │   ├── preferences/        # DataStore 四个文件：ThemePreferences（暗色/壁纸取色/编辑器预览/floatingBar）+ LanguagePreferences（语言）+ AppLockPreferences（密码锁）+ FocusPreferences（学习模式开关/番茄钟段长）
 │   ├── repository/         # 薄仓库层（SaveResult 密封类处理日期冲突）
 │   └── todo/               # TodoReminderScheduler(AlarmManager/setAlarmClock) + TodoNotificationHelper + TodoAlarmNotifier(全屏响铃)
@@ -95,6 +96,7 @@ app/src/main/java/com/example/diary/
 | 玻璃卡片/胶囊/悬浮按钮 | `GlassSurface.kt` 的 `GlassCapsule`/`GlassFab` | backdrop 1.0.6：`drawBackdrop(highlight/shadow/innerShadow)` + `blur` + `lens` |
 | 内容底部避让 | `LocalBottomBarInset`（`GlassSurface.kt` 提供，`AppNavigation` 注入） | 全屏/经典内容用 `BottomBarContentInset` 垫底，否则最后一行被底栏遮挡 |
 | 日记编辑/保存/改期 | `ui/editor/DiaryEditorScreen.kt` + `DiaryRepository.saveEntry` | 改日期=搬移语义 |
+| 日记草稿自动保存 | `data/draft/DiaryDraftStore.kt` + `ui/editor/DiaryEditorScreen.kt` | 500ms 防抖 + ON_STOP 兜底；恢复弹窗；一天一份 JSON；`bakeTmp` 只搬正文引用图，`cleanOrphanTmp` 保留草稿图 |
 | Markdown 渲染/预览 | `ui/editor/MarkdownText.kt` | commonmark 解析 + 自研子集渲染 |
 | 全文搜索 | `DiaryDao.searchEntries` + `ui/diary/DiaryListScreen.kt` | **250ms 防抖**后再查（勿改成每次按键直查） |
 | 数据迁移导出/导入 | `data/backup/BackupRepository` + `ui/settings/BackupSettingsScreen` | 版本闸门 `1..CURRENT_VERSION`（v4：偏好拆 theme/focus/lock/calendar 四个**可空分组**，某组为 null 即旧包、导入不动该组；v3 含 focus 双表，导入先 tasks 后 sessions）；zip-slip/CRC/条目上限；导入=全量覆盖+事务 |

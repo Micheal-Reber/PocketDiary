@@ -9,6 +9,9 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -48,6 +51,8 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.example.diary.R
+import com.example.diary.data.draft.DiaryDraft
+import com.example.diary.data.draft.DiaryDraftStore
 import com.example.diary.data.local.DiaryEntry
 import com.example.diary.data.location.LocationProvider
 import com.example.diary.data.photo.DiaryPhotoStore
@@ -59,8 +64,10 @@ import com.example.diary.ui.components.ConfirmDialog
 import com.example.diary.ui.components.PresetChipRow
 import com.example.diary.ui.components.UtcDatePickerDialog
 import com.example.diary.ui.theme.Spacing
+import com.example.diary.util.DateUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -149,6 +156,12 @@ fun DiaryEditorScreen(
     // revert the shown date when a move collides with an existing entry.
     var loadedForDate by rememberSaveable { mutableStateOf<String?>(null) }
     var showDiscardChangesDialog by rememberSaveable { mutableStateOf(false) }
+    // 自动保存草稿：待恢复的草稿日期/时间。rememberSaveable 保证旋转后
+    // 弹窗还在（正文仍从磁盘重新读取，不把大段文字塞进 saved state）。
+    var pendingDraftDate by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingDraftAt by rememberSaveable { mutableStateOf<Long?>(null) }
+    // 保存/删除/放弃开始后置 true，防抖协程不得再把草稿写回来。
+    var closing by remember { mutableStateOf(false) }
 
     // Tracks the in-flight location request: tap the location button once to
     // start, tap again while the spinner shows to cancel.
@@ -221,24 +234,44 @@ fun DiaryEditorScreen(
         if (loadedForDate != null) return@LaunchedEffect
         isLoaded = false
         val entry = diaryRepository.getEntryByDate(dateStr)
-        if (entry != null) {
-            body = TextFieldValue(entry.content, TextRange(entry.content.length))
-            existingId = entry.id
-            mood = entry.mood
-            lat = entry.latitude
-            lon = entry.longitude
-            locationName = entry.locationName
-            weather = entry.weather
+        val draft = DiaryDraftStore.load(context, dateStr)
+        val loadedContent = entry?.content ?: ""
+
+        body = TextFieldValue(loadedContent, TextRange(loadedContent.length))
+        existingId = entry?.id
+        mood = entry?.mood
+        lat = entry?.latitude
+        lon = entry?.longitude
+        locationName = entry?.locationName
+        weather = entry?.weather
+
+        // 用刚读出的值，不能用加载前捕获的 content（否则打开已有日记会被误判为脏）
+        loadedSnapshot = Snapshot(
+            dateStr, loadedContent, entry?.mood, entry?.latitude,
+            entry?.longitude, entry?.locationName, entry?.weather
+        )
+
+        val entryPhotos = DiaryPhotoStore.photoNamesIn(loadedContent).toSet()
+        if (draft == null) {
+            DiaryPhotoStore.cleanOrphanTmp(
+                context,
+                DiaryDraftStore.referencedPhotoNames(context) + entryPhotos
+            )
+        } else if (draft.matches(
+                dateStr, loadedContent, entry?.mood, entry?.latitude,
+                entry?.longitude, entry?.locationName, entry?.weather, entry?.id
+            )
+        ) {
+            DiaryDraftStore.delete(context, dateStr)
+            DiaryPhotoStore.cleanOrphanTmp(
+                context,
+                DiaryDraftStore.referencedPhotoNames(context) + entryPhotos
+            )
         } else {
-            body = TextFieldValue()
-            existingId = null
-            mood = null
-            lat = null
-            lon = null
-            locationName = null
-            weather = null
+            pendingDraftDate = dateStr
+            pendingDraftAt = draft.savedAt
         }
-        loadedSnapshot = Snapshot(dateStr, content, mood, lat, lon, locationName, weather)
+
         loadedForDate = dateStr
         isLoaded = true
     }
@@ -247,6 +280,62 @@ fun DiaryEditorScreen(
     // snapshot. Date counts too: re-dating without saving IS an unsaved change,
     // so backing out still prompts instead of silently dropping the move.
     val isDirty = isLoaded && !loadedSnapshot.matches(dateStr, content, mood, lat, lon, locationName, weather)
+
+    // 自动保存草稿：停止输入 500ms 后写盘；ON_STOP 再兜底一次（见下方 observer）。
+    // 恢复弹窗未决、保存/删除/放弃进行中时一律不写，避免覆盖或复活草稿。
+    LaunchedEffect(
+        dateStr, content, mood, lat, lon, locationName, weather,
+        isLoaded, pendingDraftDate, closing
+    ) {
+        if (!isLoaded || pendingDraftDate != null || closing) return@LaunchedEffect
+        if (!isDirty) {
+            DiaryDraftStore.delete(context, dateStr)
+            return@LaunchedEffect
+        }
+        delay(500)
+        DiaryDraftStore.save(
+            context,
+            DiaryDraft(
+                date = dateStr,
+                originDate = loadedForDate ?: dateStr,
+                content = content,
+                mood = mood,
+                latitude = lat,
+                longitude = lon,
+                locationName = locationName,
+                weather = weather,
+                existingId = existingId
+            )
+        )
+    }
+
+    val latestDraft by rememberUpdatedState(
+        if (isLoaded && isDirty && pendingDraftDate == null && !closing) {
+            DiaryDraft(
+                date = dateStr,
+                originDate = loadedForDate ?: dateStr,
+                content = content,
+                mood = mood,
+                latitude = lat,
+                longitude = lon,
+                locationName = locationName,
+                weather = weather,
+                existingId = existingId
+            )
+        } else {
+            null
+        }
+    )
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                latestDraft?.let { DiaryDraftStore.saveAsync(context, it) }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Location fetch — GPS only (weather is manual via preset chips).
     // GPS fix + reverse geocoding are blocking I/O (Geocoder does a network
@@ -295,7 +384,7 @@ fun DiaryEditorScreen(
     }
 
     // Hardware back with unsaved changes → prompt before discarding.
-    BackHandler(enabled = isDirty) {
+    BackHandler(enabled = isDirty && pendingDraftDate == null && !closing) {
         showDiscardChangesDialog = true
     }
 
@@ -354,50 +443,59 @@ fun DiaryEditorScreen(
     // Save → move/insert per repository semantics. On date conflict keep every
     // edit, roll the shown date back to the row's real date, and tell the user.
     val saveEntryAction: () -> Unit = {
-        scope.launch {
-            val entry = DiaryEntry(
-                id = existingId ?: 0,
-                content = content.trim(),
-                date = dateStr,
-                mood = mood,
-                latitude = lat,
-                longitude = lon,
-                locationName = locationName,
-                weather = weather
-            )
-            try {
-                when (val result = diaryRepository.saveEntry(entry)) {
-                    is SaveResult.Success -> {
-                        existingId = result.id
-                        // Two-phase photo lifecycle (MyDiary-style): migrate
-                        // tmp picks into the entry's own folder now that the
-                        // row id exists. Markers reference names only, so the
-                        // move never breaks them.
-                        DiaryPhotoStore.bakeTmp(context, result.id)
-                        loadedForDate = dateStr
-                        // Sync snapshot (raw values, not trimmed) so isDirty
-                        // stays consistent with save-time trim.
-                        loadedSnapshot = Snapshot(
-                            dateStr, content, mood, lat, lon,
-                            locationName, weather
-                        )
-                        onBack()
-                    }
-                    SaveResult.DateConflict -> {
-                        dateStr = loadedForDate ?: dateStr
-                        snackbarHostState.showSnackbar(
-                            message = context.getString(R.string.editor_date_conflict),
-                            duration = SnackbarDuration.Long
-                        )
-                    }
-                }
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                snackbarHostState.showSnackbar(
-                    message = context.getString(R.string.editor_save_failed),
-                    duration = SnackbarDuration.Long
+        if (!closing) {
+            closing = true
+            scope.launch {
+                val entry = DiaryEntry(
+                    id = existingId ?: 0,
+                    content = content.trim(),
+                    date = dateStr,
+                    mood = mood,
+                    latitude = lat,
+                    longitude = lon,
+                    locationName = locationName,
+                    weather = weather
                 )
+                try {
+                    when (val result = diaryRepository.saveEntry(entry)) {
+                        is SaveResult.Success -> {
+                            existingId = result.id
+                            // Two-phase photo lifecycle: only the photos THIS
+                            // entry references leave tmp; other drafts' picks
+                            // stay where they are.
+                            DiaryPhotoStore.bakeTmp(context, result.id, photoNames)
+                            DiaryDraftStore.deleteSession(context, dateStr, loadedForDate)
+                            DiaryPhotoStore.cleanOrphanTmp(
+                                context,
+                                DiaryDraftStore.referencedPhotoNames(context) + photoNames.toSet()
+                            )
+                            loadedForDate = dateStr
+                            // Sync snapshot (raw values, not trimmed) so isDirty
+                            // stays consistent with save-time trim.
+                            loadedSnapshot = Snapshot(
+                                dateStr, content, mood, lat, lon,
+                                locationName, weather
+                            )
+                            onBack()
+                        }
+                        SaveResult.DateConflict -> {
+                            dateStr = loadedForDate ?: dateStr
+                            closing = false
+                            snackbarHostState.showSnackbar(
+                                message = context.getString(R.string.editor_date_conflict),
+                                duration = SnackbarDuration.Long
+                            )
+                        }
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    closing = false
+                    snackbarHostState.showSnackbar(
+                        message = context.getString(R.string.editor_save_failed),
+                        duration = SnackbarDuration.Long
+                    )
+                }
             }
         }
     }
@@ -430,10 +528,12 @@ fun DiaryEditorScreen(
                 title = { Text(stringResource(R.string.editor_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = {
-                        if (isDirty) {
-                            showDiscardChangesDialog = true
-                        } else {
-                            onBack()
+                        if (!closing) {
+                            if (isDirty) {
+                                showDiscardChangesDialog = true
+                            } else {
+                                onBack()
+                            }
                         }
                     }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.editor_back))
@@ -451,7 +551,7 @@ fun DiaryEditorScreen(
                         )
                     }
                     if (existingId != null) {
-                        IconButton(onClick = { showDeleteDialog = true }) {
+                        IconButton(onClick = { showDeleteDialog = true }, enabled = !closing) {
                             Icon(Icons.Outlined.Delete, stringResource(R.string.editor_delete_entry), tint = MaterialTheme.colorScheme.error)
                         }
                     }
@@ -549,7 +649,7 @@ fun DiaryEditorScreen(
                         )
                     }
                 }
-                FilledIconButton(onClick = saveEntryAction) {
+                FilledIconButton(onClick = saveEntryAction, enabled = !closing) {
                     Icon(
                         Icons.Default.Save,
                         contentDescription = stringResource(R.string.editor_save),
@@ -757,12 +857,18 @@ fun DiaryEditorScreen(
             message = stringResource(R.string.editor_delete_message),
             onConfirm = {
                 showDeleteDialog = false
+                closing = true
                 scope.launch {
                     existingId?.let { id ->
                         diaryRepository.deleteEntry(id)
                         // Cascade: the entry's photo folder goes with it.
                         DiaryPhotoStore.deleteEntryDir(context, id)
                     }
+                    DiaryDraftStore.deleteSession(context, dateStr, loadedForDate)
+                    DiaryPhotoStore.cleanOrphanTmp(
+                        context,
+                        DiaryDraftStore.referencedPhotoNames(context)
+                    )
                     onBack()
                 }
             },
@@ -778,11 +884,70 @@ fun DiaryEditorScreen(
             dismissText = stringResource(R.string.editor_discard_dismiss),
             onConfirm = {
                 showDiscardChangesDialog = false
-                // Unsaved exit: tmp photo picks are orphans — wipe them.
-                scope.launch { DiaryPhotoStore.clearTmp(context) }
-                onBack()
+                closing = true
+                scope.launch {
+                    DiaryDraftStore.deleteSession(context, dateStr, loadedForDate)
+                    // 只清本次会话不再被引用的 tmp 图片；已保存条目的图片保留。
+                    DiaryPhotoStore.cleanOrphanTmp(
+                        context,
+                        DiaryDraftStore.referencedPhotoNames(context) +
+                            DiaryPhotoStore.photoNamesIn(loadedSnapshot.content).toSet()
+                    )
+                    onBack()
+                }
             },
             onDismiss = { showDiscardChangesDialog = false }
+        )
+    }
+
+    pendingDraftDate?.let { draftDate ->
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text(stringResource(R.string.editor_draft_title)) },
+            text = {
+                Text(
+                    pendingDraftAt?.let {
+                        stringResource(
+                            R.string.editor_draft_message_time,
+                            DateUtils.formatShortDateTime(it)
+                        )
+                    } ?: stringResource(R.string.editor_draft_message)
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        val draft = DiaryDraftStore.load(context, draftDate)
+                        if (draft != null) {
+                            body = TextFieldValue(draft.content, TextRange(draft.content.length))
+                            mood = draft.mood
+                            lat = draft.latitude
+                            lon = draft.longitude
+                            locationName = draft.locationName
+                            weather = draft.weather
+                            existingId = draft.existingId ?: existingId
+                            loadedForDate = draft.originDate ?: loadedForDate ?: draftDate
+                        }
+                        // 先读完/回填再关弹窗：关得太早，自动保存会把草稿删掉。
+                        pendingDraftDate = null
+                        pendingDraftAt = null
+                    }
+                }) { Text(stringResource(R.string.editor_draft_restore)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        DiaryDraftStore.deleteSession(context, draftDate, loadedForDate)
+                        DiaryPhotoStore.cleanOrphanTmp(
+                            context,
+                            DiaryDraftStore.referencedPhotoNames(context) +
+                                DiaryPhotoStore.photoNamesIn(loadedSnapshot.content).toSet()
+                        )
+                        pendingDraftDate = null
+                        pendingDraftAt = null
+                    }
+                }) { Text(stringResource(R.string.editor_draft_discard)) }
+            }
         )
     }
 }

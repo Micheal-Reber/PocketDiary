@@ -17,8 +17,9 @@ import java.io.FileOutputStream
  *                                         content reference the FILE NAME only)
  *   保存 → tmp/ migrates into diary_photos/<entryId>/  (baked location)
  *
- * Name-based markers survive the migration untouched. Crashes during editing
- * only ever leave files in tmp/, which are wiped on the next editor exit.
+ * Name-based markers survive the migration untouched. While editing, tmp/
+ * files belong to the autosaved drafts that reference them; only unreferenced
+ * orphans are removed (see DiaryDraftStore).
  */
 object DiaryPhotoStore {
 
@@ -106,14 +107,30 @@ object DiaryPhotoStore {
     }
 
     /**
-     * Migrate every tmp photo into the entry's own folder. Called on save —
-     * markers reference file names only, so the move never breaks them.
+     * Migrate the tmp photos referenced by THIS entry into its own folder.
+     * Only the listed names move — other drafts' pending picks stay in tmp/.
+     * Markers reference file names only, so the move never breaks them.
      */
-    suspend fun bakeTmp(context: Context, entryId: Long) = withContext(Dispatchers.IO) {
-        tmpDir(context).listFiles()?.forEach { f ->
-            runCatching { f.renameTo(File(entryDir(context, entryId), f.name)) }
+    suspend fun bakeTmp(context: Context, entryId: Long, names: Collection<String>) =
+        withContext(Dispatchers.IO) {
+            val tmp = tmpDir(context)
+            val dest = entryDir(context, entryId)
+            names.distinct().forEach { name ->
+                val src = File(tmp, name)
+                if (!src.exists()) return@forEach
+                val target = File(dest, name)
+                val moved = runCatching {
+                    if (target.exists()) target.delete()
+                    src.renameTo(target)
+                }.getOrDefault(false)
+                if (!moved) {
+                    runCatching {
+                        src.copyTo(target, overwrite = true)
+                        src.delete()
+                    }
+                }
+            }
         }
-    }
 
     /** Delete a single photo file (baked location first, then tmp). */
     suspend fun deletePhoto(context: Context, entryId: Long?, fileName: String) =
@@ -122,11 +139,17 @@ object DiaryPhotoStore {
             Unit
         }
 
-    /** Remove every tmp photo — called when the editor exits without saving. */
-    suspend fun clearTmp(context: Context) = withContext(Dispatchers.IO) {
-        tmpDir(context).listFiles()?.forEach { it.delete() }
-        Unit
-    }
+    /**
+     * Remove tmp photos nobody references anymore. [keep] = photo names in
+     * every remaining draft plus the saved entry currently on screen.
+     */
+    suspend fun cleanOrphanTmp(context: Context, keep: Set<String>) =
+        withContext(Dispatchers.IO) {
+            tmpDir(context).listFiles()?.forEach { f ->
+                if (f.name !in keep) f.delete()
+            }
+            Unit
+        }
 
     /** Delete the whole entry folder — called when a diary is deleted. */
     suspend fun deleteEntryDir(context: Context, entryId: Long) = withContext(Dispatchers.IO) {

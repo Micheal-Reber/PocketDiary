@@ -124,6 +124,11 @@
     <string name="editor_discard_message">当前修改尚未保存,是否放弃并退出？</string>
     <string name="editor_discard_confirm">放弃</string>
     <string name="editor_discard_dismiss">继续编辑</string>
+    <string name="editor_draft_title">发现未保存的草稿</string>
+    <string name="editor_draft_message_time">上次编辑于 %1$s，是否恢复继续编辑？</string>
+    <string name="editor_draft_message">发现上次未保存的草稿，是否恢复继续编辑？</string>
+    <string name="editor_draft_restore">恢复</string>
+    <string name="editor_draft_discard">丢弃</string>
     <string name="mood_happy">开心</string>
     <string name="mood_okay">一般</string>
     <string name="mood_sad">难过</string>

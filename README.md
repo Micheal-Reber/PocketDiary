@@ -8,7 +8,7 @@
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.3.21-7F52FF?logo=kotlin&logoColor=white)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack_Compose-Material_3-4285F4?logo=jetpackcompose&logoColor=white)
 ![Room](https://img.shields.io/badge/Room-v16-3DDC84)
-![Version](https://img.shields.io/badge/version-1.16.0-blue)
+![Version](https://img.shields.io/badge/version-1.16.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 **English** | [简体中文](README.zh-CN.md)
